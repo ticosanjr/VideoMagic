@@ -2410,7 +2410,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
         """Run session ingest, multicam synchronization, or audio diagnosis."""
 
         if action == "diagnose":
-            from videoflow.application.audio_diagnosis import diagnose_audio
+            from videoflow.domains.audio.diagnose import diagnose_audio
 
             try:
                 record = get_project(project_id)
@@ -2476,7 +2476,7 @@ def register_core_tools(register: Any, ctx: Any) -> None:
             rate = media.audio_sample_rate if media is not None else 48000
             response["audio_offset_ms"] = round(offset_samples / max(1, rate) * 1000, 3)
             if media is not None:
-                from videoflow.application.audio_diagnosis import diagnose_audio
+                from videoflow.domains.audio.diagnose import diagnose_audio
 
                 try:
                     response["audio_diagnosis"] = diagnose_audio(

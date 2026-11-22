@@ -7,7 +7,9 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.audio_finalize import (
+from videoflow.core.context import PipelineContext
+from videoflow.domain.errors import ExportError
+from videoflow.domains.audio.finalize import (
     DEFAULT_MUSIC_GAIN,
     DEFAULT_SFX_GAIN,
     DEFAULT_TARGET_LUFS,
@@ -15,8 +17,6 @@ from videoflow.application.audio_finalize import (
     TARGET_LUFS,
     finalize_audio,
 )
-from videoflow.core.context import PipelineContext
-from videoflow.domain.errors import ExportError
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload, require_media
 from videoflow.steps.registry import register_step

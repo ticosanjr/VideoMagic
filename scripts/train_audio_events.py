@@ -16,15 +16,15 @@ from pathlib import Path
 
 import numpy as np
 
-from videoflow.application.audio_events import (
+from videoflow.application.non_speech import candidate_bursts, load_pcm_mono
+from videoflow.application.reference_edl import load_reference_edl
+from videoflow.domain.state import ProjectState
+from videoflow.domains.audio.events import (
     FEATURE_NAMES,
     save_model,
     span_features,
     train_model,
 )
-from videoflow.application.non_speech import candidate_bursts, load_pcm_mono
-from videoflow.application.reference_edl import load_reference_edl
-from videoflow.domain.state import ProjectState
 
 
 def _inside(moment: float, intervals: list[tuple[float, float]]) -> bool:

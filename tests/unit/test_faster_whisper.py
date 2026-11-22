@@ -7,8 +7,8 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.domain.errors import JobCancelledError, TranscriptionError
+from videoflow.domains.asr.engine import FasterWhisperAdapter
 
 
 def _wav(path: Path, rate: int = 16000) -> Path:
@@ -185,7 +185,7 @@ def test_cuda_load_failure_is_not_silently_downgraded(
 def test_available_requires_package_and_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import videoflow.adapters.faster_whisper as module
+    import videoflow.domains.asr.engine as module
 
     model = _model(tmp_path / "model")
     monkeypatch.setattr(module.importlib.util, "find_spec", lambda name: object())

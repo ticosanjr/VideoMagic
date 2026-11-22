@@ -162,8 +162,8 @@ def test_offline_provider_falls_back_to_the_next(monkeypatch: pytest.MonkeyPatch
 
 
 def test_missing_whisper_model_is_a_typed_error(tmp_path: Path) -> None:
-    from videoflow.adapters.whisper import WhisperCliAdapter
     from videoflow.domain.errors import VideoFlowError
+    from videoflow.domains.asr.legacy_whisper import WhisperCliAdapter
 
     adapter = WhisperCliAdapter(binary=tmp_path / "missing", model=tmp_path / "missing.bin")
     try:

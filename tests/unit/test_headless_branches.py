@@ -125,7 +125,7 @@ def test_web_render_helpers(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_audio_patch_errors(tmp_path: Path, monkeypatch) -> None:
-    from videoflow.application import audio_patch
+    from videoflow.domains.audio import patch as audio_patch
 
     master = tmp_path / "master.wav"
     patch = tmp_path / "line.wav"

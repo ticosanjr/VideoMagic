@@ -7,9 +7,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from videoflow.application.audio_synthesis import compose_music, synthesize_foley
 from videoflow.application.projects import get_project, load_project_state
 from videoflow.domain.errors import ExportError
+from videoflow.domains.audio.synth import compose_music, synthesize_foley
 from videoflow.runtime import find_binary
 
 

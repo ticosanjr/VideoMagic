@@ -13,10 +13,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.core.context import PipelineContext
 from videoflow.domain.state import Sentence, WordTiming
+from videoflow.domains.asr.engine import FasterWhisperAdapter
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.registry import register_step
 
@@ -202,8 +202,8 @@ def _remote_words(
     sample_rate: int,
     io: StepIO,
 ) -> tuple[list[tuple[str, int, int]], str, float, dict[str, Any]]:
-    from videoflow.application.asr_remote import RemoteAsrClient
     from videoflow.application.compute import router_from_settings
+    from videoflow.domains.asr.remote import RemoteAsrClient
 
     router = router_from_settings()
     from videoflow.application.compute import guard_remote_policy

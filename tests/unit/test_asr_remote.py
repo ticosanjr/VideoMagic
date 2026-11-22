@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from videoflow.application.asr_remote import RemoteAsrClient
 from videoflow.domain.errors import TranscriptionError
+from videoflow.domains.asr.remote import RemoteAsrClient
 from videoflow.steps.transcribe import TranscribeParams
 
 

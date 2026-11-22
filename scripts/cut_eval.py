@@ -22,7 +22,9 @@ from typing import Any
 
 import numpy as np
 
-from videoflow.application.audio_compare import (
+from videoflow.application.reference_edl import ReferenceEdl, load_reference_edl
+from videoflow.domain.state import ProjectState, Sentence, WordTiming
+from videoflow.domains.audio.compare import (
     compare_audio,
     interval_duration,
     interval_f1,
@@ -33,8 +35,6 @@ from videoflow.application.audio_compare import (
     silence_stats,
     spectral_correlation,
 )
-from videoflow.application.reference_edl import ReferenceEdl, load_reference_edl
-from videoflow.domain.state import ProjectState, Sentence, WordTiming
 
 SAMPLE_RATE = 16_000
 PROTECTED_STOPWORDS = {

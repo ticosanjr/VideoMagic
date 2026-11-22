@@ -21,8 +21,6 @@ import pytest
 
 from videoflow.adapters import ffmpeg as ffmpeg_module
 from videoflow.adapters import tts as tts_module
-from videoflow.adapters import whisper as whisper_module
-from videoflow.adapters.asr import WhisperHttpAdapter
 from videoflow.adapters.diarization import (
     PyannoteDiarizer,
     SpeakerTurn,
@@ -35,7 +33,6 @@ from videoflow.adapters.ffmpeg import (
     parse_silence,
 )
 from videoflow.adapters.tts import OpenAITtsAdapter, PiperTtsAdapter
-from videoflow.adapters.whisper import WhisperCliAdapter
 from videoflow.domain.errors import (
     CapabilityUnavailableError,
     IngestError,
@@ -44,6 +41,9 @@ from videoflow.domain.errors import (
     TtsError,
 )
 from videoflow.domain.state import Sentence
+from videoflow.domains.asr import legacy_whisper as whisper_module
+from videoflow.domains.asr.http import WhisperHttpAdapter
+from videoflow.domains.asr.legacy_whisper import WhisperCliAdapter
 
 # --------------------------------------------------------------------------- #
 # Shared fakes

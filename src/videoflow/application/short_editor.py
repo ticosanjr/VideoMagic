@@ -12,7 +12,6 @@ from typing import Any
 from pydantic import ValidationError
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.application.audio import audio_filters as audio_filter_list
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.images import images_dir
 from videoflow.application.music import music_dir
@@ -28,6 +27,7 @@ from videoflow.application.shorts import (
 from videoflow.domain.config import CaptionStyle
 from videoflow.domain.errors import ShortEditError, StateNotReadyError
 from videoflow.domain.state import ProjectState
+from videoflow.domains.audio.filters import audio_filters as audio_filter_list
 
 
 @dataclass(frozen=True, slots=True)

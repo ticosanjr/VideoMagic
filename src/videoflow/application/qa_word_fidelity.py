@@ -74,11 +74,11 @@ def verify_word_fidelity(
     placement = "local"
     if compute_policy != "local":
         try:
-            from videoflow.application.asr_remote import RemoteAsrClient
             from videoflow.application.compute import (
                 guard_remote_policy,
                 router_from_settings,
             )
+            from videoflow.domains.asr.remote import RemoteAsrClient
 
             router = router_from_settings()
             guard_remote_policy(
@@ -127,7 +127,7 @@ def verify_word_fidelity(
                     "placement": "local",
                 }
     if not heard:
-        from videoflow.adapters.faster_whisper import FasterWhisperAdapter
+        from videoflow.domains.asr.engine import FasterWhisperAdapter
 
         if not FasterWhisperAdapter.available(model_size=model_size):  # type: ignore[arg-type]
             return {

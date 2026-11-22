@@ -55,7 +55,7 @@ def cached_scene_changes(source: Path) -> list[float]:
 
 
 def cached_audio_energy(source: Path, sample_rate: int) -> list[tuple[int, int]]:
-    from videoflow.application.audio_analysis import detect_audio_energy
+    from videoflow.domains.audio.analysis import detect_audio_energy
 
     path = analysis_path(source)
     payload = _read(path)

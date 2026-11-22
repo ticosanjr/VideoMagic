@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from videoflow.application.asr_profiles import (
+from videoflow.application.settings import AppSettings
+from videoflow.domains.asr.profiles import (
     physical_threads,
     resolve_asr_plan,
 )
-from videoflow.application.settings import AppSettings
 
 
 def _settings(**speech) -> AppSettings:
@@ -147,7 +147,7 @@ def test_custom_profile_keeps_explicit_model_and_no_models_falls_back() -> None:
 
 
 def test_vulkan_availability_checks(tmp_path, monkeypatch) -> None:
-    from videoflow.application import asr_profiles
+    from videoflow.domains.asr import profiles as asr_profiles
 
     monkeypatch.setenv("VIDEOWFLOW_WHISPER_VULKAN", "0")
     assert asr_profiles._vulkan_available() is False

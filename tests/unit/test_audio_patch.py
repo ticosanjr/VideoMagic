@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from videoflow.application import audio_patch
+from videoflow.domains.audio import patch as audio_patch
 
 
 def test_patch_audio_builds_crossfaded_command(tmp_path: Path, monkeypatch) -> None:

@@ -7,9 +7,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.adapters.asr import WhisperHttpAdapter
-from videoflow.adapters.faster_whisper import FasterWhisperAdapter
-from videoflow.adapters.whisper import WhisperCliAdapter
 from videoflow.application.narration import copy_narration, synthesize_narration
 from videoflow.application.secrets import get_secret
 from videoflow.application.settings import load_settings
@@ -17,6 +14,9 @@ from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import TranscriptionError, TtsError
 from videoflow.domain.state import Sentence
 from videoflow.domain.transcript import parse_srt_file
+from videoflow.domains.asr.engine import FasterWhisperAdapter
+from videoflow.domains.asr.http import WhisperHttpAdapter
+from videoflow.domains.asr.legacy_whisper import WhisperCliAdapter
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
 from videoflow.steps.registry import register_step

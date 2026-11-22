@@ -10,10 +10,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.adapters.asr import WhisperHttpAdapter
-from videoflow.adapters.faster_whisper import FasterWhisperAdapter
-from videoflow.adapters.whisper import WhisperCliAdapter
-from videoflow.application.asr_profiles import resolve_asr_plan
 from videoflow.application.language import detect_text_language
 from videoflow.application.secrets import get_secret
 from videoflow.application.sync import onset_offset_ms, report_for, shift_sentences
@@ -21,6 +17,10 @@ from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError, TranscriptionError
 from videoflow.domain.state import Sentence
 from videoflow.domain.transcript import parse_srt_file
+from videoflow.domains.asr.engine import FasterWhisperAdapter
+from videoflow.domains.asr.http import WhisperHttpAdapter
+from videoflow.domains.asr.legacy_whisper import WhisperCliAdapter
+from videoflow.domains.asr.profiles import resolve_asr_plan
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.cache import cache_get, cache_key, cache_put
 from videoflow.steps.common import adapter_for, digest_payload, require_media
@@ -404,11 +404,11 @@ class TranscribeStep(BaseStep):
             and options.compute_policy != "local"
         ):
             try:
-                from videoflow.application.asr_remote import RemoteAsrClient
                 from videoflow.application.compute import (
                     guard_remote_policy,
                     router_from_settings,
                 )
+                from videoflow.domains.asr.remote import RemoteAsrClient
 
                 router = router_from_settings(settings)
                 guard_remote_policy(

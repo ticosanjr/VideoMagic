@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from videoflow.application.audio_finalize import finalize_audio
 from videoflow.application.compute import guard_remote_policy
 from videoflow.core.media_contract import (
     channel_rms,
@@ -15,6 +14,7 @@ from videoflow.core.media_contract import (
     source_needs_normalization,
     validate_media,
 )
+from videoflow.domains.audio.finalize import finalize_audio
 
 FFMPEG = shutil.which("ffmpeg")
 

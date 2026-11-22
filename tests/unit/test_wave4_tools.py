@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from videoflow.application.audio_diagnosis import diagnose_audio
 from videoflow.application.jobs import JobManager
 from videoflow.application.projects import init_project, save_project_state
 from videoflow.application.session_brief import (
@@ -23,6 +22,7 @@ from videoflow.domain.state import (
     VideoSegment,
     WordTiming,
 )
+from videoflow.domains.audio.diagnose import diagnose_audio
 from videoflow.mcp_server.context import ToolContext
 from videoflow.mcp_server.core_tools import register_core_tools
 

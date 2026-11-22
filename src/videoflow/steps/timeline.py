@@ -13,7 +13,6 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from videoflow.application.audio_events import detect_audio_events, load_model
 from videoflow.application.boundaries import enforce_word_integrity
 from videoflow.application.non_speech import load_pcm_mono
 from videoflow.application.retakes import subtract_spans
@@ -32,6 +31,7 @@ from videoflow.application.word_cuts import plan_word_cuts
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
 from videoflow.domain.state import InactiveSpan, ProjectState, SampleSpan
+from videoflow.domains.audio.events import detect_audio_events, load_model
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload, require_media
 from videoflow.steps.registry import register_step

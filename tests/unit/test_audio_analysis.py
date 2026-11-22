@@ -1,6 +1,6 @@
 import numpy as np
 
-from videoflow.application.audio_analysis import energy_peaks
+from videoflow.domains.audio.analysis import energy_peaks
 
 
 def test_energy_peaks_finds_a_loud_region() -> None:

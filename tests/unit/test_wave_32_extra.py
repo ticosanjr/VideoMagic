@@ -1131,7 +1131,7 @@ def test_word_fidelity_backend_error(tmp_path: Path, monkeypatch) -> None:
     from videoflow.domain.state import Sentence
 
     monkeypatch.setattr(
-        "videoflow.adapters.faster_whisper.FasterWhisperAdapter.available",
+        "videoflow.domains.asr.engine.FasterWhisperAdapter.available",
         staticmethod(lambda *args, **kwargs: True),
     )
     monkeypatch.setattr(

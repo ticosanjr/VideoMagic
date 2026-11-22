@@ -8,10 +8,10 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.adapters.yamnet import YamnetAdapter
-from videoflow.application.audio_events import detect_audio_events
 from videoflow.application.non_speech import load_pcm_mono
 from videoflow.core.context import PipelineContext
 from videoflow.domain.paths import resolve_allowed
+from videoflow.domains.audio.events import detect_audio_events
 from videoflow.runtime import allowed_roots
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload, require_media

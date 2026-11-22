@@ -113,7 +113,7 @@ def test_word_fidelity_unavailable_backend(monkeypatch, tmp_path: Path) -> None:
 
     assert "hwang" in _DEFAULT_ALIASES
     monkeypatch.setattr(
-        "videoflow.adapters.faster_whisper.FasterWhisperAdapter.available",
+        "videoflow.domains.asr.engine.FasterWhisperAdapter.available",
         staticmethod(lambda **kwargs: False),
     )
     result = verify_word_fidelity(

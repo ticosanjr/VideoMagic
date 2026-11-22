@@ -18,7 +18,6 @@ from pathlib import Path
 
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.application.audio import audio_filters
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.models import model_roots, models_dir
 from videoflow.application.retakes import cull_intervals
@@ -54,6 +53,7 @@ from videoflow.domain.config import (
 from videoflow.domain.errors import VideoFlowError
 from videoflow.domain.timebase import Rounding
 from videoflow.domain.transcript import parse_srt_file
+from videoflow.domains.audio.filters import audio_filters
 from videoflow.exporters.common import write_text
 from videoflow.runtime import (
     ensure_home,

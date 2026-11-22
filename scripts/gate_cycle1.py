@@ -14,7 +14,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter  # noqa: E402
-from videoflow.application.audio_finalize import finalize_audio  # noqa: E402
 from videoflow.application.compute import router_from_settings  # noqa: E402
 from videoflow.application.master_export import render_master  # noqa: E402
 from videoflow.application.media_integrity import validate_integrity  # noqa: E402
@@ -25,6 +24,7 @@ from videoflow.core.media_contract import (  # noqa: E402
     validate_media,
 )
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig  # noqa: E402
+from videoflow.domains.audio.finalize import finalize_audio  # noqa: E402
 
 
 def run(*args: str) -> None:

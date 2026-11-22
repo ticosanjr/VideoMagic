@@ -3,8 +3,8 @@ from pathlib import Path
 import httpx
 import pytest
 
-from videoflow.adapters.asr import WhisperHttpAdapter
 from videoflow.domain.errors import TranscriptionError
+from videoflow.domains.asr.http import WhisperHttpAdapter
 
 
 def test_transcribes_verbose_json_segments(tmp_path: Path) -> None:

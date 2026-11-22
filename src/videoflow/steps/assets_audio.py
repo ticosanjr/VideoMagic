@@ -8,8 +8,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.audio_analysis import detect_beats
 from videoflow.core.context import PipelineContext
+from videoflow.domains.audio.analysis import detect_beats
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.registry import register_step
 

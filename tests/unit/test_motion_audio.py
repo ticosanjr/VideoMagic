@@ -4,9 +4,9 @@ import json
 import wave
 from pathlib import Path
 
-from videoflow.application.audio_synthesis import compose_music, synthesize_foley
 from videoflow.application.motion import build_scenes
 from videoflow.core.context import PipelineContext
+from videoflow.domains.audio.synth import compose_music, synthesize_foley
 from videoflow.steps.audio_synth import (
     AudioComposeStep,
     ComposeParams,

@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from videoflow.application.audio_finalize import _channel_rms, _needs_mono_repair
 from videoflow.core.media_contract import color_profile, validate_media
+from videoflow.domains.audio.finalize import _channel_rms, _needs_mono_repair
 
 
 def diagnose_audio(source: str | Path, media: Any | None = None) -> dict[str, Any]:

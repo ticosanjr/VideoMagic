@@ -15,7 +15,6 @@ import numpy as np
 import pytest
 
 from videoflow.application import (
-    audio_analysis,
     database,
     model_downloads,
     models,
@@ -32,6 +31,7 @@ from videoflow.domain.errors import (
     JobCancelledError,
     StateNotReadyError,
 )
+from videoflow.domains.audio import analysis as audio_analysis
 from videoflow.domains.media import assets
 
 # --------------------------------------------------------------------------- services

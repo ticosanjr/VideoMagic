@@ -1,5 +1,5 @@
-from videoflow.application.audio import audio_filters, with_audio_filters
 from videoflow.domain.config import AudioEnhanceConfig
+from videoflow.domains.audio.filters import audio_filters, with_audio_filters
 
 
 def test_audio_filters_are_opt_in_and_configurable() -> None:

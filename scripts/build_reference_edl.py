@@ -20,13 +20,13 @@ import argparse
 import json
 from pathlib import Path
 
-from videoflow.application.audio_compare import load_pcm
 from videoflow.application.reference_edl import (
     build_reference_edl_from_paths,
     build_reference_edl_from_sentences,
     save_reference_edl,
 )
 from videoflow.domain.state import Sentence
+from videoflow.domains.audio.compare import load_pcm
 
 
 def _load_sentences(path: Path) -> list[Sentence]:

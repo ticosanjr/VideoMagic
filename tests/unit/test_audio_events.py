@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from videoflow.application.audio_events import (
+from videoflow.domains.audio.events import (
     FEATURE_NAMES,
     EventModel,
     default_model_path,
@@ -82,7 +82,7 @@ def test_score_ast_candidates_uses_noise_labels(monkeypatch) -> None:
     import sys
     from types import SimpleNamespace
 
-    from videoflow.application import audio_events
+    from videoflow.domains.audio import events_ast as audio_events
 
     class Tensor:
         def __init__(self, values):
@@ -120,7 +120,7 @@ def test_load_ast_from_local_model(monkeypatch, tmp_path) -> None:
     import sys
     from types import SimpleNamespace
 
-    from videoflow.application import audio_events
+    from videoflow.domains.audio import events_ast as audio_events
 
     model_dir = tmp_path / "ast"
     model_dir.mkdir()
@@ -159,6 +159,6 @@ def test_load_ast_from_local_model(monkeypatch, tmp_path) -> None:
 
 
 def test_resample_preserves_length() -> None:
-    from videoflow.application.audio_events import _resample
+    from videoflow.domains.audio.events_ast import _resample
 
     assert _resample(np.ones(8000, dtype=np.float32), 8000, 16000).size == 16000

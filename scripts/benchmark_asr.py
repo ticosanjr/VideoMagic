@@ -10,11 +10,11 @@ import wave
 from pathlib import Path
 from types import SimpleNamespace
 
-from videoflow.adapters.faster_whisper import FasterWhisperAdapter
-from videoflow.adapters.whisper import WhisperCliAdapter
-from videoflow.application.asr_profiles import resolve_asr_plan
 from videoflow.application.models import installed_path
 from videoflow.application.settings import load_settings
+from videoflow.domains.asr.engine import FasterWhisperAdapter
+from videoflow.domains.asr.legacy_whisper import WhisperCliAdapter
+from videoflow.domains.asr.profiles import resolve_asr_plan
 
 
 def main() -> int:

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from videoflow.application.audio_analysis import detect_beats
+from videoflow.domains.audio.analysis import detect_beats
 
 pytestmark = pytest.mark.media
 

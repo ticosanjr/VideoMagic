@@ -215,7 +215,7 @@ def test_word_fidelity_available_and_unavailable(tmp_path: Path, monkeypatch) ->
     assert verify_word_fidelity(tmp_path / "x.mp4", [], work=tmp_path)["status"] == "unavailable"
     sentence = Sentence(id=0, start_sample=0, end_sample=1000, text="hello world")
     monkeypatch.setattr(
-        "videoflow.adapters.faster_whisper.FasterWhisperAdapter.available",
+        "videoflow.domains.asr.engine.FasterWhisperAdapter.available",
         staticmethod(lambda *args, **kwargs: True),
     )
     monkeypatch.setattr(
@@ -223,7 +223,7 @@ def test_word_fidelity_available_and_unavailable(tmp_path: Path, monkeypatch) ->
         lambda self, source, target, **kwargs: Path(target).write_bytes(b"wav") or target,
     )
     monkeypatch.setattr(
-        "videoflow.adapters.faster_whisper.FasterWhisperAdapter.transcribe",
+        "videoflow.domains.asr.engine.FasterWhisperAdapter.transcribe",
         lambda self, wav, rate, **kwargs: [
             Sentence(id=0, start_sample=0, end_sample=1, text="hello world")
         ],

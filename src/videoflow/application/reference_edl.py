@@ -20,7 +20,8 @@ from typing import Any
 
 import numpy as np
 
-from videoflow.application.audio_compare import (
+from videoflow.domain.state import Sentence
+from videoflow.domains.audio.compare import (
     AudioFeatures,
     compare_audio,
     dtw_subsequence,
@@ -30,7 +31,6 @@ from videoflow.application.audio_compare import (
     load_pcm,
     reconstruct,
 )
-from videoflow.domain.state import Sentence
 
 
 @dataclass(frozen=True, slots=True)

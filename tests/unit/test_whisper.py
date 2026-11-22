@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from videoflow.adapters.whisper import WhisperCliAdapter
 from videoflow.domain.errors import TranscriptionError
+from videoflow.domains.asr.legacy_whisper import WhisperCliAdapter
 
 
 def _wav(path: Path, rate: int = 16000) -> Path:
@@ -103,7 +103,7 @@ def test_invalid_srt_is_a_transcription_error(tmp_path: Path) -> None:
 
 
 def test_requires_word_json_and_parses_tokens(tmp_path: Path) -> None:
-    from videoflow.adapters.whisper import _parse_json_words
+    from videoflow.domains.asr.legacy_whisper import _parse_json_words
 
     wav = _wav(tmp_path / "source.wav")
     binary = _fake_cli(tmp_path / "whisper-cli")
@@ -142,7 +142,7 @@ def test_requires_word_json_and_parses_tokens(tmp_path: Path) -> None:
 
 
 def test_json_word_parser_rejects_empty_payload() -> None:
-    from videoflow.adapters.whisper import _parse_json_words
+    from videoflow.domains.asr.legacy_whisper import _parse_json_words
 
     with pytest.raises(ValueError, match="no usable words"):
         _parse_json_words('{"transcription": []}', 16000)

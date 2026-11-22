@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from videoflow.application.audio_synthesis import compose_music
 from videoflow.core.context import PipelineContext
 from videoflow.domain.state import AudioSegment, MediaInfo, ProjectState, VideoSegment
+from videoflow.domains.audio.synth import compose_music
 from videoflow.steps.audio_synth import AudioMixStep, MixParams
 from videoflow.steps.base import StepIO
 

@@ -14,10 +14,10 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.application.audio import audio_filters
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import AudioEnhanceConfig
 from videoflow.domain.errors import ExportError, IngestError
+from videoflow.domains.audio.filters import audio_filters
 from videoflow.exporters.mp4 import export_timeline_audio
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.registry import register_step

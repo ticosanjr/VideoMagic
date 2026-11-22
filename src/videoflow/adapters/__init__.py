@@ -6,11 +6,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
-from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.adapters.llm import OpenAICompatibleLlm
 from videoflow.adapters.silero import SileroVadAdapter
 from videoflow.domain.state import MediaInfo
+from videoflow.domains.asr.engine import FasterWhisperAdapter
 
 
 class MediaProbe(Protocol):

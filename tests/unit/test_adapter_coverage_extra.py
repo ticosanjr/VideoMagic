@@ -14,10 +14,8 @@ import httpx
 import numpy as np
 import pytest
 
-from videoflow.adapters import faster_whisper as fw_module
 from videoflow.adapters import opencode as oc_module
 from videoflow.adapters import silero as silero_module
-from videoflow.adapters.faster_whisper import FasterWhisperAdapter
 from videoflow.adapters.opencode import MAX_OUTPUT, PREFIX, OpenCodeLlm
 from videoflow.adapters.silero import WINDOW_SAMPLES, SileroVadAdapter
 from videoflow.adapters.vision import OpenAIVisionClient
@@ -38,6 +36,8 @@ from videoflow.domain.errors import (
     TranscriptionError,
 )
 from videoflow.domain.state import ProjectState, Sentence
+from videoflow.domains.asr import engine as fw_module
+from videoflow.domains.asr.engine import FasterWhisperAdapter
 
 # --------------------------------------------------------------------------- helpers
 

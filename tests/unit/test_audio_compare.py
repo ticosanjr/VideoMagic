@@ -8,8 +8,9 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from videoflow.application import audio_compare
-from videoflow.application.audio_compare import (
+from videoflow.domain.errors import IngestError
+from videoflow.domains.audio import compare as audio_compare
+from videoflow.domains.audio.compare import (
     _median_filter,
     compare_audio,
     dtw_subsequence,
@@ -27,7 +28,6 @@ from videoflow.application.audio_compare import (
     spectral_correlation,
     window_descriptors,
 )
-from videoflow.domain.errors import IngestError
 
 
 def _tone(frequency: float, seconds: float, rate: int = 16_000) -> np.ndarray:
@@ -284,26 +284,27 @@ def test_audio_compare_error_and_edge_branches(monkeypatch, tmp_path: Path) -> N
     import numpy as np
     import pytest
 
-    from videoflow.application import audio_compare as module
     from videoflow.domain.errors import IngestError
+    from videoflow.domains.audio import compare as module
+    from videoflow.domains.audio import compare_dsp as dsp
 
-    monkeypatch.setattr(module, "find_binary", lambda name: None)
+    monkeypatch.setattr(dsp, "find_binary", lambda name: None)
     with pytest.raises(IngestError, match="FFmpeg"):
         module.load_pcm(tmp_path / "missing.wav")
-    monkeypatch.setattr(module, "find_binary", lambda name: "ffmpeg")
+    monkeypatch.setattr(dsp, "find_binary", lambda name: "ffmpeg")
     with pytest.raises(IngestError, match="does not exist"):
         module.load_pcm(tmp_path / "missing.wav")
     source = tmp_path / "source.wav"
     source.write_bytes(b"wav")
     monkeypatch.setattr(
-        module.subprocess,
+        dsp.subprocess,
         "run",
         lambda *args, **kwargs: (_ for _ in ()).throw(OSError("no ffmpeg")),
     )
     with pytest.raises(IngestError, match="decode failed"):
         module.load_pcm(source)
     monkeypatch.setattr(
-        module.subprocess,
+        dsp.subprocess,
         "run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, b"", b""),
     )
@@ -312,11 +313,11 @@ def test_audio_compare_error_and_edge_branches(monkeypatch, tmp_path: Path) -> N
 
     assert module.log_mel(np.zeros((2, 10), dtype=np.float32)).shape[1] == module.N_MELS
     assert module.log_mel(np.zeros(4, dtype=np.float32)).shape[0] >= 1
-    assert module.frame_rms(np.zeros((2, 10), dtype=np.float32)).size >= 1
-    monkeypatch.setattr(module, "frame_rms", lambda *args, **kwargs: np.zeros(0))
+    assert dsp.frame_rms(np.zeros((2, 10), dtype=np.float32)).size >= 1
+    monkeypatch.setattr(dsp, "frame_rms", lambda *args, **kwargs: np.zeros(0))
     assert module.speech_fraction(np.zeros(0, dtype=np.float32)).size == 0
     monkeypatch.undo()
-    monkeypatch.setattr(module, "find_binary", lambda name: "ffmpeg")
+    monkeypatch.setattr(dsp, "find_binary", lambda name: "ffmpeg")
     with pytest.raises(ValueError):
         module.window_descriptors(np.zeros(2, dtype=np.float32))
     with pytest.raises(ValueError):
@@ -343,7 +344,7 @@ def test_loudness_and_spectral_edge_branches(monkeypatch, tmp_path: Path) -> Non
 
     import numpy as np
 
-    from videoflow.application import audio_compare as module
+    from videoflow.domains.audio import compare as module
 
     monkeypatch.setattr(module, "find_binary", lambda name: None)
     assert module.loudness_stats(tmp_path / "x.wav")["lufs"] is None

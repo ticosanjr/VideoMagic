@@ -120,7 +120,7 @@ def test_analysis_cache_reads_and_writes(tmp_path: Path, monkeypatch) -> None:
     assert analysis_cache.cached_scene_changes(source) == [1.0, 2.0]
     assert analysis_cache.cached_scene_changes(source) == [1.0, 2.0]
     monkeypatch.setattr(
-        "videoflow.application.audio_analysis.detect_audio_energy",
+        "videoflow.domains.audio.analysis.detect_audio_energy",
         lambda path, rate: [(0, rate)],
     )
     assert analysis_cache.cached_audio_energy(source, 48000) == [(0, 48000)]

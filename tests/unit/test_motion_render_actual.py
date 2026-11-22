@@ -9,11 +9,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from videoflow.application.audio_synthesis import compose_music, synthesize_foley
 from videoflow.application.intro import compile_intro
 from videoflow.application.motion import build_scenes, render_scene
 from videoflow.core.context import PipelineContext
 from videoflow.domain.state import MediaInfo
+from videoflow.domains.audio.synth import compose_music, synthesize_foley
 from videoflow.steps.audio_synth import (
     AudioComposeStep,
     AudioMixStep,

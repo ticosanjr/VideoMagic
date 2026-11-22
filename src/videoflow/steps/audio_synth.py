@@ -10,9 +10,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application.audio_synthesis import compose_music, synthesize_foley
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import ExportError
+from videoflow.domains.audio.synth import compose_music, synthesize_foley
 from videoflow.exporters.common import timeline_duration_samples
 from videoflow.runtime import find_binary
 from videoflow.steps.base import BaseStep, StepIO
