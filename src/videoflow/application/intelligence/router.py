@@ -228,10 +228,6 @@ class Intelligence:
             provider = self._from_config(item, kind)
             if provider is not None:
                 providers[str(item.get("id") or kind)] = provider
-                remote_allowed = remote_allowed or kind in {
-                    "opencode_v2",
-                    "opencode_cli",
-                }
         if "opencode_v2" not in providers:
             base_url = self.config.opencode_base_url.strip()
             if base_url:

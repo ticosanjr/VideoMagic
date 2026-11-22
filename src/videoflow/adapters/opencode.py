@@ -7,11 +7,11 @@ JSON contract. It is opt-in; the default provider is OpenAI-compatible.
 
 from __future__ import annotations
 
-import json
 import subprocess
 from collections.abc import Callable
 from typing import Any
 
+from videoflow.application.intelligence.providers.json_parse import parse_json_object
 from videoflow.domain.errors import LlmError
 
 MAX_OUTPUT = 2_000_000
@@ -68,19 +68,9 @@ class OpenCodeLlm:
         raw = result.stdout.strip()
         if len(raw) > MAX_OUTPUT:
             raise LlmError("OpenCode response exceeded the output limit")
-        return _parse_json(raw)
+        try:
+            return parse_json_object(raw)
+        except ValueError as exc:
+            raise LlmError("OpenCode returned unusable JSON") from exc
 
-
-def _parse_json(text: str) -> dict[str, Any]:
-    value = text.strip()
-    if "```json" in value:
-        value = value.split("```json", 1)[1].split("```", 1)[0].strip()
-    elif "```" in value:
-        value = value.split("```", 1)[1].split("```", 1)[0].strip()
-    try:
-        parsed = json.loads(value)
-    except json.JSONDecodeError as exc:
-        raise LlmError("OpenCode returned unusable JSON") from exc
-    if not isinstance(parsed, dict):
-        raise LlmError("OpenCode returned JSON that is not an object")
-    return parsed
+_parse_json = parse_json_object

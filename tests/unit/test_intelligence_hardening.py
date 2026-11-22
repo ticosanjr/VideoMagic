@@ -119,3 +119,20 @@ def test_deepseek_is_not_registered_without_key_or_network(monkeypatch) -> None:
     )
     assert "deepseek" not in Intelligence(_settings(False))._build_providers()
     assert "deepseek" in Intelligence(_settings(True))._build_providers()
+
+    # A configured local OpenCode provider must not imply network permission.
+    monkeypatch.setattr(
+        "videoflow.application.intelligence.router.list_providers",
+        lambda: [
+            {
+                "id": "opencode_v2",
+                "kind": "opencode_v2",
+                "capability": "llm",
+                "base_url": "http://127.0.0.1:4096",
+                "model": "local",
+            }
+        ],
+    )
+    providers = Intelligence(_settings(False))._build_providers()
+    assert "opencode_v2" in providers
+    assert "deepseek" not in providers
