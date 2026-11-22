@@ -2,12 +2,6 @@
   "bomFormat": "CycloneDX",
   "components": [
     {
-      "name": "absl-py",
-      "purl": "pkg:pypi/absl-py@2.5.1",
-      "type": "library",
-      "version": "2.5.1"
-    },
-    {
       "name": "altgraph",
       "purl": "pkg:pypi/altgraph@0.17.5",
       "type": "library",
@@ -74,12 +68,6 @@
       "version": "8.5.0"
     },
     {
-      "name": "contourpy",
-      "purl": "pkg:pypi/contourpy@1.4.0",
-      "type": "library",
-      "version": "1.4.0"
-    },
-    {
       "name": "coverage",
       "purl": "pkg:pypi/coverage@7.16.2",
       "type": "library",
@@ -96,12 +84,6 @@
       "purl": "pkg:pypi/ctranslate2@4.8.3",
       "type": "library",
       "version": "4.8.3"
-    },
-    {
-      "name": "cycler",
-      "purl": "pkg:pypi/cycler@0.12.1",
-      "type": "library",
-      "version": "0.12.1"
     },
     {
       "name": "fastapi",
@@ -126,12 +108,6 @@
       "purl": "pkg:pypi/flatbuffers@25.12.19",
       "type": "library",
       "version": "25.12.19"
-    },
-    {
-      "name": "fonttools",
-      "purl": "pkg:pypi/fonttools@4.68.0",
-      "type": "library",
-      "version": "4.68.0"
     },
     {
       "name": "fsspec",
@@ -212,22 +188,10 @@
       "version": "2025.9.1"
     },
     {
-      "name": "kiwisolver",
-      "purl": "pkg:pypi/kiwisolver@1.5.1",
-      "type": "library",
-      "version": "1.5.1"
-    },
-    {
       "name": "librt",
       "purl": "pkg:pypi/librt@0.16.0",
       "type": "library",
       "version": "0.16.0"
-    },
-    {
-      "name": "matplotlib",
-      "purl": "pkg:pypi/matplotlib@3.11.2",
-      "type": "library",
-      "version": "3.11.2"
     },
     {
       "name": "mcp",
@@ -240,12 +204,6 @@
       "purl": "pkg:pypi/mcp-types@2.3.0",
       "type": "library",
       "version": "2.3.0"
-    },
-    {
-      "name": "mediapipe",
-      "purl": "pkg:pypi/mediapipe@0.10.35",
-      "type": "library",
-      "version": "0.10.35"
     },
     {
       "name": "mypy",
@@ -270,12 +228,6 @@
       "purl": "pkg:pypi/onnxruntime@1.31.0",
       "type": "library",
       "version": "1.31.0"
-    },
-    {
-      "name": "opencv-contrib-python",
-      "purl": "pkg:pypi/opencv-contrib-python@5.1.0.95",
-      "type": "library",
-      "version": "5.1.0.95"
     },
     {
       "name": "opencv-python-headless",
@@ -312,12 +264,6 @@
       "purl": "pkg:pypi/pillow@13.0.0",
       "type": "library",
       "version": "13.0.0"
-    },
-    {
-      "name": "platformdirs",
-      "purl": "pkg:pypi/platformdirs@4.14.7",
-      "type": "library",
-      "version": "4.14.7"
     },
     {
       "name": "pluggy",
@@ -374,18 +320,6 @@
       "version": "2.15.1"
     },
     {
-      "name": "pyparsing",
-      "purl": "pkg:pypi/pyparsing@3.3.3",
-      "type": "library",
-      "version": "3.3.3"
-    },
-    {
-      "name": "pystray",
-      "purl": "pkg:pypi/pystray@0.19.5",
-      "type": "library",
-      "version": "0.19.5"
-    },
-    {
       "name": "pytesseract",
       "purl": "pkg:pypi/pytesseract@0.3.13",
       "type": "library",
@@ -404,22 +338,10 @@
       "version": "7.1.0"
     },
     {
-      "name": "python-dateutil",
-      "purl": "pkg:pypi/python-dateutil@4.0.0",
-      "type": "library",
-      "version": "4.0.0"
-    },
-    {
       "name": "python-multipart",
       "purl": "pkg:pypi/python-multipart@0.0.32",
       "type": "library",
       "version": "0.0.32"
-    },
-    {
-      "name": "python-xlib",
-      "purl": "pkg:pypi/python-xlib@0.33",
-      "type": "library",
-      "version": "0.33"
     },
     {
       "name": "PyYAML",
@@ -452,34 +374,16 @@
       "version": "0.17.1"
     },
     {
-      "name": "scenedetect",
-      "purl": "pkg:pypi/scenedetect@0.7.3",
-      "type": "library",
-      "version": "0.7.3"
-    },
-    {
       "name": "setuptools",
       "purl": "pkg:pypi/setuptools@84.1.0",
       "type": "library",
       "version": "84.1.0"
     },
     {
-      "name": "six",
-      "purl": "pkg:pypi/six@1.17.0",
-      "type": "library",
-      "version": "1.17.0"
-    },
-    {
       "name": "sortedcontainers",
       "purl": "pkg:pypi/sortedcontainers@2.4.0",
       "type": "library",
       "version": "2.4.0"
-    },
-    {
-      "name": "sounddevice",
-      "purl": "pkg:pypi/sounddevice@0.5.6",
-      "type": "library",
-      "version": "0.5.6"
     },
     {
       "name": "sse-starlette",
@@ -524,12 +428,6 @@
       "version": "4.16.0"
     },
     {
-      "name": "tzdata",
-      "purl": "pkg:pypi/tzdata@2026.6",
-      "type": "library",
-      "version": "2026.6"
-    },
-    {
       "name": "urllib3",
       "purl": "pkg:pypi/urllib3@2.8.0",
       "type": "library",
@@ -542,46 +440,16 @@
       "version": "0.54.0"
     },
     {
-      "name": "vf-compute",
-      "purl": "pkg:pypi/vf-compute@3.17.3",
+      "name": "vf-shared",
+      "purl": "pkg:pypi/vf-shared@4.0.0",
       "type": "library",
-      "version": "3.17.3"
-    },
-    {
-      "name": "vf-contracts",
-      "purl": "pkg:pypi/vf-contracts@3.17.3",
-      "type": "library",
-      "version": "3.17.3"
+      "version": "4.0.0"
     },
     {
       "name": "videoflow",
-      "purl": "pkg:pypi/videoflow@3.17.3",
+      "purl": "pkg:pypi/videoflow@4.0.0",
       "type": "library",
-      "version": "3.17.3"
-    },
-    {
-      "name": "videoflow-mcp-audio",
-      "purl": "pkg:pypi/videoflow-mcp-audio@3.17.3",
-      "type": "library",
-      "version": "3.17.3"
-    },
-    {
-      "name": "videoflow-mcp-fetch",
-      "purl": "pkg:pypi/videoflow-mcp-fetch@3.17.3",
-      "type": "library",
-      "version": "3.17.3"
-    },
-    {
-      "name": "videoflow-mcp-vision",
-      "purl": "pkg:pypi/videoflow-mcp-vision@3.17.3",
-      "type": "library",
-      "version": "3.17.3"
-    },
-    {
-      "name": "videoflow-scene-rules",
-      "purl": "pkg:pypi/videoflow-scene-rules@3.17.3",
-      "type": "library",
-      "version": "3.17.3"
+      "version": "4.0.0"
     },
     {
       "name": "websocket-client",
