@@ -270,16 +270,18 @@ def test_audio_master_and_qa_measure_and_warn(
         "loudness",
         {"integrated_lufs": -24.0, "true_peak_dbfs": 0.5},
     )
-    AudioQaStep().run(context, AudioQaParams(), StepIO())
-    qa = json.loads((context.output / "audio" / "qa.json").read_text(encoding="utf-8"))
-    assert qa["passed"] is False
-    assert context.warnings and "out of spec" in context.warnings[-1]
-    assert AudioQaStep().cache_outputs(context) == (context.output / "audio" / "qa.json",)
+    with pytest.raises(ExportError, match="out of spec"):
+        AudioQaStep().run(context, AudioQaParams(), StepIO())
 
     quality = SimpleNamespace(target_lufs=-14.0, true_peak_db=-2.0)
     monkeypatch.setattr(
         "videoflow.application.settings.load_settings",
         lambda: SimpleNamespace(quality=quality),
+    )
+    monkeypatch.setattr(
+        _FakeFFmpeg,
+        "loudness",
+        {"integrated_lufs": -14.0, "true_peak_dbfs": -2.0},
     )
     AudioQaStep().run(
         context,
@@ -294,6 +296,11 @@ def test_audio_master_and_qa_measure_and_warn(
         raise RuntimeError("settings exploded")
 
     monkeypatch.setattr("videoflow.application.settings.load_settings", broken_settings)
+    monkeypatch.setattr(
+        _FakeFFmpeg,
+        "loudness",
+        {"integrated_lufs": -15.5, "true_peak_dbfs": -2.0},
+    )
     AudioQaStep().run(context, AudioQaParams(), StepIO())
     assert context.artifacts["audio_qa"].endswith("qa.json")
 

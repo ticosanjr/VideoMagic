@@ -16,12 +16,15 @@ def test_every_delivery_recipe_wires_audio_finalize() -> None:
     for recipe_id, recipe in BUILTIN_RECIPES.items():
         steps = recipe.get("steps") or []
         types = [step.get("type") for step in steps]
-        if "ingest" not in types or not CONSUMERS & set(types):
+        if not CONSUMERS & set(types):
             continue
         finals = [step for step in steps if step.get("type") == "audio.finalize"]
         assert len(finals) == 1, recipe_id
         assert finals[0]["params"]["target_name"] == "master.wav"
         assert finals[0]["needs"], recipe_id
+        for step in steps:
+            if step.get("type") == "audio.qa":
+                assert finals[0]["id"] in (step.get("needs") or []), recipe_id
         if isinstance(recipe.get("ui"), dict) and recipe["ui"].get("nodes"):
             assert finals[0]["id"] in recipe["ui"]["nodes"], recipe_id
 

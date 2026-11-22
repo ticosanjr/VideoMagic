@@ -18,7 +18,7 @@ from videoflow.domains.audio.finalize import (
     finalize_audio,
 )
 from videoflow.steps.base import BaseStep, StepIO
-from videoflow.steps.common import digest_payload, require_media
+from videoflow.steps.common import digest_payload
 from videoflow.steps.registry import register_step
 
 
@@ -48,13 +48,12 @@ class AudioFinalizeStep(BaseStep):
     status = "available"
     icon = "♫"
     color = "#a78bfa"
-    requires = ("ingest",)
     produces = ("audio_final",)
     params_model = AudioFinalizeParams
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = AudioFinalizeParams.model_validate(params)
-        media = require_media(context)
+        media = context.media
         mixed_input = bool(context.artifacts.get("audio_mix")) and not options.voice_path
         voice_value = (
             options.voice_path
@@ -84,7 +83,7 @@ class AudioFinalizeStep(BaseStep):
             or ("" if mixed_input else (context.artifacts.get("audio_sfx") or ""))
         )
         duration = options.duration_sec
-        if duration <= 0:
+        if duration <= 0 and media is not None:
             rate = media.audio_sample_rate or 48000
             duration = context.duration_samples() / max(1, rate)
         target_lufs = TARGET_LUFS
@@ -98,7 +97,7 @@ class AudioFinalizeStep(BaseStep):
             context.output,
             music_path=music_value or None,
             sfx_path=sfx_value or None,
-            duration_sec=duration,
+            duration_sec=duration if duration > 0 else None,
             target_lufs=target_lufs,
             true_peak_db=options.true_peak_db,
             sample_rate=options.sample_rate,

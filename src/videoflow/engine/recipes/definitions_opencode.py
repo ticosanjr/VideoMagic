@@ -92,7 +92,7 @@ _add_recipe(
             "id": "audio_master",
             "type": "audio.master",
             "needs": ["ingest"],
-            "params": {"loudnorm": True, "target_lufs": -16.5, "true_peak_db": -1.5},
+            "params": {"loudnorm": True, "target_lufs": -15.5, "true_peak_db": -1.5},
         },
         {
             "id": "export_nle",
@@ -188,7 +188,7 @@ _add_recipe(
             "id": "audio_master",
             "type": "audio.master",
             "needs": ["ingest"],
-            "params": {"loudnorm": True, "target_lufs": -16.5},
+            "params": {"loudnorm": True, "target_lufs": -15.5},
         },
         {
             "id": "export",

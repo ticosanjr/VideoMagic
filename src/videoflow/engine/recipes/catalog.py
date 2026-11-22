@@ -539,8 +539,6 @@ def ensure_audio_finalize() -> None:
         if any(step.get("type") == "audio.finalize" for step in steps):
             continue
         ingest = next((step for step in steps if step.get("type") == "ingest"), None)
-        if ingest is None:
-            continue
         producers = [step for step in steps if step.get("type") in _AUDIO_SOURCES]
         if not any(step.get("type") in _AUDIO_FINAL_CONSUMERS for step in steps):
             continue
@@ -550,7 +548,11 @@ def ensure_audio_finalize() -> None:
             else (
                 "timeline"
                 if any(step.get("id") == "timeline" for step in steps)
-                else str(ingest.get("id") or "ingest")
+                else (
+                    str(ingest.get("id"))
+                    if ingest is not None
+                    else str(steps[0].get("id") or "ingest")
+                )
             )
         )
         finalize_id = "audio_finalize"
@@ -561,7 +563,10 @@ def ensure_audio_finalize() -> None:
                 "id": finalize_id,
                 "type": "audio.finalize",
                 "needs": list(
-                    dict.fromkeys([terminal, str(ingest.get("id") or "ingest")])
+                    dict.fromkeys(
+                        [terminal]
+                        + ([str(ingest.get("id"))] if ingest is not None else [])
+                    )
                 ),
                 "params": {"target_name": "master.wav"},
             }

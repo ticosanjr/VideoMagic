@@ -515,13 +515,13 @@ _STEPS: list[dict[str, Any]] = [
         "id": "audio_mix",
         "type": "audio.mix",
         "needs": ["narration_synthesize", "audio_compose", "sfx_synthesize"],
-        "params": {"music_gain": 0.20, "duck_music": True, "target_lufs": -14.0},
+        "params": {"music_gain": 0.20, "duck_music": True, "target_lufs": -15.5},
     },
     {
         "id": "audio_qa",
         "type": "audio.qa",
         "needs": ["audio_mix"],
-        "params": {"target_lufs": -14.0},
+        "params": {"target_lufs": -15.5},
     },
     {
         "id": "captions",

@@ -24,7 +24,7 @@ def test_synthetic_code_studio_is_complete_and_favorite() -> None:
         if step.type in {"human.gate", "human.input", "human.files"}
     }
 
-    assert len(recipe.steps) == 43
+    assert len(recipe.steps) == 44
     assert len(recipe.ui.groups) == 6
     assert {
         "narration.synthesize",

@@ -25,7 +25,7 @@ _add_recipe(
                 "denoise_db": 12,
                 "noise_floor_db": -30,
                 "loudnorm": True,
-                "target_lufs": -14.0,
+                "target_lufs": -15.5,
                 "true_peak_db": -1.5,
             },
         },
