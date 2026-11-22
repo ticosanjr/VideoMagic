@@ -3,7 +3,9 @@
 A recipe is a versioned DAG of pipeline steps. The backend validates duplicate
 ids, unknown dependencies, unknown step types, and cycles before running.
 
-Built-in recipes are mirrored here for reading and editing:
+Built-in recipes are mirrored here for reading and editing. These JSON files
+are examples that mirror the Python definitions; they are not a second runtime
+catalog and are not loaded automatically:
 
 - `youtube_talking_head.json` — main cut and NLE exports.
 - `viral_shorts_batch.json` — main cut plus three vertical Shorts.

@@ -19,3 +19,16 @@ uv run python scripts/qa_evidence.py \
   --exports build/smoke-appimage/demo/exports \
   --job-output build/smoke-appimage/demo
 ```
+
+
+## Cycle gates
+
+| Gate | Status | Blocker |
+| --- | --- | --- |
+| Cycle 1 | documented, not re-run for 4.0 | Windows RTX worker / NVENC |
+| Cycle 2 | PASS | — |
+| Cycle 3 | functional checks pass | CPU scene throughput and the two Cycle 1 longform exports |
+| Cycle 4 micro gate | PASS (90 s and 420 s) | — |
+
+Machine-readable files: `cycle1-gate.json`, `cycle2-gate.json`,
+`cycle3-gate.json`, `cycle4-micro-gate.json` and `cycle4-micro-gate-420.json`.

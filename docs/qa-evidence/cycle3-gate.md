@@ -25,12 +25,12 @@ faces:          6
 PiP scenes:     4
 screen scenes:  4
 keyframes:      6/6
-elapsed:        101.6 s
-rate:           466.8 s per source hour
-proxy:          9.4 s
-detection:      86.3 s
-visual:         3.4 s
-keyframes:      2.0 s
+elapsed:        87.8 s
+rate:           403.0 s per source hour
+proxy:          9.3 s
+detection:      72.0 s
+visual:         4.8 s
+keyframes:      0.9 s
 ```
 
 The 45 s/h and 10 s/784 s targets are not met on this Linux CPU host. Scene

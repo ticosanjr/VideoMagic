@@ -12,20 +12,20 @@
     "deliverables_7_passed": false
   },
   "scene": {
-    "elapsed_sec": 101.649,
-    "sec_per_hour": 466.75,
+    "elapsed_sec": 87.757,
+    "sec_per_hour": 402.97,
     "scenes": 6,
     "faces": 6,
     "pip": 4,
     "screen_layouts": 4,
     "keyframes": 6,
     "timings": {
-      "hash": 0.451,
-      "proxy": 9.4065,
-      "detection": 86.28,
-      "visual": 3.4154,
-      "keyframes": 1.9555,
-      "total": 101.6485
+      "hash": 0.5206,
+      "proxy": 9.3454,
+      "detection": 72.0098,
+      "visual": 4.819,
+      "keyframes": 0.9088,
+      "total": 87.7572
     }
   },
   "quarantine": {
