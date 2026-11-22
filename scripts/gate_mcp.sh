@@ -61,7 +61,7 @@ uv run coverage run --rcfile=/dev/null -m pytest \
   tests/unit/test_gpu_preflight_tool.py \
   tests/unit/test_gpu_capabilities.py \
   tests/unit/test_headless_mcp.py \
-  tests/unit/test_mcp_audio_vision.py \
+  tests/unit/test_domain_audio_vision_tools.py \
   tests/unit/test_mcp_cli.py \
   tests/unit/test_mcp_domain_cli.py \
   tests/unit/test_mcp_fetch.py \

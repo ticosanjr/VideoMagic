@@ -46,7 +46,7 @@ uv run python scripts/build_portable.py \
   "$CLEAN_FLAG"
 
 # Build an onedir runtime for the AppImage. The onefile payload extracts on
-# every launch, which makes four MCP servers slow enough to hit OpenCode's
+# every launch, which makes the MCP server slow enough to hit OpenCode's
 # startup timeout. The onedir AppImage mounts once and starts immediately.
 uv run python scripts/build_portable.py \
   --onedir \
