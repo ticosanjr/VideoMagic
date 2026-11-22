@@ -163,9 +163,9 @@ def main() -> int:
         if present and not args.refresh_ffmpeg:
             print("reusing vendor/ffmpeg and vendor/ffprobe")
         else:
-            from fetch_ffmpeg import fetch
+            from fetch_ffmpeg import fetch as fetch_ffmpeg
 
-            fetch("windows" if os.name == "nt" else "linux", vendor)
+            fetch_ffmpeg("windows" if os.name == "nt" else "linux", vendor)
     elif args.with_ffmpeg:
         vendor.mkdir(exist_ok=True)
         for name in ("ffmpeg", "ffprobe"):
