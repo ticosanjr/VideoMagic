@@ -79,12 +79,12 @@ def load_brand_kit(channel_id: str) -> dict[str, Any]:
 __all__ = [
     "BrandTemplate",
     "apply_brand_options",
-    "apply_channel_kit",
+    "apply_brand_kit",
     "brand_kit_root",
-    "channel_kit_ids",
+    "brand_kit_ids",
     "delete_template",
     "get_template",
-    "is_channel_kit",
+    "is_brand_kit",
     "list_templates",
     "load_brand_kit",
     "save_template",
@@ -103,7 +103,7 @@ def _merge_defaults(params: dict[str, Any], defaults: dict[str, Any]) -> None:
             params[key] = deepcopy(value)
 
 
-def channel_kit_ids() -> list[str]:
+def brand_kit_ids() -> list[str]:
     """Return the channel kit ids accepted by ``vf_project``."""
 
     from videoflow.application.preset_rules import channel_dir
@@ -118,15 +118,15 @@ def channel_kit_ids() -> list[str]:
     return sorted(ids)
 
 
-def is_channel_kit(channel_id: str) -> bool:
-    return (channel_id or "").strip() in set(channel_kit_ids())
+def is_brand_kit(channel_id: str) -> bool:
+    return (channel_id or "").strip() in set(brand_kit_ids())
 
 
-def apply_channel_kit(recipe: Recipe, book: PresetRulebook) -> Recipe:
+def apply_brand_kit(recipe: Recipe, book: PresetRulebook) -> Recipe:
     """Return a copy with kit defaults and inviolable hard constraints."""
 
     updated = recipe.model_copy(deep=True)
-    kit = book.channel_kit
+    kit = book.brand_kit
     hard = book.hard_constraints
     for step in updated.steps:
         params = step.params if isinstance(step.params, dict) else {}

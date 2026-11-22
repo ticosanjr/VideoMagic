@@ -9,7 +9,7 @@ from videoflow.core.context import PipelineContext
 from videoflow.domain.state import MediaInfo
 from videoflow.engine import maintenance
 from videoflow.steps.base import StepIO
-from videoflow.steps.decoupage import DecoupageCalibrateParams, DecoupageCalibrateStep
+from videoflow.steps.decupage import DecoupageCalibrateParams, DecoupageCalibrateStep
 from videoflow.steps.storyboard_timed import (
     StoryboardTimedStep,
     TimedUnitsParams,
@@ -96,7 +96,7 @@ def test_decoupage_calibration_skip_paths(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setattr(
-        "videoflow.steps.decoupage.allowed_roots", lambda: [tmp_path]
+        "videoflow.steps.decupage.allowed_roots", lambda: [tmp_path]
     )
     context = _context(tmp_path)
     DecoupageCalibrateStep().run(context, DecoupageCalibrateParams(), StepIO())

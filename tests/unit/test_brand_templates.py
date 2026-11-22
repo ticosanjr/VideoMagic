@@ -27,3 +27,14 @@ def test_brand_template_roundtrip_and_apply(monkeypatch, tmp_path: Path) -> None
     assert options["overlay_asset"] == "logo.png"
     delete_template("Studio")
     assert list_templates() == []
+
+
+def test_brand_templates_is_a_thin_shim() -> None:
+    from pathlib import Path as _Path
+
+    from videoflow.application import brand_kit, brand_templates
+
+    assert brand_templates.BrandTemplate is brand_kit.BrandTemplate
+    assert brand_templates.list_templates is brand_kit.list_templates
+    source = _Path(brand_templates.__file__).read_text(encoding="utf-8")
+    assert len(source.splitlines()) < 20

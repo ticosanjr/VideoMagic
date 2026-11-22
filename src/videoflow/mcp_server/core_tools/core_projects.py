@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from videoflow.application.brand_kit import channel_kit_ids, is_channel_kit
+from videoflow.application.brand_kit import brand_kit_ids, is_brand_kit
 from videoflow.application.hilt import list_requests, load_response, public_payload
 from videoflow.application.projects import get_project, list_projects
 from videoflow.domain.errors import VideoFlowError
@@ -200,11 +200,11 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             except VideoFlowError as exc:
                 return exc.to_dict()
         if action in {"init", "open"}:
-            if channel_id and not is_channel_kit(channel_id):
+            if channel_id and not is_brand_kit(channel_id):
                 return error(
                     "channel_not_found",
                     f"Unknown channel kit: {channel_id}. Use one of: "
-                    + ", ".join(channel_kit_ids())
+                    + ", ".join(brand_kit_ids())
                     + ". Styles belong in style_id.",
                 )
             if style_id:

@@ -16,7 +16,7 @@ from videoflow.application.clock import now_iso as _now
 from videoflow.application.storage import atomic_write_text
 from videoflow.domain.errors import StyleError, StyleNotFoundError
 from videoflow.domain.headless import (
-    ChannelKit,
+    BrandKit,
     PresetHardConstraints,
     PresetRule,
     PresetRulebook,
@@ -305,7 +305,7 @@ def rulebook_from_style(style: StyleDefinition) -> PresetRulebook:
         aspect_ratio=style.aspect_ratio,
         caption_preset=style.caption_preset,
     )
-    kit = ChannelKit(
+    kit = BrandKit(
         fonts=list(style.fonts),
         palette=list(style.palette),
         caption_preset=style.caption_preset,
@@ -316,7 +316,7 @@ def rulebook_from_style(style: StyleDefinition) -> PresetRulebook:
         version=style.version,
         learned_rules=list(style.learned_rules),
         hard_constraints=hard,
-        channel_kit=kit,
+        brand_kit=kit,
     )
 
 
@@ -328,12 +328,12 @@ def style_from_rulebook(
 ) -> StyleDefinition:
     identifier = style_id or book.channel_id or "default"
     base = existing or StyleDefinition(style_id=style_slug(identifier), name=identifier or "Style")
-    legacy = book.channel_kit.defaults.get("style")
+    legacy = book.brand_kit.defaults.get("style")
     legacy_preset: dict[str, Any] = legacy if isinstance(legacy, dict) else {}
-    palette = book.channel_kit.palette or [str(item) for item in legacy_preset.get("palette") or []]
+    palette = book.brand_kit.palette or [str(item) for item in legacy_preset.get("palette") or []]
     if not palette and book.hard_constraints.palette:
         palette = [book.hard_constraints.palette]
-    fonts = book.channel_kit.fonts or []
+    fonts = book.brand_kit.fonts or []
     typography = legacy_preset.get("typography")
     if not fonts and isinstance(typography, dict) and typography.get("family"):
         fonts = [str(typography["family"])]
@@ -353,7 +353,7 @@ def style_from_rulebook(
             "aspect_ratio": book.hard_constraints.aspect_ratio or base.aspect_ratio,
             "caption_preset": (
                 book.hard_constraints.caption_preset
-                or book.channel_kit.caption_preset
+                or book.brand_kit.caption_preset
                 or base.caption_preset
             ),
             "cut_rhythm": cut_rhythm,

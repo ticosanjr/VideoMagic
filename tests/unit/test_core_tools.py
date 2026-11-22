@@ -379,7 +379,7 @@ def test_core_exec_waits_for_the_step_job(tmp_path: Path, monkeypatch) -> None:
     assert result["wait"]["ok"] is True
 
 
-def test_core_project_rejects_style_as_channel_kit(tmp_path: Path, monkeypatch) -> None:
+def test_core_project_rejects_style_as_brand_kit(tmp_path: Path, monkeypatch) -> None:
     tools, record, _ = setup(tmp_path, monkeypatch)
     rejected = tools["vf_project"](
         action="init",

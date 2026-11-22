@@ -164,12 +164,12 @@ def test_rulebook_mapping_applies_style_defaults() -> None:
     assert book.channel_id == "canal-teste"
     assert book.hard_constraints.aspect_ratio == "9:16"
     assert book.hard_constraints.cut_rhythm_sec == 1.5
-    assert book.channel_kit.palette == ["#111827", "#f97316"]
-    assert book.channel_kit.defaults["audio.master"]["target_lufs"] == -14.0
-    assert book.channel_kit.defaults["audio.vad"]["min_silence_ms"] == 300
-    assert book.channel_kit.defaults["layout.cutout"]["style"] == "cutout"
-    assert book.channel_kit.defaults["motion.render"]["engine"] == "hyperframes"
-    assert book.channel_kit.defaults["style"]["preset"]["name"] == "Canal Teste"
+    assert book.brand_kit.palette == ["#111827", "#f97316"]
+    assert book.brand_kit.defaults["audio.master"]["target_lufs"] == -14.0
+    assert book.brand_kit.defaults["audio.vad"]["min_silence_ms"] == 300
+    assert book.brand_kit.defaults["layout.cutout"]["style"] == "cutout"
+    assert book.brand_kit.defaults["motion.render"]["engine"] == "hyperframes"
+    assert book.brand_kit.defaults["style"]["preset"]["name"] == "Canal Teste"
     assert book.learned_rules[0].text == "Cortar antes de 1s"
 
 
@@ -206,7 +206,7 @@ def test_parse_falls_back_to_filename_and_rejects_bad_values() -> None:
 
 def test_style_from_rulebook_restores_legacy_preset_fields(tmp_path: Path) -> None:
     from videoflow.application.style_catalog import style_from_rulebook
-    from videoflow.domain.headless import ChannelKit, PresetHardConstraints, PresetRulebook
+    from videoflow.domain.headless import BrandKit, PresetHardConstraints, PresetRulebook
 
     book = PresetRulebook(
         channel_id="legacy",
@@ -216,7 +216,7 @@ def test_style_from_rulebook_restores_legacy_preset_fields(tmp_path: Path) -> No
             caption_preset="kinetic",
             cut_rhythm_sec=2.0,
         ),
-        channel_kit=ChannelKit(
+        brand_kit=BrandKit(
             defaults={
                 "style": {
                     "palette": ["#fff"],

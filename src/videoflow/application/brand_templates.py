@@ -12,12 +12,5 @@ from videoflow.application.brand_kit import (
     templates_dir,
 )
 
-__all__ = [
-    "BrandTemplate",
-    "apply_brand_options",
-    "delete_template",
-    "get_template",
-    "list_templates",
-    "save_template",
-    "templates_dir",
-]
+__all__ = ["BrandTemplate", "apply_brand_options", "delete_template",
+           "get_template", "list_templates", "save_template", "templates_dir"]

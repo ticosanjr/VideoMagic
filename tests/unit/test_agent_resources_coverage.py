@@ -88,7 +88,7 @@ def _setup(tmp_path: Path, monkeypatch):
                 "channel_id": "demo",
                 "hard_constraints": {"palette": "light"},
                 "learned_rules": [{"id": "r1", "text": "cut at 4s"}],
-                "channel_kit": {"fonts": ["Inter"]},
+                "brand_kit": {"fonts": ["Inter"]},
             }
         ),
         encoding="utf-8",

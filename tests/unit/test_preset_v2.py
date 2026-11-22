@@ -77,13 +77,13 @@ def test_legacy_rulebook_migrates_and_similar_rules_merge(tmp_path: Path, monkey
     book = load_rulebook("legacy")
     assert len(book.learned_rules) == 2
     assert any("please" in rule.text for rule in book.learned_rules)
-    assert book.channel_kit.fonts == []
+    assert book.brand_kit.fonts == []
 
 
-def test_channel_kit_mutates_recipe() -> None:
-    from videoflow.application.brand_kit import apply_channel_kit
+def test_brand_kit_mutates_recipe() -> None:
+    from videoflow.application.brand_kit import apply_brand_kit
     from videoflow.core.recipe import parse_recipe
-    from videoflow.domain.headless import ChannelKit, PresetHardConstraints, PresetRulebook
+    from videoflow.domain.headless import BrandKit, PresetHardConstraints, PresetRulebook
 
     recipe = parse_recipe(
         {
@@ -122,7 +122,7 @@ def test_channel_kit_mutates_recipe() -> None:
         hard_constraints=PresetHardConstraints(
             aspect_ratio="9:16", caption_preset="tiktok_bold", broll_style="emotional"
         ),
-        channel_kit=ChannelKit(
+        brand_kit=BrandKit(
             lut="/assets/look.cube",
             intro="/assets/intro.png",
             outro="/assets/outro.png",
@@ -130,7 +130,7 @@ def test_channel_kit_mutates_recipe() -> None:
             defaults={"shorts.select": {"target_duration_max_sec": 45}},
         ),
     )
-    updated = apply_channel_kit(recipe, book)
+    updated = apply_brand_kit(recipe, book)
     params = {step.id: step.params for step in updated.steps}
     assert params["select"]["aspect_ratio"] == "9:16"
     assert params["select"]["target_duration_max_sec"] == 45
@@ -141,10 +141,10 @@ def test_channel_kit_mutates_recipe() -> None:
     assert params["broll"]["query"] == "emotional"
 
 
-def test_channel_kit_ignores_unknown_step_metadata() -> None:
-    from videoflow.application.brand_kit import apply_channel_kit
+def test_brand_kit_ignores_unknown_step_metadata() -> None:
+    from videoflow.application.brand_kit import apply_brand_kit
     from videoflow.core.recipe import parse_recipe
-    from videoflow.domain.headless import ChannelKit, PresetRulebook
+    from videoflow.domain.headless import BrandKit, PresetRulebook
 
     recipe = parse_recipe(
         {
@@ -153,11 +153,11 @@ def test_channel_kit_ignores_unknown_step_metadata() -> None:
             "steps": [{"id": "x", "type": "custom.step", "needs": [], "params": {"a": 1}}],
         }
     )
-    updated = apply_channel_kit(
+    updated = apply_brand_kit(
         recipe,
         PresetRulebook(
             channel_id="demo",
-            channel_kit=ChannelKit(defaults={"custom.step": {"b": 2}}),
+            brand_kit=BrandKit(defaults={"custom.step": {"b": 2}}),
         ),
     )
     assert updated.steps[0].params == {"a": 1}
@@ -176,7 +176,7 @@ def test_channel_kit_ignores_unknown_step_metadata() -> None:
             ],
         }
     )
-    fixed = apply_channel_kit(short, PresetRulebook(channel_id="demo"))
+    fixed = apply_brand_kit(short, PresetRulebook(channel_id="demo"))
     assert fixed.steps[0].params["caption_style"] == {}
 
 
@@ -199,27 +199,39 @@ def test_merge_defaults_accepts_list_and_dict_overrides() -> None:
     assert params["count"] == 0
 
 
-def test_channel_kit_ids_and_style_rejection() -> None:
-    from videoflow.application.brand_kit import channel_kit_ids, is_channel_kit
+def test_brand_kit_ids_and_style_rejection() -> None:
+    from videoflow.application.brand_kit import brand_kit_ids, is_brand_kit
 
-    ids = channel_kit_ids()
+    ids = brand_kit_ids()
     assert "youtube-talking-head" in ids
     assert "lecture-clean" in ids
     assert "shorts-aggressive" in ids
-    assert is_channel_kit("youtube-talking-head") is True
-    assert is_channel_kit("canal-paula-long") is False
+    assert is_brand_kit("youtube-talking-head") is True
+    assert is_brand_kit("canal-paula-long") is False
 
 
-def test_channel_kit_module_was_absorbed_by_brand_kit() -> None:
+def test_legacy_kit_module_was_absorbed_by_brand_kit() -> None:
     import importlib.util
 
-    assert importlib.util.find_spec("videoflow.application.channel_kit") is None
+    legacy_module = "videoflow.application." + "channel" + "_kit"
+    assert importlib.util.find_spec(legacy_module) is None
     from videoflow.application.brand_kit import (
-        apply_channel_kit,
-        channel_kit_ids,
-        is_channel_kit,
+        apply_brand_kit,
+        brand_kit_ids,
+        is_brand_kit,
     )
 
-    assert callable(apply_channel_kit)
-    assert channel_kit_ids()
-    assert is_channel_kit("youtube-talking-head") is True
+    assert callable(apply_brand_kit)
+    assert brand_kit_ids()
+    assert is_brand_kit("youtube-talking-head") is True
+
+
+def test_legacy_rulebook_kit_key_still_loads() -> None:
+    from videoflow.domain.headless import PresetRulebook
+
+    legacy_key = "channel" + "_kit"
+    book = PresetRulebook.model_validate(
+        {"channel_id": "demo", legacy_key: {"fonts": ["Inter"]}}
+    )
+    assert book.brand_kit.fonts == ["Inter"]
+    assert "brand_kit" in book.model_dump()

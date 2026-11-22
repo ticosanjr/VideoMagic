@@ -82,7 +82,7 @@ def test_calibration_step_writes_a_profile(tmp_path: Path, monkeypatch) -> None:
     from videoflow.core.context import PipelineContext
     from videoflow.domain.state import MediaInfo
     from videoflow.steps.base import StepIO
-    from videoflow.steps.decoupage import DecoupageCalibrateParams, DecoupageCalibrateStep
+    from videoflow.steps.decupage import DecoupageCalibrateParams, DecoupageCalibrateStep
 
     monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
     output = tmp_path / "out"
@@ -112,3 +112,14 @@ def test_calibration_step_writes_a_profile(tmp_path: Path, monkeypatch) -> None:
     assert profile["available"] is True
     assert profile["recommended_strictness"] == "aggressive"
     assert (output / "decoupage" / "profile.md").is_file()
+
+
+def test_decoupage_module_is_a_thin_shim() -> None:
+    from pathlib import Path as _Path
+
+    from videoflow.steps import decoupage, decupage
+
+    assert decoupage.DecoupageCalibrateStep is decupage.DecoupageCalibrateStep
+    assert decoupage.DecoupageCalibrateParams is decupage.DecoupageCalibrateParams
+    source = _Path(decoupage.__file__).read_text(encoding="utf-8")
+    assert len(source.splitlines()) < 20

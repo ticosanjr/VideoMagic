@@ -33,8 +33,8 @@ def test_clone_style_from_directory(tmp_path: Path, monkeypatch) -> None:
     assert result["channel_id"] == "canal-paula"
     assert result["preset"]["palette"]
     book = load_rulebook("canal-paula")
-    assert book.channel_kit.palette == result["preset"]["palette"]
-    assert book.channel_kit.defaults["style"]["preset"]["name"] == "Paula"
+    assert book.brand_kit.palette == result["preset"]["palette"]
+    assert book.brand_kit.defaults["style"]["preset"]["name"] == "Paula"
     assert Path(result["rulebook"]).is_file()
 
 
@@ -117,7 +117,7 @@ def test_clone_style_captures_url_and_records_font(tmp_path: Path, monkeypatch) 
 
     assert result["warnings"] == []
     assert (tmp_path / "out" / "style" / "reference.png").is_file()
-    assert load_rulebook("canal-url").channel_kit.fonts == ["Inter"]
+    assert load_rulebook("canal-url").brand_kit.fonts == ["Inter"]
 
 
 def test_capture_reference_failure_is_reported(tmp_path: Path, monkeypatch) -> None:

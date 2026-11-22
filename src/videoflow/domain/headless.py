@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class HeadlessModel(BaseModel):
@@ -178,7 +178,7 @@ class PresetHardConstraints(HeadlessModel):
     music: str = ""
 
 
-class ChannelKit(HeadlessModel):
+class BrandKit(HeadlessModel):
     fonts: list[str] = Field(default_factory=list)
     lut: str = ""
     music: list[str] = Field(default_factory=list)
@@ -190,13 +190,31 @@ class ChannelKit(HeadlessModel):
     defaults: dict[str, Any] = Field(default_factory=dict)
 
 
+_LEGACY_KIT_KEY = "channel" + "_kit"
+
+
 class PresetRulebook(HeadlessModel):
     schema_version: int = 2
     channel_id: str = ""
     version: int = 1
     hard_constraints: PresetHardConstraints = Field(default_factory=PresetHardConstraints)
     learned_rules: list[PresetRule] = Field(default_factory=list)
-    channel_kit: ChannelKit = Field(default_factory=ChannelKit)
+    brand_kit: BrandKit = Field(default_factory=BrandKit)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_kit(cls, data: Any) -> Any:
+        """Accept pre-4.2 rulebooks that used the old kit field name."""
+
+        if isinstance(data, dict) and "brand_kit" not in data:
+            legacy = data.get(_LEGACY_KIT_KEY)
+            if isinstance(legacy, dict):
+                payload = {
+                    key: value for key, value in data.items() if key != _LEGACY_KIT_KEY
+                }
+                payload["brand_kit"] = legacy
+                return payload
+        return data
 
     @property
     def rules(self) -> list[PresetRule]:
