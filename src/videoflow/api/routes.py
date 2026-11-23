@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from videoflow.api.routes_admin import register_admin_routes
+from videoflow.api.routes_curation import register_curation_routes
 from videoflow.api.routes_discovery import register_discovery_routes
 from videoflow.api.routes_formats import register_format_routes
 from videoflow.api.routes_gpu import register_gpu_routes
@@ -23,6 +24,7 @@ from videoflow.application.jobs import JobManager
 def register_routes(app: FastAPI, jobs: JobManager) -> None:
     """Register the configuration and observability routes used by MCP."""
 
+    register_curation_routes(app)
     register_discovery_routes(app)
     register_gpu_routes(app)
     register_format_routes(app)

@@ -5,10 +5,10 @@ vision satellites were folded into the core domain packages and their CLI
 subcommands were removed:
 
 ```text
-videoflow mcp --profile core   16 tools   project, brief, capabilities, ingest, run, transcript,
+videoflow mcp --profile core   17 tools   project, brief, capabilities, ingest, run, transcript,
                                            decupage, scenes, preview, timeline, shorts, audio,
                                            media, export, QA, jobs
-videoflow mcp --profile full   21 tools   core + depth, parallax, motion, capture and style
+videoflow mcp --profile full   22 tools   core + depth, parallax, motion, capture and style
 ```
 
 The core intentionally does not expose the old 82-tool UI CRUD surface. Node

@@ -34,8 +34,8 @@ Workspace preparado pelo VideoFlow {{VERSION}}.
 8. **Offload pesado.** Use `compute_policy="auto"` ou `"remote"` para ASR,
    alinhamento forçado, matte, NVENC, scene analysis e Shorts quando o worker
    Windows estiver disponível; reporte `degraded` se houver fallback local.
-9. **Profile enxuto.** Use `--profile core` (16 tools) no dia a dia e
-   `--profile full` (21) apenas quando precisar de FX ou estilo.
+9. **Profile enxuto.** Use `--profile core` (17 tools) no dia a dia e
+   `--profile full` (22) apenas quando precisar de FX ou estilo.
 
 ## Catálogo
 

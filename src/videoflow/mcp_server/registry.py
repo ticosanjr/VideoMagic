@@ -1,6 +1,6 @@
 """MCP tool registry and strict v4.2 profiles.
 
-``core`` exposes exactly 16 tools and ``full`` exactly 21. The internal ``all``
+``core`` exposes exactly 17 tools and ``full`` exactly 22. The internal ``all``
 profile keeps every granular tool for the HTTP API and compatibility tests.
 Fetch, audio and vision capabilities live in ``videoflow.domains`` and are
 exposed by this same server; the GPU worker remains a separate remote runtime.
@@ -252,6 +252,11 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
         "project",
     ),
     ToolSpec(
+        "vf_curation",
+        "Publish, read, or auto-select a two-turn visual curation board.",
+        "curation",
+    ),
+    ToolSpec(
         "vf_transcript",
         "Search, page, and maintain the cleaned transcript and glossary.",
         "transcript",
@@ -290,6 +295,7 @@ CORE_TOOL_NAMES: tuple[str, ...] = (
     "vf_decupage",
     "vf_scenes",
     "vf_preview",
+    "vf_curation",
     "vf_timeline",
     "vf_shorts",
     "vf_audio",
@@ -334,6 +340,11 @@ TOOL_DOCSTRINGS: dict[str, str] = {
         "[DOES] Summarize stage, sources, GPU, QA, and revision for a session.\n"
         "[REQUIRES] A registered ``project_id``.\n"
         "[RETURNS] Compact brief with next actions and recent revisions."
+    ),
+    "vf_curation": (
+        "[DOES] Publish, read, or auto-select a visual curation board.\n"
+        "[REQUIRES] ``project_id`` and a non-empty ``items`` list for publish.\n"
+        "[RETURNS] Board status, selected items, and the next agent action."
     ),
     "vf_capabilities": (
         "[DOES] Report backend, model, and external-provider availability.\n"
@@ -444,10 +455,10 @@ def validate_profile_registration(profile: str, registered: set[str]) -> None:
             f"MCP profile {profile!r} mismatch: missing={sorted(missing)} "
             f"extra={sorted(extra)}"
         )
-    if profile == "core" and len(registered) != 16:
-        raise RuntimeError(f"core profile must expose 16 tools, got {len(registered)}")
-    if profile == "full" and len(registered) != 21:
-        raise RuntimeError(f"full profile must expose 21 tools, got {len(registered)}")
+    if profile == "core" and len(registered) != 17:
+        raise RuntimeError(f"core profile must expose 17 tools, got {len(registered)}")
+    if profile == "full" and len(registered) != 22:
+        raise RuntimeError(f"full profile must expose 22 tools, got {len(registered)}")
 
 
 def validate_tool_docstring(func: object) -> None:

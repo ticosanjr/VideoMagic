@@ -565,3 +565,30 @@ Riscos residuais: fila/VRAM/utilização são ignoradas para capabilities pesada
 decisão explícita; jobs podem esperar na fila do worker. Workers antigos sem
 HEAD usam o fallback /artifacts/init.
 ```
+
+### Registro de execução — P0-2
+
+```text
+Fase: P0-2
+Data: 2026-11-23
+Arquivos criados:
+  src/videoflow/application/curation_board.py
+  src/videoflow/api/routes_curation.py
+  tests/unit/test_curation_board.py
+Arquivos alterados:
+  src/videoflow/api/routes.py
+  src/videoflow/mcp_server/core_tools/official.py
+  src/videoflow/mcp_server/registry.py
+  tests/contract/test_mcp.py
+  tests/unit/test_headless_mcp.py
+  docs/mcp.md, docs/architecture.md e AGENTS.md
+Perfis: core=17, full=22.
+Comando de validação:
+  uv run pytest tests/unit/test_curation_board.py tests/unit/test_core_tools.py -q
+Resultado: 31 passed
+Regressão: 3011 passed, 1 skipped, 1 xfailed; media 29 passed, 2 skipped.
+Riscos residuais: o endpoint /boards lista apenas boards aguardando humano;
+boards já decididos continuam acessíveis por /curation/{project_id}. O board
+não valida local_path no publish; a validação ocorre no endpoint de mídia com
+resolve_allowed.
+```
