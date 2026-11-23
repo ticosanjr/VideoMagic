@@ -119,16 +119,19 @@ if os.environ.get("VIDEOWFLOW_WITH_CUDA") == "1":
 
     nvidia_roots = {Path(item) for item in site.getsitepackages()}
     nvidia_roots.add(Path(sysconfig.get_paths()["purelib"]))
-    cuda_dlls: list[Path] = []
+    cuda_dlls: list[tuple[Path, str]] = []
     for root in nvidia_roots:
         nvidia = root / "nvidia"
-        if nvidia.is_dir():
-            cuda_dlls.extend(nvidia.glob("*/bin/*.dll"))
-            cuda_dlls.extend(nvidia.glob("*/lib/*.dll"))
+        if not nvidia.is_dir():
+            continue
+        for dll in sorted(nvidia.glob("*/bin/*.dll")):
+            cuda_dlls.append((dll, "nvidia/" + dll.parent.relative_to(nvidia).as_posix()))
+        for dll in sorted(nvidia.glob("*/lib/*.dll")):
+            cuda_dlls.append((dll, "nvidia/" + dll.parent.relative_to(nvidia).as_posix()))
     if not cuda_dlls:
         raise SystemExit("CUDA build requested but no NVIDIA DLLs were found")
-    for dll in sorted(cuda_dlls):
-        binaries.append((str(dll), "nvidia"))
+    for dll, destination in cuda_dlls:
+        binaries.append((str(dll), destination))
     flag = ROOT / "build" / "cuda.flag"
     flag.parent.mkdir(parents=True, exist_ok=True)
     flag.write_text("1\n", encoding="utf-8")

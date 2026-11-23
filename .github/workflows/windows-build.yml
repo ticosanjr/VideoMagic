@@ -82,6 +82,7 @@ jobs:
       - name: Package Windows CUDA portable
         shell: pwsh
         run: |
+          Remove-Item -Recurse -Force .\dist\videoflow\videoflow-data -ErrorAction SilentlyContinue
           $version = ((.\dist\videoflow\videoflow.exe version) -split ' ')[1]
           $zip = "dist\VideoFlow-$version-windows-x64-cuda.zip"
           Compress-Archive -Path dist\videoflow\* -DestinationPath $zip -Force
