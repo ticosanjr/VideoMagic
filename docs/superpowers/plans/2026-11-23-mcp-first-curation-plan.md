@@ -587,8 +587,7 @@ Comando de validação:
   uv run pytest tests/unit/test_curation_board.py tests/unit/test_core_tools.py -q
 Resultado: 31 passed
 Regressão: 3011 passed, 1 skipped, 1 xfailed; media 29 passed, 2 skipped.
-Riscos residuais: o endpoint /boards lista apenas boards aguardando humano;
-boards já decididos continuam acessíveis por /curation/{project_id}. O board
-não valida local_path no publish; a validação ocorre no endpoint de mídia com
-resolve_allowed.
+Riscos residuais: /curation/boards lista todos os boards conhecidos; use
+?pending_only=true para a tela de pendentes. O board não valida local_path no
+publish; a validação ocorre no endpoint de mídia com resolve_allowed.
 ```

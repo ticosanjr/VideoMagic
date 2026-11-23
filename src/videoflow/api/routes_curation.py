@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from videoflow.application.curation_board import (
     CurationError,
+    list_boards,
     list_pending_boards,
     load_board,
     load_decisions,
@@ -44,8 +45,9 @@ def register_curation_routes(app: FastAPI) -> None:
     """Register the curation board and reviewed-media endpoints."""
 
     @app.get("/api/v1/curation/boards")
-    def curation_boards() -> dict[str, Any]:
-        return {"ok": True, "boards": list_pending_boards()}
+    def curation_boards(pending_only: bool = False) -> dict[str, Any]:
+        boards = list_pending_boards() if pending_only else list_boards()
+        return {"ok": True, "boards": boards}
 
     @app.get("/api/v1/curation/{project_id}")
     def curation_board(project_id: str) -> dict[str, Any]:

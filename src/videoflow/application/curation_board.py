@@ -254,10 +254,10 @@ def _board_summary(board: CurationBoard, project_dir: str | Path) -> dict[str, A
     }
 
 
-def list_pending_boards(
+def list_boards(
     projects_root: str | Path | None = None,
 ) -> list[dict[str, Any]]:
-    """List boards still waiting for a human decision.
+    """List every known curation board, newest first.
 
     ``projects_root`` is useful in tests and standalone workspaces. When it is
     omitted, the registered project registry is the source of truth.
@@ -278,10 +278,22 @@ def list_pending_boards(
             board = load_board(directory)
         except CurationError:
             continue
-        if board is None or board.status != "waiting_human":
+        if board is None:
             continue
         boards.append(_board_summary(board, directory))
     return sorted(boards, key=lambda item: str(item["updated_at"]), reverse=True)
+
+
+def list_pending_boards(
+    projects_root: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    """List boards still waiting for a human decision."""
+
+    return [
+        board
+        for board in list_boards(projects_root)
+        if board["status"] == "waiting_human"
+    ]
 
 
 __all__ = [
@@ -293,6 +305,7 @@ __all__ = [
     "board_path",
     "curation_dir",
     "decisions_path",
+    "list_boards",
     "list_pending_boards",
     "load_board",
     "load_decisions",

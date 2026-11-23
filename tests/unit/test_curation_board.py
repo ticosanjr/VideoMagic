@@ -78,6 +78,13 @@ def test_publish_human_decision_and_pending_list(project, tmp_path: Path) -> Non
     assert decisions.selected_ids == ["sfx-1"]
     assert decisions.rejected_ids == ["music-1"]
     assert list_pending_boards(tmp_path) == []
+    client = TestClient(create_app())
+    listed = client.get("/api/v1/curation/boards").json()["boards"]
+    assert listed[0]["status"] == "decided"
+    pending = client.get(
+        "/api/v1/curation/boards", params={"pending_only": True}
+    ).json()["boards"]
+    assert pending == []
 
 
 def test_delegate_and_auto_select(project) -> None:
