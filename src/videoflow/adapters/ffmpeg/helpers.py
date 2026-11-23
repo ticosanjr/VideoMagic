@@ -108,9 +108,28 @@ def _cutout_graph(
     )
 
 
-def _filter_path(path: Path) -> str:
-    value = str(Path(path).expanduser().resolve()).replace("\\", "/")
+_WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:[\\/]")
+
+
+def escape_ffmpeg_filter_path(path: Path | str) -> str:
+    """Return a path safe inside ``ass=``, ``subtitles=`` and ``drawtext=``.
+
+    Backslashes are normalized to ``/`` and the Windows drive colon becomes
+    ``C\\:/...``. Apostrophes are escaped for FFmpeg's filter parser. A Windows
+    path is kept as-is instead of being resolved against the current directory
+    of a non-Windows host, which keeps the helper testable from Linux.
+    """
+
+    raw = str(path)
+    if _WINDOWS_DRIVE.match(raw):
+        value = raw.replace("\\", "/")
+    else:
+        value = str(Path(raw).expanduser().resolve()).replace("\\", "/")
     return value.replace(":", "\\:").replace("'", "\\'")
+
+
+def _filter_path(path: Path) -> str:
+    return escape_ffmpeg_filter_path(path)
 
 
 def parse_silence(

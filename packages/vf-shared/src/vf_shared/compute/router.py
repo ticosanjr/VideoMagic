@@ -27,7 +27,7 @@ from .router_execute import RouterExecuteMixin
 from .router_health import RouterHealthMixin
 from .router_submit import RouterSubmitMixin
 
-COMPUTE_MODES = ("auto", "local_only", "remote_preferred")
+COMPUTE_MODES = ("auto", "local_only", "local_gpu", "remote_preferred")
 
 
 class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
@@ -179,11 +179,22 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
 
 
     @property
+    def local_gpu_available(self) -> bool:
+        """Whether this host can run CUDA ASR or NVENC encoders locally."""
+
+        from vf_shared.compute.local_gpu import local_gpu_available
+
+        return local_gpu_available()
+
+
+    @property
     def execution_node(self) -> str:
         """Stable node label for the last healthy placement."""
 
         if self.mode == "local_only":
             return "local"
+        if self.mode == "local_gpu":
+            return "local_cuda" if self.local_gpu_available else "local"
         health = self._health
         if health is None or not health.available:
             return "local"

@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-COMPUTE_MODES = ("auto", "local_only", "remote_preferred")
+COMPUTE_MODES = ("auto", "local_only", "local_gpu", "remote_preferred")
 TRANSPORT_MODES = ("auto", "http", "shared")
 CONFIG_NAME = "gpu.json"
 

@@ -89,7 +89,7 @@ class RouterExecuteMixin:
             health = self.health()
             reason = (
                 "windows_gpu_offline_fallback_cpu"
-                if self.mode != "local_only" and not health.available
+                if self.mode not in {"local_only", "local_gpu"} and not health.available
                 else decision.reason
             )
         else:
@@ -98,7 +98,7 @@ class RouterExecuteMixin:
         started = time.perf_counter()
         value = local_fn()
         elapsed = time.perf_counter() - started
-        degraded = policy != "local" and self.mode != "local_only"
+        degraded = policy != "local" and self.mode not in {"local_only", "local_gpu"}
         execution = ExecutionRecord(
             run_id="",
             capability=capability,

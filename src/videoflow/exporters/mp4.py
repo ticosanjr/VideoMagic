@@ -15,6 +15,7 @@ from typing import Any
 from uuid import uuid4
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.adapters.ffmpeg.helpers import escape_ffmpeg_filter_path
 from videoflow.application.disk import ensure_free_space_for_export
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.media_integrity import validate_integrity
@@ -1036,7 +1037,7 @@ def _export_mp4_segmented(
 
 
 def _filter_path(path: Path) -> str:
-    return str(path).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+    return escape_ffmpeg_filter_path(path)
 
 
 def export_mp4(

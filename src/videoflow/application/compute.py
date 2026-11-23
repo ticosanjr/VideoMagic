@@ -92,6 +92,7 @@ def compute_status(
             "mode": "local",
             "execution_node": "local",
             "available": False,
+            "local_gpu_available": False,
             "message": f"compute router unavailable: {exc}",
         }
     try:
@@ -103,6 +104,7 @@ def compute_status(
             "worker_url": resolved.worker_url,
             "execution_node": "local",
             "available": False,
+            "local_gpu_available": bool(getattr(resolved, "local_gpu_available", False)),
             "message": f"worker health failed: {exc}",
         }
     return {
@@ -113,6 +115,7 @@ def compute_status(
         "worker_source": getattr(resolved, "worker_source", "none"),
         "execution_node": resolved.execution_node,
         "available": health.available,
+        "local_gpu_available": bool(getattr(resolved, "local_gpu_available", False)),
         "worker_id": health.worker_id,
         "hostname": health.hostname,
         "ip_local": health.ip_local,

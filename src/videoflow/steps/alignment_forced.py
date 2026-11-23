@@ -33,7 +33,7 @@ class ForcedAlignmentParams(BaseModel):
     language: str = "auto"
     device: Literal["cpu", "cuda", "auto"] = "cpu"
     compute_type: str = "int8"
-    compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
+    compute_policy: Literal["auto", "local", "local_gpu", "remote", "remote_only"] = "auto"
     allow_slow_cpu_fallback: bool = False
     min_words: int = Field(default=1, ge=0, le=100)
 

@@ -14,12 +14,9 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from videoflow.runtime import portable_home
+from vf_shared.contracts.locking import FileLock
 
-try:  # POSIX only; Windows keeps the in-process semaphore.
-    import fcntl
-except ImportError:  # pragma: no cover - Windows
-    fcntl = None  # type: ignore[assignment]
+from videoflow.runtime import portable_home
 
 
 @dataclass
@@ -31,7 +28,6 @@ class RenderGate:
     _state_lock: threading.Lock = field(default_factory=threading.Lock)
     _current: str = ""
     _queued: int = 0
-
 
     @contextlib.contextmanager
     def hold(self, kind: str, job_id: str = "") -> Iterator[None]:
@@ -59,26 +55,14 @@ class RenderGate:
                 else:
                     self._queued = max(0, self._queued - 1)
 
-    def _acquire_file_lock(self) -> object | None:
-        if fcntl is None:
-            return None
+    def _acquire_file_lock(self) -> FileLock | None:
         path = self.path or (portable_home() / "render.lock")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        handle = path.open("a+")
-        try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        except OSError:
-            handle.close()
-            return None
-        return handle
+        lock = FileLock(path)
+        return lock if lock.acquire() else None
 
-    def _release_file_lock(self, handle: object | None) -> None:
-        if handle is None or fcntl is None:
-            return
-        try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)  # type: ignore[attr-defined]
-        finally:
-            handle.close()  # type: ignore[attr-defined]
+    def _release_file_lock(self, handle: FileLock | None) -> None:
+        if handle is not None:
+            handle.release()
 
     def status(self) -> dict[str, object]:
         with self._state_lock:
@@ -87,7 +71,7 @@ class RenderGate:
                 "current": self._current,
                 "queued": self._queued,
                 "path": str(self.path or (portable_home() / "render.lock")),
-                "cross_process": fcntl is not None,
+                "cross_process": True,
             }
 
 

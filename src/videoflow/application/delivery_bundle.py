@@ -307,7 +307,7 @@ def build_delivery_bundle(
         preset = "veryfast" if options.mp4_draft else options.mp4_preset
         output_fps = _fps_value(options.mp4_fps)
         rendered_remote = False
-        if options.compute_policy != "local" and not options.mp4_draft:
+        if options.compute_policy not in {"local", "local_gpu"} and not options.mp4_draft:
             try:
                 from videoflow.application.compute import (
                     guard_remote_policy,

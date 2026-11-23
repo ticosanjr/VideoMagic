@@ -95,12 +95,10 @@ def test_sync_read_wav_rejects_stereo(tmp_path: Path) -> None:
     assert sync.detect_drift_ms(path, path) is None
 
 
-def test_render_gate_without_fcntl(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(render_gate_module, "fcntl", None)
+def test_render_gate_uses_cross_process_lock(tmp_path: Path) -> None:
     gate = render_gate_module.RenderGate(path=tmp_path / "lock")
     with gate.hold("test"):
-        pass
-    assert gate.status()["cross_process"] is False
+        assert gate.status()["cross_process"] is True
 
 
 def test_web_render_helpers(tmp_path: Path, monkeypatch) -> None:

@@ -24,12 +24,12 @@ class GpuConnectRequest(BaseModel):
     worker_url: str = ""
     token: str = ""
     worker_id: str = ""
-    mode: Literal["auto", "remote_preferred", "local_only"] = "auto"
+    mode: Literal["auto", "remote_preferred", "local_only", "local_gpu"] = "auto"
     transport: Literal["auto", "http", "shared"] = "auto"
 
 
 class GpuSettingsPatch(BaseModel):
-    mode: Literal["auto", "remote_preferred", "local_only"] | None = None
+    mode: Literal["auto", "remote_preferred", "local_only", "local_gpu"] | None = None
     transport: Literal["auto", "http", "shared"] | None = None
     capabilities: dict[str, bool] | None = None
     shared_mount_enabled: bool | None = None

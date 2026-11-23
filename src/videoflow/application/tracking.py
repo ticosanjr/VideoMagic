@@ -354,7 +354,7 @@ def track_focus(
     remote_values: list[float | None] = []
     remote_backend = "local"
     if (
-        compute_policy != "local"
+        compute_policy not in {"local", "local_gpu"}
         and mode in {"face_tracking", "auto_face_tracking_yolo"}
     ):
         try:

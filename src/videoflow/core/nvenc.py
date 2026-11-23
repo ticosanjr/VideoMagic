@@ -187,6 +187,16 @@ def nvenc_available(ffmpeg: str | None = None) -> bool:
     return probe_nvenc(ffmpeg).available
 
 
+def local_gpu_available(ffmpeg: str | None = None) -> bool:
+    """Whether this host has an NVIDIA CUDA device and a working NVENC."""
+
+    from vf_shared.compute.local_gpu import cuda_device_count
+
+    if cuda_device_count() <= 0:
+        return False
+    return probe_nvenc(ffmpeg).available
+
+
 def nvenc_args(ffmpeg: str | None = None) -> list[str]:
     """Return the proven encoder flags, or the default profile when forced."""
 
@@ -197,6 +207,7 @@ __all__ = [
     "CANDIDATES",
     "DEFAULT_ARGS",
     "NvencProbe",
+    "local_gpu_available",
     "nvenc_args",
     "nvenc_available",
     "probe_nvenc",

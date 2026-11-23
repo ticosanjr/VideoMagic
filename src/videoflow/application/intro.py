@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from videoflow.adapters.ffmpeg.helpers import escape_ffmpeg_filter_path
 from videoflow.application.motion import find_font
 from videoflow.runtime import find_binary
 
@@ -87,7 +88,7 @@ def compile_intro(
         "enable='between(t,0.2,3.2)'"
     )
     if font:
-        drawtext += f":fontfile='{font}'"
+        drawtext += f":fontfile='{escape_ffmpeg_filter_path(font)}'"
     filters.append(f"[cut]{drawtext}[v]")
     command = [
         binary,
@@ -144,7 +145,7 @@ def _title_card(
         "x=(w-text_w)/2:y=h*0.42"
     )
     if font:
-        drawtext += f":fontfile='{font}'"
+        drawtext += f":fontfile='{escape_ffmpeg_filter_path(font)}'"
     command = [
         binary,
         "-hide_banner",

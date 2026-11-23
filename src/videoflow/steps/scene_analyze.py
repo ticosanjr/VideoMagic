@@ -31,7 +31,7 @@ class SceneAnalyzeParams(BaseModel):
     threshold: float = Field(default=3.0, ge=0.5, le=10.0)
     min_scene_len_sec: float = Field(default=1.5, ge=0.25, le=30.0)
     keyframe_size: int = Field(default=544, ge=128, le=1080)
-    compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
+    compute_policy: Literal["auto", "local", "local_gpu", "remote", "remote_only"] = "auto"
     allow_slow_cpu_fallback: bool = False
     force: bool = False
 
@@ -140,7 +140,7 @@ class SceneAnalyzeStep(BaseStep):
                 asus=asus,
             )
 
-        if result is None and options.compute_policy == "local":
+        if result is None and options.compute_policy in {"local", "local_gpu"}:
             result = local_run()
             placement = "local"
         elif result is None:

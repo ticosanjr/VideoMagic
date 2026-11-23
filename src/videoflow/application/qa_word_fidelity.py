@@ -72,7 +72,7 @@ def verify_word_fidelity(
     wav: Path | None = None
     heard: list[Sentence] = []
     placement = "local"
-    if compute_policy != "local":
+    if compute_policy not in {"local", "local_gpu"}:
         try:
             from videoflow.application.compute import (
                 guard_remote_policy,

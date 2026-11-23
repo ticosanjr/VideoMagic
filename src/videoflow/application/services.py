@@ -308,7 +308,18 @@ def _windows_listeners() -> dict[int, set[int]]:
 
 def _discover_windows_services(current_pid: int) -> list[ServiceProcess]:
     services: list[ServiceProcess] = []
-    for pid, ports in _windows_listeners().items():
+    listeners = _windows_listeners()
+    registered = read_pid_file()
+    registered_pid = int(registered.get("pid") or 0)
+    registered_port = int(registered.get("port") or 0)
+    if (
+        registered_pid > 0
+        and registered_pid not in listeners
+        and registered_port > 0
+        and process_alive(registered_pid)
+    ):
+        listeners.setdefault(registered_pid, set()).add(registered_port)
+    for pid, ports in listeners.items():
         image = _windows_image_name(pid)
         if not image or "videoflow" not in image.casefold():
             continue
@@ -395,15 +406,19 @@ def stop_service_pid(
 ) -> bool:
     if pid <= 0:
         return False
-    if not allow_current and (pid == os.getpid() or pid in _ancestors(os.getpid(), proc_root)):
-        return False
     if os.name == "nt":
+        if not allow_current and pid == os.getpid():
+            return False
         image = _windows_image_name(pid)
         if not image or "videoflow" not in image.casefold():
             return False
         if terminate_pid(pid, force=False, timeout=timeout):
             return True
         return terminate_pid(pid, force=True, timeout=1.0)
+    if not allow_current and (
+        pid == os.getpid() or pid in _ancestors(os.getpid(), proc_root)
+    ):
+        return False
     cmdline = _read_cmdline(pid, proc_root)
     if not cmdline or not _is_videoflow_command(cmdline):
         return False

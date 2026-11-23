@@ -58,7 +58,7 @@ class TranscribeParams(BaseModel):
     word_timestamps: Literal["auto", "always", "off"] = "auto"
     condition_on_previous_text: bool | None = None
     vad_filter: bool | None = None
-    compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
+    compute_policy: Literal["auto", "local", "local_gpu", "remote", "remote_only"] = "auto"
     allow_slow_cpu_fallback: bool = False
     anti_hallucination: bool = True
     no_speech_threshold: float = Field(default=0.6, ge=0.0, le=1.0)
@@ -401,7 +401,7 @@ class TranscribeStep(BaseStep):
         if (
             io.asr_client is None
             and mode in {"faster_whisper", "whisper_cpp"}
-            and options.compute_policy != "local"
+            and options.compute_policy not in {"local", "local_gpu"}
         ):
             try:
                 from videoflow.application.compute import (

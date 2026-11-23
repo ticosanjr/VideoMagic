@@ -11,6 +11,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from videoflow.adapters.ffmpeg.helpers import escape_ffmpeg_filter_path
 from videoflow.application.short_composition.geometry import (
     CANVAS_HEIGHT,
     CANVAS_WIDTH,
@@ -356,12 +357,7 @@ def build_segment_renders(
 
 
 def _filter_path(path: Path) -> str:
-    return (
-        str(path)
-        .replace("\\", "/")
-        .replace(":", "\\:")
-        .replace("'", "\\'")
-    )
+    return escape_ffmpeg_filter_path(path)
 
 
 def _token(index: int) -> str:
@@ -691,7 +687,7 @@ def _replace_tokens(value: str, tokens: dict[str, str]) -> str:
 
 
 def _escape_filter_path(path: Path) -> str:
-    return str(path).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+    return escape_ffmpeg_filter_path(path)
 
 
 def _replace_filter_tokens(value: str, tokens: dict[str, str]) -> str:

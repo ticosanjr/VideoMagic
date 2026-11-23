@@ -13,6 +13,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.adapters.ffmpeg.helpers import escape_ffmpeg_filter_path
 from videoflow.application.titles import render_titles_ass
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import IngestError
@@ -60,7 +61,7 @@ class ColorGradeStep(BaseStep):
         if lut is not None:
             if not lut.is_file():
                 raise IngestError(f"LUT does not exist: {lut}")
-            escaped = str(lut).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+            escaped = escape_ffmpeg_filter_path(lut)
             filters.append(f"lut3d='{escaped}'")
         if (
             options.brightness != 0.0

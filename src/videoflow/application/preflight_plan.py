@@ -172,7 +172,11 @@ def _compute_plan(operation: str, gpu: dict[str, Any], params: dict[str, Any]) -
     if stages_definition is None:
         return {}
     policy = str(params.get("compute_policy") or "auto")
-    remote = bool(gpu.get("available")) and policy not in {"local", "local_only"}
+    remote = bool(gpu.get("available")) and policy not in {
+        "local",
+        "local_gpu",
+        "local_only",
+    }
     capabilities = set(gpu.get("capabilities") or [])
     stages: list[dict[str, Any]] = []
     for stage, kind, preferred, capability in stages_definition:
@@ -197,7 +201,7 @@ def _compute_plan(operation: str, gpu: dict[str, Any], params: dict[str, Any]) -
         degraded = (
             preferred == "remote"
             and not can_remote
-            and policy not in {"local", "local_only"}
+            and policy not in {"local", "local_gpu", "local_only"}
         )
         stages.append(
             {

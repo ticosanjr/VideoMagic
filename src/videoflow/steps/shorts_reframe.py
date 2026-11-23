@@ -33,7 +33,7 @@ class ReframeParams(BaseModel):
     smoothing_factor: float = Field(default=0.85, ge=0.0, le=0.99)
     dynamic_crop: bool = False
     layout: Literal["single", "split_screen", "pip"] = "single"
-    compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
+    compute_policy: Literal["auto", "local", "local_gpu", "remote", "remote_only"] = "auto"
     allow_slow_cpu_fallback: bool = True
 
 

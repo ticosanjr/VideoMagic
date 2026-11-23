@@ -8,17 +8,23 @@ track, so motion graphics work even without a Node/Remotion runtime.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from videoflow.adapters.ffmpeg.helpers import escape_ffmpeg_filter_path
 from videoflow.runtime import find_binary
 
 FONT_CANDIDATES = (
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
     "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+    str(Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "arial.ttf"),
+    str(Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "segoeui.ttf"),
+    str(Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "calibri.ttf"),
+    str(Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "consola.ttf"),
 )
 
 
@@ -116,7 +122,7 @@ def build_scenes(
 
 
 def _dt(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:").replace("%", "\\%")
+    return escape_ffmpeg_filter_path(value).replace("%", "\\%")
 
 
 def _text_file(directory: Path, scene_id: str, name: str, text: str) -> Path:

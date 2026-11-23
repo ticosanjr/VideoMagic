@@ -41,6 +41,16 @@ def physical_threads() -> int:
     return max(1, min(8, count // 2 or count))
 
 
+def _local_gpu_available() -> bool:
+    """Whether a local NVIDIA CUDA device can run Faster-Whisper."""
+
+    try:
+        from vf_shared.compute.local_gpu import local_gpu_available
+    except Exception:  # noqa: BLE001 - detection must never break planning
+        return False
+    return local_gpu_available()
+
+
 def _installed_models() -> dict[str, bool]:
     try:
         from videoflow.application.models import list_models
@@ -138,6 +148,20 @@ def resolve_asr_plan(
         device = forced_device
     elif cuda_build():
         device = "cuda"
+    policy = str(getattr(options, "compute_policy", "auto") or "auto").strip().lower()
+    gpu_fallback = ""
+    local_gpu = False
+    if policy in {"auto", "local_gpu"} and forced_device != "cpu":
+        local_gpu = _local_gpu_available()
+        if local_gpu:
+            device = "cuda"
+    elif policy == "local_gpu":
+        device = "cpu"
+        gpu_fallback = "local_gpu requested but VIDEOWFLOW_ASR_DEVICE forced cpu"
+    if policy == "local_gpu" and not local_gpu and not gpu_fallback:
+        if forced_device != "cuda":
+            device = "cpu"
+        gpu_fallback = "local_gpu requested but no local CUDA device was detected"
     compute_type = str(getattr(options, "compute_type", "int8") or "int8")
     if compute_type == "int8":
         compute_type = settings.speech.compute_type
@@ -145,7 +169,7 @@ def resolve_asr_plan(
     if forced_compute:
         compute_type = forced_compute
     elif device == "cuda" and compute_type == "int8":
-        compute_type = "int8_float16"
+        compute_type = "float16" if local_gpu else "int8_float16"
     if profile == "custom":
         model_id = str(getattr(options, "model_id", "") or "") or str(
             settings.models.defaults.get("asr", "")
@@ -179,6 +203,7 @@ def resolve_asr_plan(
                 getattr(options, "api_key_env", "VIDEOWFLOW_ASR_API_KEY")
                 or "VIDEOWFLOW_ASR_API_KEY"
             ),
+            fallback_reason=gpu_fallback,
         )
 
     fallback = ""
@@ -224,6 +249,7 @@ def resolve_asr_plan(
                 vad_filter=True,
                 word_timestamps=True,
                 condition_on_previous_text=False,
+                fallback_reason=gpu_fallback,
             )
         fallback = (
             "Vulkan whisper.cpp backend or turbo model is unavailable; "
@@ -317,5 +343,5 @@ def resolve_asr_plan(
             if getattr(options, "condition_on_previous_text", None) is None
             else options.condition_on_previous_text
         ),
-        fallback_reason=fallback,
+        fallback_reason=fallback or gpu_fallback,
     )

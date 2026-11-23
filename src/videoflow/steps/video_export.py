@@ -39,7 +39,7 @@ class VideoExportParams(BaseModel):
     filename_mode: Literal["source_timestamp", "fixed"] = "source_timestamp"
     filename: str = Field(default="video.mp4", min_length=1, max_length=200)
     audio_source: Literal["timeline", "mix"] = "timeline"
-    compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
+    compute_policy: Literal["auto", "local", "local_gpu", "remote", "remote_only"] = "auto"
     allow_slow_cpu_fallback: bool = False
     draft_scale: float = Field(default=0.0, ge=0.0, le=1.0)
     motion_blur: bool | None = None
@@ -177,7 +177,7 @@ class VideoExportStep(BaseStep):
         placement = "local"
         encoder = "libx264"
         remote_error = ""
-        if options.compute_policy != "local":
+        if options.compute_policy not in {"local", "local_gpu"}:
             try:
                 from videoflow.application.compute import (
                     guard_remote_policy,

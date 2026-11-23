@@ -424,7 +424,7 @@ class ShortRenderParams(BaseModel):
     screen_video_path: str = ""
     cam_side: Literal["right", "left"] = "right"
     output_name: str = "short.mp4"
-    compute_policy: Literal["auto", "local", "remote", "remote_only"] = "auto"
+    compute_policy: Literal["auto", "local", "local_gpu", "remote", "remote_only"] = "auto"
     allow_slow_cpu_fallback: bool = False
     encoder: Literal["auto", "nvenc", "libx264"] = "auto"
     burn_captions: bool = True
@@ -686,7 +686,7 @@ class ShortRenderStep(BaseStep):
         placement = "local"
         degraded = False
         reason = ""
-        if options.compute_policy == "local":
+        if options.compute_policy in {"local", "local_gpu"}:
             final = local_run(options.encoder)
         else:
             try:

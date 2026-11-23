@@ -371,7 +371,7 @@ class PresetSettings(BaseModel):
 class GpuSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    mode: Literal["auto", "local_only", "remote_preferred"] = "auto"
+    mode: Literal["auto", "local_only", "local_gpu", "remote_preferred"] = "auto"
     worker_url: str = ""
     worker_id: str = ""
     transport: Literal["auto", "http", "shared"] = "auto"

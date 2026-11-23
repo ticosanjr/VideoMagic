@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import shutil
 import struct
@@ -49,7 +50,7 @@ def system_font_dirs() -> list[Path]:
         Path("/usr/local/share/fonts"),
         Path.home() / ".fonts",
         Path.home() / ".local" / "share" / "fonts",
-        Path("C:/Windows/Fonts"),
+        Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts",
         Path.home() / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts",
         Path("/System/Library/Fonts"),
         Path("/Library/Fonts"),

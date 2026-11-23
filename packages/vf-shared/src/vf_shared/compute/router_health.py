@@ -43,8 +43,8 @@ class RouterHealthMixin:
                 self._client = None
                 self.invalidate()
 
-        if self.mode == "local_only":
-            return WorkerHealth(available=False, message="local_only mode")
+        if self.mode in {"local_only", "local_gpu"}:
+            return WorkerHealth(available=False, message=f"{self.mode} mode")
 
         explicit_env = env_worker_url()
         if explicit_env:
@@ -168,8 +168,8 @@ class RouterHealthMixin:
 
         capability = str(capability or "")
         canonical = canonical_capability(capability)
-        if self.mode == "local_only":
-            return _local("local_only mode", capability)
+        if self.mode in {"local_only", "local_gpu"}:
+            return _local(f"{self.mode} mode", capability)
 
         health = self.health()
         required = max(int(required_vram_mb or 0), vram_cost(capability), 0)
