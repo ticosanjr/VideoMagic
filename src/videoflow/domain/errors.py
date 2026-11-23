@@ -31,6 +31,10 @@ class VideoFlowError(Exception):
                 "Move the file inside an allowed root or update the path allowlist."
             ),
             "unknown_project": "Create the project first with vf_project(action=\"init\").",
+            "missing_prerequisite": (
+                "Run the required upstream step first, or use "
+                "vf_decupage(action=\"run_full\")."
+            ),
         }.get(
             self.code,
             "Check the message and details, then retry after correcting the input.",
@@ -373,6 +377,22 @@ class StateNotReadyError(VideoFlowError):
     """A project has no timeline to export yet."""
 
     code = "state_not_ready"
+
+
+class MissingPrerequisiteError(VideoFlowError):
+    """A step ran before the upstream artifact it depends on."""
+
+    code = "missing_prerequisite"
+
+    def __init__(self, message: str, *, fix_hint: str = "") -> None:
+        super().__init__(message)
+        self.fix_hint = fix_hint
+
+    def to_dict(self) -> dict[str, object]:
+        payload = super().to_dict()
+        if self.fix_hint:
+            payload["fix_hint"] = self.fix_hint
+        return payload
 
 
 class TtsError(VideoFlowError):

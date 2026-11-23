@@ -156,8 +156,14 @@ class BeatmapMusic(BaseModel):
 class Beatmap(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    schema_version: Literal[2] = 2
+    style_id: str = ""
+    instructions: str = ""
+    warnings: list[str] = Field(default_factory=list)
+    max_static_sec: float | None = None
+    min_silence_ms: int | None = None
     revision: int | None = Field(default=None, ge=1)
-    time_basis: Literal["timeline", "source"] = "timeline"
+    time_basis: Literal["edited", "timeline", "source"] = "timeline"
     keep_ranges: list[BeatmapRange] = Field(default_factory=list)
     remove_ranges: list[BeatmapRange] = Field(default_factory=list)
     broll: list[BeatmapOverlay] = Field(default_factory=list)
@@ -454,7 +460,7 @@ def apply_beatmap(
     beatmap: Beatmap | dict[str, Any],
     *,
     expected_revision: int | None = None,
-    time_basis: Literal["timeline", "source"] | None = None,
+    time_basis: Literal["edited", "timeline", "source"] | None = None,
     dry_run: bool = False,
     force: bool = False,
 ) -> tuple[ProjectState, BeatmapReport, dict[str, Any]]:

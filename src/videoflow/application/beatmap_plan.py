@@ -3,9 +3,33 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.domain.state import ProjectState
+
+
+class TimeRangeSec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start_sec: float = Field(ge=0.0)
+    end_sec: float = Field(gt=0.0)
+
+
+class BeatMapPlan(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[2] = 2
+    style_id: str = ""
+    time_basis: Literal["edited", "source"] = "edited"
+    keep_ranges: list[TimeRangeSec] = Field(default_factory=list)
+    remove_ranges: list[TimeRangeSec] = Field(default_factory=list)
+    overlays: list[dict[str, Any]] = Field(default_factory=list)
+    transitions: list[dict[str, Any]] = Field(default_factory=list)
+    captions: list[dict[str, Any]] = Field(default_factory=list)
+    instructions: str = ""
+    warnings: list[str] = Field(default_factory=list)
 
 
 def build_beatmap_plan(
@@ -18,15 +42,11 @@ def build_beatmap_plan(
 
     media = state.media_info
     if media is None:
-        return {
-            "schema_version": 1,
-            "style_id": getattr(style, "style_id", ""),
-            "instructions": instructions,
-            "captions": [],
-            "transitions": [],
-            "zoom_keyframes": [],
-            "warnings": ["project has no media"],
-        }
+        return BeatMapPlan(
+            style_id=getattr(style, "style_id", ""),
+            instructions=instructions,
+            warnings=["project has no media"],
+        ).model_dump(mode="json")
     fps = media.fps_num / media.fps_den
     discard = set(state.pipeline.discard_sentence_ids)
     sentences = [item for item in state.transcript if item.id not in discard]
@@ -54,19 +74,12 @@ def build_beatmap_plan(
                     "linked_sfx": "",
                 }
             )
-    return {
-        "schema_version": 1,
-        "style_id": getattr(style, "style_id", ""),
-        "instructions": instructions,
-        "max_static_sec": getattr(style, "max_static_sec", 4.0),
-        "min_silence_ms": getattr(style, "min_silence_ms", 400),
-        "captions": captions,
-        "transitions": transitions,
-        "zoom_keyframes": [],
-        "sfx_events": [],
-        "music_tracks": [],
-        "warnings": [],
-    }
+    return BeatMapPlan(
+        style_id=getattr(style, "style_id", ""),
+        instructions=instructions,
+        captions=captions,
+        transitions=transitions,
+    ).model_dump(mode="json")
 
 
 def write_beatmap_plan(output: Path, plan: dict[str, Any]) -> Path:
@@ -78,4 +91,4 @@ def write_beatmap_plan(output: Path, plan: dict[str, Any]) -> Path:
     return target
 
 
-__all__ = ["build_beatmap_plan", "write_beatmap_plan"]
+__all__ = ["BeatMapPlan", "TimeRangeSec", "build_beatmap_plan", "write_beatmap_plan"]

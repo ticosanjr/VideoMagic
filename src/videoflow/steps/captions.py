@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -15,7 +16,7 @@ from videoflow.application.captions import (
 )
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import CaptionStyle
-from videoflow.domain.state import ProjectState
+from videoflow.domain.state import ProjectState, Sentence
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
 from videoflow.steps.registry import register_step
@@ -123,16 +124,17 @@ class CaptionsPlanStep(BaseStep):
             context.metadata["captions_disabled"] = True
             io.report(100, "Caption generation disabled")
             return
-        if not context.transcript:
+        transcript = _caption_sentences(context)
+        if not transcript:
             context.warnings.append("Captions skipped: the transcript is empty.")
             io.report(100, "No transcript; captions skipped")
             return
         sample_rate = context.media.audio_sample_rate if context.media is not None else 48000
-        end_sample = max((sentence.end_sample for sentence in context.transcript), default=0)
+        end_sample = max((sentence.end_sample for sentence in transcript), default=0)
         if end_sample <= 0:
             end_sample = max(1, sample_rate)
         lines = caption_lines(
-            context.transcript,
+            transcript,
             _timeline_pieces(context.state, end_sample),
             sample_rate=sample_rate,
             word_timing=options.style.word_timing,
@@ -178,6 +180,39 @@ class CaptionsPlanStep(BaseStep):
             for key in ("captions_ass", "captions_srt", "subtitles_ass")
             if context.artifacts.get(key)
         )
+
+
+def _caption_sentences(context: PipelineContext) -> list[Sentence]:
+    """Prefer context words, then the persisted clean transcript."""
+
+    sentences = list(context.transcript)
+    if any(sentence.words for sentence in sentences):
+        return sentences
+    candidates: list[Path] = []
+    artifact = context.artifacts.get("transcript_clean")
+    if artifact:
+        candidates.append(Path(str(artifact)))
+    candidates.extend(
+        (
+            context.output / "transcript" / "transcript_clean.json",
+            context.work / "transcript_clean.json",
+        )
+    )
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            loaded = [Sentence.model_validate(item) for item in payload]
+        except (OSError, ValueError, TypeError):
+            continue
+        if loaded and any(sentence.words for sentence in loaded):
+            context.transcript = loaded
+            context.warnings.append(
+                f"Captions loaded word timings from {path.name}"
+            )
+            return loaded
+    return sentences
 
 
 def _srt_time(seconds: float) -> str:

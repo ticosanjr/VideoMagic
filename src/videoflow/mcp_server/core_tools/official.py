@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import functools
 import inspect
+import json
 from pathlib import Path
 from typing import Any, Literal
 
@@ -26,7 +27,6 @@ from videoflow.mcp_server.context import error
 
 ALIASES: dict[str, str] = {
     "vf_transcript": "vf_transcript_query",
-    "vf_decupage": "vf_beatmap_plan",
     "vf_shorts": "vf_shorts_batch",
     "vf_qa": "vf_qa_final",
     "vf_jobs": "vf_job",
@@ -118,6 +118,68 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
             return exc.to_dict()
         except VideoFlowError as exc:
             return exc.to_dict()
+
+    @register
+    def vf_decupage(
+        action: Literal["plan", "run_full"] = "plan",
+        project_id: str = "",
+        style_id: str = "",
+        instructions: str = "",
+        wait: bool = True,
+        timeout_sec: float = 1800.0,
+    ) -> dict[str, Any]:
+        """[DOES] Plan a beat map or run the canonical safe decupage chain.
+        [REQUIRES] ``project_id`` and, for run_full, an ingested project.
+        [RETURNS] Beat-map plan or job with flagged long cuts and next action.
+        """
+        if action == "plan":
+            return tools["vf_beatmap_plan"](
+                project_id=project_id,
+                style_id=style_id,
+                instructions=instructions,
+            )
+        if action != "run_full":
+            return error(
+                "invalid_decupage_action",
+                "action must be plan or run_full",
+            )
+        result = tools["vf_run"](
+            project_id=project_id,
+            steps=[
+                "ingest",
+                "audio.vad",
+                "transcribe",
+                "speech.editorial_clean",
+                "retakes.cull",
+                "decupage.snap",
+                "decupage.timeline",
+            ],
+            wait=wait,
+            timeout_sec=timeout_sec,
+        )
+        if not isinstance(result, dict) or not result.get("ok"):
+            return result
+        if wait:
+            plan_result = tools["vf_beatmap_plan"](
+                project_id=project_id,
+                style_id=style_id,
+                instructions=instructions,
+            )
+            if isinstance(plan_result, dict) and plan_result.get("ok"):
+                result["beat_map_path"] = plan_result.get("path", "")
+                result["beatmap"] = plan_result.get("plan", {})
+            try:
+                record = get_project(project_id)
+                report_path = Path(record.output) / "work" / "decupage" / "report.json"
+                payload = json.loads(report_path.read_text(encoding="utf-8"))
+                result["flagged_long_cuts"] = payload.get("flagged_long_cuts", [])
+            except (OSError, ValueError, VideoFlowError):
+                result["flagged_long_cuts"] = []
+        result["_next_step"] = (
+            "Revise flagged_long_cuts. If any requires_review is true, open the "
+            "curation board or inspect decupage/report.json before exporting."
+        )
+        return result
 
     @register
     def vf_session_brief(project_id: str) -> dict[str, Any]:

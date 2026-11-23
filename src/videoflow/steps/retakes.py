@@ -21,7 +21,7 @@ from videoflow.application.retakes import (
 from videoflow.application.spans import merge_spans
 from videoflow.application.transcript import normalize_transcript
 from videoflow.core.context import PipelineContext
-from videoflow.domain.errors import IngestError
+from videoflow.domain.errors import IngestError, MissingPrerequisiteError
 from videoflow.domain.state import ManualOverride
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload, require_media
@@ -89,6 +89,14 @@ class RetakesStep(BaseStep):
             context.retake_spans = []
             io.report(100, "No transcript; retakes skipped")
             return
+        if not context.speech_intervals:
+            raise MissingPrerequisiteError(
+                "retakes.cull requires VAD speech intervals",
+                fix_hint=(
+                    "Execute audio.vad antes de retakes.cull ou use "
+                    "vf_decupage(action='run_full')."
+                ),
+            )
 
         discard: list[int] = list(context.discard_sentence_ids)
         restored: list[int] = []

@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.decupage.deterministic import build_safe_speech_spans
 from videoflow.application.decupage.snap import build_plan, report_markdown
 from videoflow.application.timeline_builder import (
     build_inactive_segments,
@@ -18,6 +19,7 @@ from videoflow.domain.config import JlCutsConfig, ZoomsConfig
 from videoflow.domain.decupage import DecupagePlan
 from videoflow.domain.errors import StateNotReadyError, TimelineConflict
 from videoflow.domain.state import InactiveSpan, ProjectState, SampleSpan
+from videoflow.domain.timebase import Rounding
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload, require_media
 from videoflow.steps.decupage_review import _asus
@@ -36,8 +38,8 @@ class SnapParams(BaseModel):
     min_cut_gap_ms: float = Field(default=180.0, ge=0.0, le=1000.0)
     crossfade_ms: float = Field(default=18.0, ge=10.0, le=50.0)
     min_clip_ms: float = Field(default=120.0, ge=1.0, le=2000.0)
-    pre_roll_floor_ms: float = Field(default=110.0, ge=70.0, le=500.0)
-    post_roll_floor_ms: float = Field(default=190.0, ge=110.0, le=500.0)
+    pre_roll_floor_ms: float = Field(default=90.0, ge=70.0, le=500.0)
+    post_roll_floor_ms: float = Field(default=150.0, ge=110.0, le=500.0)
 
 
 def _overlap_samples(
@@ -80,11 +82,29 @@ class DecupageSnapStep(BaseStep):
         cuts = context.metadata.get("decupage_cuts", [])
         events = context.metadata.get("audio_events", [])
         flags = context.metadata.get("decupage_review_flags", [])
+        profile = _profile(context)
+        timebase = media.timebase()
+        duration_samples = timebase.seconds_to_samples(
+            timebase.frames_to_seconds(media.duration_frames),
+            Rounding.NEAREST,
+        )
+        safe_spans, flagged_long_cuts = build_safe_speech_spans(
+            list(context.speech_intervals),
+            list(context.transcript),
+            set(context.discard_sentence_ids),
+            sample_rate=media.audio_sample_rate,
+            duration_samples=duration_samples,
+            rms_profile=profile,
+        )
+        context.metadata["decupage_safe_spans"] = [list(item) for item in safe_spans]
+        context.metadata["flagged_long_cuts"] = flagged_long_cuts
         plan = build_plan(
             media,
             asus,
             list(cuts) if isinstance(cuts, list) else [],
-            profile=_profile(context),
+            profile=profile,
+            base_spans=safe_spans or None,
+            flagged_long_cuts=flagged_long_cuts,
             noise_events=list(events) if isinstance(events, list) else [],
             review_flags=list(flags) if isinstance(flags, list) else [],
             pre_roll_ms=options.pre_roll_ms,
@@ -107,9 +127,31 @@ class DecupageSnapStep(BaseStep):
         )
         report = context.work / "decupage" / "report.md"
         report.write_text(report_markdown(plan), encoding="utf-8")
+        report_json = context.work / "decupage" / "report.json"
+        report_json.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "safe_spans": [list(item) for item in safe_spans],
+                    "flagged_long_cuts": flagged_long_cuts,
+                    "metrics": plan.metrics,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         context.metadata["decupage_plan"] = plan.model_dump(mode="json")
         context.artifacts["decupage_plan"] = str(target)
         context.artifacts["decupage_report"] = str(report)
+        context.artifacts["decupage_report_json"] = str(report_json)
+        context.hashes["decupage.safe_spans"] = digest_payload(
+            {
+                "safe_spans": [list(item) for item in safe_spans],
+                "flagged_long_cuts": flagged_long_cuts,
+            }
+        )
         context.hashes["decupage.snap"] = digest_payload(plan.model_dump(mode="json"))
         io.report(
             100,

@@ -18,7 +18,9 @@ from videoflow.application.repetition import (
     detect_words,
     normalise_token,
 )
+from videoflow.application.spans import merge_spans
 from videoflow.domain.decupage import Asu, AsuDecision
+from videoflow.domain.state import Sentence
 
 _REMOVE_ACTIONS = {
     "REMOVE",
@@ -145,3 +147,112 @@ def deterministic_repeats(
 
 
 __all__ = ["DeterministicResult", "deterministic_repeats"]
+
+
+def build_safe_speech_spans(
+    vad_spans: Sequence[tuple[int, int]],
+    kept_sentences: Sequence[Sentence],
+    discard_ids: set[int],
+    *,
+    sample_rate: int = 48_000,
+    min_word_prob: float = 0.45,
+    pad_before_ms: int = 90,
+    pad_after_ms: int = 150,
+    long_cut_review_sec: float = 15.0,
+    duration_samples: int | None = None,
+    rms_profile: dict[str, Any] | None = None,
+) -> tuple[list[tuple[int, int]], list[dict[str, Any]]]:
+    """Union VAD with transcribed words and flag long removed gaps.
+
+    A word is protected when its ASR probability is at least
+    ``min_word_prob``. The union is padded so a low-energy but transcribed
+    phrase cannot be mistaken for silence. Gaps larger than
+    ``long_cut_review_sec`` always appear in the report; gaps with remaining
+    words or audible RMS are marked for human review.
+    """
+
+    rate = max(1, int(sample_rate))
+    pad_before = max(0, round(rate * max(0, pad_before_ms) / 1000))
+    pad_after = max(0, round(rate * max(0, pad_after_ms) / 1000))
+    words = [
+        word
+        for sentence in kept_sentences
+        if sentence.id not in discard_ids
+        for word in sentence.words
+    ]
+    asr_spans: list[tuple[int, int]] = []
+    for word in words:
+        if word.probability < min_word_prob:
+            continue
+        if word.end_sample <= word.start_sample:
+            continue
+        asr_spans.append(
+            (max(0, word.start_sample - pad_before), word.end_sample + pad_after)
+        )
+    spans = merge_spans([*vad_spans, *asr_spans])
+    if duration_samples is not None:
+        limit = max(0, int(duration_samples))
+        spans = [
+            (min(limit, start), min(limit, end))
+            for start, end in spans
+            if end > start and start < limit
+        ]
+        spans = merge_spans(spans)
+        total = limit
+    else:
+        total = max((end for _start, end in spans), default=0)
+
+    flagged: list[dict[str, Any]] = []
+    threshold = max(0.0, float(long_cut_review_sec)) * rate
+    cursor = 0
+    for start, end in [*spans, (total, total)]:
+        gap_start, gap_end = cursor, start
+        if gap_end - gap_start > threshold:
+            removed_words = [
+                word
+                for word in words
+                if word.end_sample > gap_start and word.start_sample < gap_end
+            ]
+            rms = _mean_rms_db(rms_profile, gap_start, gap_end)
+            requires_review = bool(removed_words) or (
+                rms is not None and rms > -42.0
+            )
+            flagged.append(
+                {
+                    "start_sec": round(gap_start / rate, 3),
+                    "end_sec": round(gap_end / rate, 3),
+                    "duration_sec": round((gap_end - gap_start) / rate, 3),
+                    "rms_dbfs": rms,
+                    "word_count": len(removed_words),
+                    "requires_review": requires_review,
+                    "reason": (
+                        "long_gap_with_speech"
+                        if removed_words
+                        else "long_gap"
+                    ),
+                }
+            )
+        cursor = max(cursor, end)
+    return spans, flagged
+
+
+def _mean_rms_db(
+    profile: dict[str, Any] | None,
+    start_sample: int,
+    end_sample: int,
+) -> float | None:
+    if not profile:
+        return None
+    values = profile.get("db") or []
+    if not values:
+        return None
+    hop = max(1, int(profile.get("hop_samples") or 1))
+    low = max(0, start_sample // hop)
+    high = min(len(values), max(low + 1, end_sample // hop))
+    window = values[low:high]
+    if not window:
+        return None
+    try:
+        return round(sum(float(item) for item in window) / len(window), 3)
+    except (TypeError, ValueError):
+        return None

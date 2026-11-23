@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         split_sec: float | None = None,
         expected_revision: int | None = None,
         beatmap: dict[str, Any] | None = None,
+        beat_map_path: str = "",
         time_basis: str = "timeline",
         keep_ranges: list[dict[str, Any]] | None = None,
         remove_ranges: list[dict[str, Any]] | None = None,
@@ -81,16 +83,32 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             )
             from videoflow.application.projects import save_project_state
 
-            if not beatmap and not keep_ranges and not remove_ranges:
+            if not beatmap and not beat_map_path and not keep_ranges and not remove_ranges:
                 return error("beatmap_required", "Pass a beatmap manifest or ranges")
-            if time_basis not in {"timeline", "source"}:
-                return error("invalid_time_basis", "time_basis must be timeline or source")
-            manifest = dict(beatmap or {})
+            if time_basis not in {"edited", "timeline", "source"}:
+                return error(
+                    "invalid_time_basis",
+                    "time_basis must be edited, timeline, or source",
+                )
+            manifest: dict[str, Any] = {}
+            if beat_map_path:
+                try:
+                    record = get_project(project_id)
+                    path = Path(beat_map_path).expanduser()
+                    if not path.is_absolute():
+                        path = Path(record.output) / path
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError, VideoFlowError) as exc:
+                    return error("beatmap_path_invalid", str(exc))
+                if not isinstance(payload, dict):
+                    return error("beatmap_path_invalid", "Beat map must be a JSON object")
+                manifest.update(payload)
+            manifest.update(dict(beatmap or {}))
             if keep_ranges is not None:
                 manifest["keep_ranges"] = keep_ranges
             if remove_ranges is not None:
                 manifest["remove_ranges"] = remove_ranges
-            manifest["time_basis"] = time_basis
+            manifest["time_basis"] = "timeline" if time_basis == "edited" else time_basis
             try:
                 record = get_project(project_id)
                 state = load_project_state(record)
@@ -99,7 +117,9 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     Path(record.output),
                     manifest,
                     expected_revision=expected_revision,
-                    time_basis=time_basis,  # type: ignore[arg-type]
+                    time_basis=(
+                        "timeline" if time_basis == "edited" else time_basis
+                    ),  # type: ignore[arg-type]
                     dry_run=dry_run,
                     force=force,
                 )

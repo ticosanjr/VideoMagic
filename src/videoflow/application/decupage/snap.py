@@ -39,8 +39,10 @@ def build_plan(
     min_cut_gap_ms: float = 180.0,
     crossfade_ms: float = 18.0,
     min_clip_ms: float = 120.0,
-    pre_roll_floor_ms: float = 110.0,
-    post_roll_floor_ms: float = 190.0,
+    pre_roll_floor_ms: float = 90.0,
+    post_roll_floor_ms: float = 150.0,
+    base_spans: list[tuple[int, int]] | None = None,
+    flagged_long_cuts: list[dict[str, Any]] | None = None,
 ) -> DecupagePlan:
     """Return a sample-exact plan with padded, quantised active spans."""
 
@@ -55,7 +57,9 @@ def build_plan(
         if int(item.get("end_sample", 0)) > int(item.get("start_sample", 0))
     ]
     base = merge_spans(
-        [
+        base_spans
+        if base_spans is not None
+        else [
             (item.start_sample, item.end_sample)
             for item in asus
             if item.end_sample > item.start_sample
@@ -221,7 +225,22 @@ def build_plan(
         "joins": len(joins),
         "review_flags": len(review_flags),
         "crossfade_ms": crossfade_ms,
+        "flagged_long_cuts": list(flagged_long_cuts or []),
     }
+    for item in flagged_long_cuts or []:
+        review_flags.append(
+            {
+                "asu_id": "",
+                "category": "LONG_CUT",
+                "reason": (
+                    f"{item.get('duration_sec', 0)}s gap at "
+                    f"{item.get('start_sec', 0)}s; "
+                    f"words={item.get('word_count', 0)}; "
+                    f"review={item.get('requires_review', False)}"
+                ),
+            }
+        )
+    metrics["review_flags"] = len(review_flags)
     return DecupagePlan(
         sample_rate=rate,
         fps_num=media.fps_num,
@@ -263,6 +282,16 @@ def report_markdown(plan: DecupagePlan) -> str:
             lines.append(
                 f"- `{flag.get('asu_id', '')}` — {flag.get('category', 'REVIEW')}: "
                 f"{flag.get('reason', '')}"
+            )
+    long_cuts = plan.metrics.get("flagged_long_cuts") or []
+    if long_cuts:
+        lines.extend(["", "## Long cuts", ""])
+        for item in long_cuts:
+            lines.append(
+                f"- {item.get('start_sec')}s–{item.get('end_sec')}s "
+                f"({item.get('duration_sec')}s): words={item.get('word_count')}, "
+                f"rms={item.get('rms_dbfs')} dBFS, "
+                f"review={item.get('requires_review')}"
             )
     return "\n".join(lines) + "\n"
 
