@@ -19,6 +19,39 @@ from .core_shared import (
 )
 
 
+def _distribute_params(
+    steps: list[str],
+    params: dict[str, Any] | None,
+    step_params: dict[str, dict[str, Any]] | None,
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    if step_params:
+        return (
+            {
+                str(step): dict(value)
+                for step, value in step_params.items()
+                if isinstance(value, dict)
+            },
+            [],
+        )
+    flat = dict(params or {})
+    if not flat:
+        return {}, []
+    from videoflow.steps.registry import get_step
+
+    distributed: dict[str, dict[str, Any]] = {}
+    known: set[str] = set()
+    for step in steps:
+        try:
+            fields = set(get_step(step).params_model.model_fields)
+        except VideoFlowError:
+            continue
+        selected = {key: value for key, value in flat.items() if key in fields}
+        if selected:
+            distributed[step] = selected
+            known.update(selected)
+    return distributed, sorted(set(flat) - known)
+
+
 def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
     manager = ctx.manager
 
@@ -97,6 +130,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         steps: list[str] | str,
         through: str | None = None,
         params: dict[str, Any] | None = None,
+        step_params: dict[str, dict[str, Any]] | None = None,
         resume: bool = True,
         wait: bool = True,
         timeout_sec: float = 1800.0,
@@ -133,6 +167,15 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             )
         if through and through not in requested:
             return error("through_not_in_steps", "through must be one of the requested steps")
+        distributed, invalid = _distribute_params(requested, params, step_params)
+        if invalid:
+            return error(
+                "invalid_params",
+                "Parameter(s) do not belong to any requested step: "
+                + ", ".join(invalid),
+                invalid_keys=invalid,
+                steps=requested,
+            )
         job = manager.start(
             Path(record.primary_source or record.output),
             Path(record.output),
@@ -141,7 +184,8 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 "project_id": record.project_id,
                 "steps": requested,
                 "through": through or "",
-                "params": dict(params or {}),
+                "params": {},
+                "step_params": distributed,
                 "resume": bool(resume),
             },
             queue=True,
@@ -151,6 +195,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             "ok": True,
             "project_id": project_id,
             "steps": requested,
+            "step_params": distributed,
             "job": _job_payload(job),
         }
         if wait:
@@ -228,9 +273,34 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             )[0]
         if action == "wait":
             try:
-                return _wait(manager, project_id, job_id, timeout_sec)
+                waited = _wait(manager, project_id, job_id, timeout_sec)
             except VideoFlowError as exc:
                 return exc.to_dict()
+            job = waited.get("job") if isinstance(waited, dict) else {}
+            job = job if isinstance(job, dict) else {}
+            live = None
+            try:
+                live = manager.get(job_id)
+            except VideoFlowError:
+                live = None
+            live_result = getattr(live, "result", None)
+            live_error = getattr(live, "error", None)
+            payload = {
+                "ok": bool(waited.get("ok")),
+                "job_id": str(job.get("job_id") or job_id),
+                "status": str(job.get("status") or getattr(live, "status", "")),
+                "result": live_result if live_result is not None else job.get("result"),
+                "error": live_error if live_error is not None else job.get("error"),
+                "artifacts": job.get("artifacts") or [],
+                "job": job,
+            }
+            if isinstance(payload["result"], dict):
+                payload["artifacts"] = (
+                    payload["result"].get("artifacts") or payload["artifacts"]
+                )
+            if waited.get("code"):
+                payload["code"] = waited.get("code")
+            return payload
         if action == "status":
             try:
                 return {"ok": True, "job": _job_payload(manager.get(job_id))}

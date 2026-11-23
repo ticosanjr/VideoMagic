@@ -133,11 +133,25 @@ def _sync_workspace(record: ProjectRecord, state: ProjectState) -> None:
     _write_json(folder / "state.json", state.model_dump(mode="json"))
 
 
+def resolve_project_ref(project_id: str) -> ProjectRecord:
+    """Resolve a registry slug or the UUID stored in the project state."""
+
+    text = str(project_id or "").strip()
+    if text:
+        payload = _load_record(text)
+        if payload is not None:
+            return ProjectRecord.model_validate(payload)
+        expected = project_uuid(text)
+        for record in list_projects():
+            if record.project_id == text or project_uuid(record.project_id) == expected:
+                return record
+            if record.name == text:
+                return record
+    raise ProjectStateError(f"Unknown project: {project_id}")
+
+
 def get_project(project_id: str) -> ProjectRecord:
-    payload = _load_record(project_id)
-    if payload is None:
-        raise ProjectStateError(f"Unknown project: {project_id}")
-    return ProjectRecord.model_validate(payload)
+    return resolve_project_ref(project_id)
 
 
 def list_projects() -> list[ProjectRecord]:

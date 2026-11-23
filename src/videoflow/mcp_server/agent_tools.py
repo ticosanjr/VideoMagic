@@ -17,7 +17,7 @@ from videoflow.application.projects import (
     save_project_state,
 )
 from videoflow.core.context import PipelineContext
-from videoflow.domain.errors import StateNotReadyError, VideoFlowError
+from videoflow.domain.errors import ProjectStateError, StateNotReadyError, VideoFlowError
 from videoflow.engine.recipes.catalog import parse_recipe
 from videoflow.mcp_server.agent_helpers import (
     _adopt_job,
@@ -50,7 +50,14 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
         """Create or adopt a project. Returns the stable project_id and resources."""
 
         try:
-            record = get_project(project_id) if project_id else None
+            record = None
+            if project_id:
+                try:
+                    record = get_project(project_id)
+                except ProjectStateError as exc:
+                    if "Unknown project" not in str(exc):
+                        raise
+                    record = None
             if record is None:
                 if not output:
                     if not project_id:

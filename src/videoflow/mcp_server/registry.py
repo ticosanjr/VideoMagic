@@ -1,6 +1,6 @@
 """MCP tool registry and strict v4.2 profiles.
 
-``core`` exposes exactly 17 tools and ``full`` exactly 22. The internal ``all``
+``core`` exposes exactly 18 tools and ``full`` exactly 22. The internal ``all``
 profile keeps every granular tool for the HTTP API and compatibility tests.
 Fetch, audio and vision capabilities live in ``videoflow.domains`` and are
 exposed by this same server; the GPU worker remains a separate remote runtime.
@@ -303,6 +303,7 @@ CORE_TOOL_NAMES: tuple[str, ...] = (
     "vf_export",
     "vf_qa",
     "vf_jobs",
+    "vf_style",
 )
 
 FULL_TOOL_NAMES: tuple[str, ...] = (
@@ -311,7 +312,6 @@ FULL_TOOL_NAMES: tuple[str, ...] = (
     "vf_fx_parallax",
     "vf_fx_motion",
     "vf_fx_capture",
-    "vf_style",
 )
 
 PROFILE_TOOL_NAMES: dict[str, tuple[str, ...]] = {
@@ -455,8 +455,8 @@ def validate_profile_registration(profile: str, registered: set[str]) -> None:
             f"MCP profile {profile!r} mismatch: missing={sorted(missing)} "
             f"extra={sorted(extra)}"
         )
-    if profile == "core" and len(registered) != 17:
-        raise RuntimeError(f"core profile must expose 17 tools, got {len(registered)}")
+    if profile == "core" and len(registered) != 18:
+        raise RuntimeError(f"core profile must expose 18 tools, got {len(registered)}")
     if profile == "full" and len(registered) != 22:
         raise RuntimeError(f"full profile must expose 22 tools, got {len(registered)}")
 

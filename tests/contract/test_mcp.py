@@ -23,18 +23,17 @@ def test_default_server_exposes_the_core_profile() -> None:
     async def names() -> list[str]:
         return [tool.name for tool in await build_server().list_tools()]
 
-    assert len(asyncio.run(names())) == 17
+    assert len(asyncio.run(names())) == 18
 
 
-def test_profiles_have_exactly_17_and_22_tools() -> None:
-    assert len(CORE_TOOL_NAMES) == 17
+def test_profiles_have_exactly_18_and_22_tools() -> None:
+    assert len(CORE_TOOL_NAMES) == 18
     assert len(FULL_TOOL_NAMES) == 22
     assert set(FULL_TOOL_NAMES) - set(CORE_TOOL_NAMES) == {
         "vf_fx_depth",
         "vf_fx_parallax",
         "vf_fx_motion",
         "vf_fx_capture",
-        "vf_style",
     }
 
     async def names(profile: str) -> list[str]:
@@ -42,7 +41,7 @@ def test_profiles_have_exactly_17_and_22_tools() -> None:
 
     core = asyncio.run(names("core"))
     full = asyncio.run(names("full"))
-    assert len(core) == len(set(core)) == 17
+    assert len(core) == len(set(core)) == 18
     assert len(full) == len(set(full)) == 22
     assert set(core) == set(CORE_TOOL_NAMES)
     assert set(full) == set(FULL_TOOL_NAMES)

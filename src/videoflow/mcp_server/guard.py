@@ -103,6 +103,25 @@ def _command_details(exc: BaseException) -> tuple[str, str]:
     return command, str(stderr)[-4000:]
 
 
+def _expected_fields(func: Any | None) -> dict[str, str]:
+    if func is None:
+        return {}
+    fields: dict[str, str] = {}
+    try:
+        signature = inspect.signature(func)
+    except (TypeError, ValueError):
+        return {}
+    for name, parameter in signature.parameters.items():
+        if parameter.kind not in {
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        }:
+            continue
+        annotation = parameter.annotation
+        fields[name] = getattr(annotation, "__name__", str(annotation))
+    return fields
+
+
 def _hint(error_code: str, message: str) -> str:
     if error_code == "invalid_params":
         return "Use the exact parameter names from the tool schema."
@@ -145,7 +164,7 @@ def error_envelope(
         message = str(exc) or exc.__class__.__name__
 
     command, stderr = _command_details(exc)
-    return {
+    payload: dict[str, Any] = {
         "ok": False,
         "error_code": error_code,
         "code": error_code,
@@ -156,6 +175,16 @@ def error_envelope(
         "stderr_tail": stderr,
         "fix_hint": _hint(error_code, message),
     }
+    if isinstance(exc, ValidationError):
+        expected = _expected_fields(func)
+        if expected:
+            payload["expected_fields"] = expected
+            payload["fix_hint"] = (
+                payload["fix_hint"]
+                + " Expected fields: "
+                + ", ".join(f"{key}: {value}" for key, value in expected.items())
+            )
+    return payload
 
 
 MAX_LIST_ITEMS = 30

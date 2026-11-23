@@ -888,6 +888,9 @@ class JobManager:
         common_params = job.options.get("params") or {}
         if not isinstance(common_params, dict):
             common_params = {}
+        step_params = job.options.get("step_params") or {}
+        if not isinstance(step_params, dict):
+            step_params = {}
         record = get_project(project_id)
         context = self._build_context(job, project_id, record)
         completed = {
@@ -919,14 +922,15 @@ class JobManager:
                 should_cancel=callbacks.should_cancel,
                 log=callbacks.log,
             )
-            if resume and step_type in completed and step_type not in common_params:
+            configured = step_type in step_params or step_type in common_params
+            if resume and step_type in completed and not configured:
                 results.append({"step": step_type, "status": "skipped"})
                 io.report(int(index / total * 100), f"{step_type} already completed")
                 if through and step_type == through:
                     break
                 continue
             step = get_step(step_type)
-            raw = common_params.get(step_type, common_params)
+            raw = step_params.get(step_type, common_params)
             params = step.params_model.model_validate(raw if isinstance(raw, dict) else {})
             io.report(int((index - 1) / total * 100), f"Running {step_type}")
             try:

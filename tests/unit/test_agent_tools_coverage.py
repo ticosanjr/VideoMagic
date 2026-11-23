@@ -363,7 +363,9 @@ def test_agent_tool_remaining_branches(tmp_path: Path, monkeypatch) -> None:
     assert tools["vf_project_status"]("missing")["ok"] is False
     assert tools["vf_get_job"](record.project_id, "missing")["ok"] is False
     assert tools["vf_get_step_logs"](record.project_id, "missing")["ok"] is False
-    assert tools["vf_project_init"](project_id="missing")["ok"] is False
+    created = tools["vf_project_init"](project_id="missing")
+    assert created["ok"] is True
+    assert created["project"]["project_id"] == "missing"
 
     qa = Path(record.output) / "work" / "qa"
     qa.mkdir(parents=True, exist_ok=True)

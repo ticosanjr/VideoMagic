@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
 from videoflow.application.brand_kit import brand_kit_ids, is_brand_kit
 from videoflow.application.hilt import list_requests, load_response, public_payload
-from videoflow.application.projects import get_project, list_projects
+from videoflow.application.projects import (
+    get_project,
+    list_projects,
+    project_uuid,
+)
 from videoflow.domain.errors import VideoFlowError
 from videoflow.mcp_server.context import error
 
@@ -199,7 +204,21 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 )
             except VideoFlowError as exc:
                 return exc.to_dict()
-        if action in {"init", "open"}:
+        if action in {"init", "create", "new", "open"}:
+            if not project_id and not name and not output:
+                return error(
+                    "project_required",
+                    "Pass project_id or name when creating a project",
+                )
+            if not project_id and name:
+                project_id = _project_slug(name)
+            if not output:
+                from vf_shared.contracts.workspace import project_dir as workspace_project_dir
+
+                try:
+                    output = str(workspace_project_dir(project_id))
+                except ValueError as exc:
+                    return error("invalid_project_id", str(exc))
             if channel_id and not is_brand_kit(channel_id):
                 return error(
                     "channel_not_found",
@@ -214,7 +233,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     StyleCatalog().get(style_id)
                 except VideoFlowError as exc:
                     return exc.to_dict()
-            return legacy["vf_project_init"](
+            result = legacy["vf_project_init"](
                 project_id=project_id,
                 name=name,
                 output=output,
@@ -222,6 +241,11 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 channel_id=channel_id,
                 style_id=style_id,
             )
+            if isinstance(result, dict) and result.get("ok"):
+                project = result.get("project") or {}
+                result["project_id"] = project.get("project_id", project_id)
+                result["uuid"] = str(project_uuid(result["project_id"]))
+            return result
         if not project_id:
             return error("project_required", "project_id is required")
         return legacy["vf_project_status"](project_id=project_id)
@@ -329,3 +353,8 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         if action == "get" and interaction_id:
             return {"ok": bool(items), "interaction": items[0] if items else None}
         return {"ok": True, "interactions": items, "count": len(items)}
+
+
+def _project_slug(value: str) -> str:
+    text = re.sub(r"[^A-Za-z0-9_-]+", "-", str(value or "").strip()).strip("-")
+    return (text or "project")[:128]

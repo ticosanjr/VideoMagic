@@ -5,10 +5,10 @@ vision satellites were folded into the core domain packages and their CLI
 subcommands were removed:
 
 ```text
-videoflow mcp --profile core   17 tools   project, brief, capabilities, ingest, run, transcript,
+videoflow mcp --profile core   18 tools   project, brief, capabilities, ingest, run, transcript,
                                            decupage, scenes, preview, timeline, shorts, audio,
                                            media, export, QA, jobs
-videoflow mcp --profile full   22 tools   core + depth, parallax, motion, capture and style
+videoflow mcp --profile full   22 tools   core + depth, parallax, motion and capture
 ```
 
 The core intentionally does not expose the old 82-tool UI CRUD surface. Node
@@ -53,9 +53,9 @@ metadata, time map, and step checkpoints; `projects/{id}/state.json` mirrors it.
 parallel. Writes to the same project are serialized by a project lock and
 `vf_edit_timeline` supports `expected_revision` for conflict detection.
 
-## Official tools (17 core / 22 full)
+## Official tools (18 core / 22 full)
 
-### Core profile (17)
+### Core profile (18)
 
 | Tool | Purpose |
 | --- | --- |
@@ -76,8 +76,9 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_export` | Render the master and export `mp4`, `resolve`, `premiere`, and `kdenlive`. |
 | `vf_qa` | Audit the deliverable, safe zones, loudness, captions, and frames. |
 | `vf_jobs` | List, get, wait, cancel, read logs, or read QA for jobs. |
+| `vf_style` | List, save, analyze, sync, or learn rules for Markdown styles. |
 
-### Full-only additions (5)
+### Full-only additions (4)
 
 | Tool | Purpose |
 | --- | --- |
@@ -85,7 +86,6 @@ parallel. Writes to the same project are serialized by a project lock and
 | `vf_fx_parallax` | Animate a still as background plus 2.5D subject. |
 | `vf_fx_motion` | Render HTML, HyperFrames, Remotion, Manim, or FFmpeg motion. |
 | `vf_fx_capture` | Capture a URL or screen as a still or scrollable clip. |
-| `vf_style` | List, save, analyze, sync, or learn rules for Markdown styles. |
 
 The internal `all` profile keeps the older granular tools for the HTTP API and
 backward-compatible integrations. It is not part of the `core`/`full` contract.

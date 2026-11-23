@@ -211,6 +211,12 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             )
         except VideoFlowError as exc:
             return exc.to_dict()
+        except Exception as exc:  # noqa: BLE001 - MCP must return a typed error
+            return error(
+                "export_failed",
+                str(exc) or exc.__class__.__name__,
+                fix_hint="Inspect the job log and retry after fixing the export inputs.",
+            )
         response = {
             "ok": bool(bundle.get("ok")),
             "project_id": project_id,

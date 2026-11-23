@@ -6,7 +6,7 @@ removes silence and retakes, adds J-cuts and punch-ins, proposes vertical
 Shorts, masters the dialogue bed, and exports timelines for DaVinci Resolve,
 Adobe Premiere Pro, and Kdenlive.
 
-> Status: 4.3.1 local stable. **22 MCP tools** in the full profile (17 in
+> Status: 4.3.1 local stable. **22 MCP tools** in the full profile (18 in
 > core), 22 styles, stateful step
 > chains, multi-NLE delivery, and opt-in Windows GPU offload with a
 > self-healing worker kit. GPU speed certification awaits Windows/NVIDIA
@@ -221,11 +221,11 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   audio fades, and the FCPXML output validates against Apple's 1.9 DTD.
 - Pure domain: rational time, cache hashing, planning, retake guard, path jail,
   redaction, schema generation.
-- MCP server with seventeen core tools and thirteen resources: project setup,
+- MCP server with eighteen core tools and sixteen resources: project setup,
   node catalog, step execution, jobs, timeline edits, artifacts, render, NLE
   export, and project state/preset/export resources. The `opencode` profile is
   the default; recipes and generic prompts are not exposed. OpenCode direction
-  lives in AGENTS.md, workflows, and the 18-style catalog.
+  lives in AGENTS.md, workflows, and the 22-style catalog.
   Streamable HTTP is mounted on the local API.
 - Unified CLI (`version`, `doctor`, `shorts`, `recipe`, `serve`, `status`,
   `restart`, `stop`, `mcp`) and a PyInstaller onefile build for Linux and

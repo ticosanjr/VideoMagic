@@ -1,7 +1,7 @@
 <!-- videoflow:opencode:start -->
 # VideoFlow × OpenCode
 
-Workspace preparado pelo VideoFlow 4.3.0.
+Workspace preparado pelo VideoFlow 4.3.1.
 
 ## Protocolo
 
@@ -40,7 +40,7 @@ Workspace preparado pelo VideoFlow 4.3.0.
 9. **Offload pesado.** ASR, alinhamento, matte, NVENC, scene analysis,
    ingest PCM e áudio final são forçados no Worker Windows quando saudável;
    reporte `degraded` somente em fallback autorizado.
-10. **Profile enxuto.** `--profile core` (17 tools) no dia a dia;
+10. **Profile enxuto.** `--profile core` (18 tools) no dia a dia;
     `--profile full` (22) apenas para FX ou estilo.
 
 ## Catálogo

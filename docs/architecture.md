@@ -67,7 +67,7 @@ Rules:
 | `adapters/tts.py`, `diarization.py`, `silero.py`, `yamnet.py`, `resolve.py` | External engines and Resolve integration |
 | `exporters/` | FCPXML, xmeml, and native Kdenlive MLT writers; no MP4 stub |
 | `api/` | FastAPI app, REST routes, SSE streams, error mapping, UI mount |
-| `mcp_server/` | Guard, strict 17/22 tool profiles, resources, prompts, stdio CLI |
+| `mcp_server/` | Guard, strict 18/22 tool profiles, resources, prompts, stdio CLI |
 | `bootstrap/` | OpenCode workspace generation, styles/workflows, GPU kit bootstrap |
 | `packages/vf-shared/` | Shared compute router, GPU client, scene rules, contracts, discovery |
 | `packages/gpu-worker/` | Windows GPU worker app, handler registry, NVENC/matte/ASR/scene handlers |
