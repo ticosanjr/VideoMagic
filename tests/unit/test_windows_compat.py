@@ -230,3 +230,42 @@ def test_nvenc_local_gpu_requires_cuda_and_probe(monkeypatch) -> None:
         nvenc, "probe_nvenc", lambda *_args, **_kwargs: nvenc.NvencProbe(True, "", "")
     )
     assert nvenc.local_gpu_available() is True
+
+
+def test_bundled_paths_work_from_a_folder_with_spaces(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from videoflow import runtime
+
+    root = tmp_path / "VideoFlow Studio" / "_internal"
+    (root / "vendor").mkdir(parents=True)
+    suffix = ".exe" if os.name == "nt" else ""
+    binary = root / "vendor" / f"ffmpeg{suffix}"
+    binary.write_bytes(b"bin")
+    (root / "ui").mkdir()
+    (root / "ui" / "index.html").write_text("<html></html>", encoding="utf-8")
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(runtime.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(runtime.sys, "_MEIPASS", str(root), raising=False)
+    assert runtime.bundle_root() == root
+    assert runtime.find_binary("ffmpeg") == str(binary)
+    assert runtime.ui_dir() == root / "ui"
+
+
+def test_nvenc_encode_args_force_yuv420p_without_nvdec(monkeypatch) -> None:
+    from videoflow.core import nvenc
+    from videoflow.exporters import mp4
+
+    monkeypatch.setattr(mp4, "video_encoder", lambda: "h264_nvenc")
+    monkeypatch.setattr(nvenc, "nvenc_args", lambda *_args, **_kwargs: ["-preset", "p4"])
+    args = mp4._video_encode_args(
+        crf=20,
+        preset="medium",
+        profile="",
+        fps_num=30,
+        fps_den=1,
+        cfr=True,
+    )
+    assert args[:2] == ["-c:v", "h264_nvenc"]
+    assert args[args.index("-pix_fmt") + 1] == "yuv420p"
+    assert "-hwaccel" not in args
