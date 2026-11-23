@@ -33,6 +33,10 @@ steps:
     node: timeline.apply_beatmap
     purpose: timeline.apply_beatmap
     requires_approval: true
+  - id: curation
+    node: curation.prepare
+    purpose: curation.prepare
+    requires_approval: true
   - id: assets
     node: assets.plan
     purpose: assets.plan
@@ -51,6 +55,7 @@ steps:
     requires_approval: true
 approvals:
   - beatmap
+  - curation
   - final_export
 default_style: ""
 compatible_styles: []
@@ -71,11 +76,13 @@ Edição completa de vídeo longo com B-roll, motion, QA e entrega multi-NLE.
 ## Regras
 
 1. Ler `AGENTS.md`, `presets/*.md` e este workflow.
-2. Perguntar ao usuário qual Estilo aplicar.
+2. Perguntar Estilo, Workflow e Modo (`curation` ou `autonomous`).
 3. Gerar `beat_map.json` e aguardar aprovação antes de montar.
-4. Usar somente ferramentas atômicas.
-5. Rodar `qa.visual_10fps` antes da entrega.
-6. Exportar `mp4_youtube`, `resolve`, `premiere` e `kdenlive`.
+4. No modo curadoria, publicar `vf_curation` e aguardar a escolha humana;
+   no modo autônomo, usar `auto_select`.
+5. Usar somente ferramentas atômicas.
+6. Rodar `qa.visual_10fps` antes da entrega.
+7. Exportar `mp4_youtube`, `resolve`, `premiere` e `kdenlive`.
 
 ## Etapas
 
@@ -102,6 +109,10 @@ Edição completa de vídeo longo com B-roll, motion, QA e entrega multi-NLE.
 - id: beatmap
   node: timeline.apply_beatmap
   purpose: timeline.apply_beatmap
+  requires_approval: true
+- id: curation
+  node: curation.prepare
+  purpose: curation.prepare
   requires_approval: true
 - id: assets
   node: assets.plan

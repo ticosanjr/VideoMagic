@@ -626,3 +626,32 @@ Riscos residuais: Formatos, Plugins e Serviços deixam de ter tela dedicada;
 seguem disponíveis por API/CLI quando ainda existirem no backend. Settings e
 Workspace ficam dentro de Setup para não perder paths e runtime.
 ```
+
+### Registro de execução — P1-1
+
+```text
+Fase: P1-1
+Data: 2026-11-23
+Arquivos alterados:
+  src/videoflow/mcp_server/guard.py
+  src/videoflow/templates/opencode/AGENTS.md
+  src/videoflow/workflows/{youtube-longform,reels-from-raw,shorts-from-long}.md
+  tests/unit/{test_mcp_guard,test_mcp_server_guard,test_bootstrap_opencode,test_core_tools}.py
+Decisões aplicadas:
+  core = 17 tools (inclui vf_jobs e vf_curation)
+  full = 22 tools
+Comportamento:
+  toda resposta MCP bem-sucedida recebe `_next_step`;
+  listas >30 são truncadas com truncated/truncated_fields/total_count/next_offset;
+  `capabilities` é preservada por ser manifesto, não conteúdo paginável;
+  AGENTS.md template = 73 linhas; gerado = 80 linhas;
+  workflows incluem curation.prepare e modo curation/autonomous;
+  vf_export mantém mp4_youtube, resolve, premiere e kdenlive.
+Comando de validação:
+  uv run pytest tests/unit/test_core_tools.py tests/unit/test_mcp_server_guard.py tests/unit/test_bootstrap_opencode.py tests/contract/test_mcp.py -q
+Resultado: 67 passed
+Regressão: 3015 passed, 1 skipped, 1 xfailed; UI svelte-check 0 e Vitest verde.
+Riscos residuais: o limite de 30 itens não mede tokens; a lista de capabilities é
+exceção explícita. O AGENTS gerado está exatamente no limite de 80 linhas;
+qualquer novo catálogo maior exige compactar o template.
+```

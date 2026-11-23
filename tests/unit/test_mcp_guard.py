@@ -80,7 +80,10 @@ def test_async_tool_is_guarded() -> None:
 
 def test_guard_keeps_success_payload() -> None:
     wrapped = mcp_tool_guard(_tool)
-    assert wrapped([1, 2]) == {"ok": True, "sentence_ids": [1, 2]}
+    payload = wrapped([1, 2])
+    assert payload["ok"] is True
+    assert payload["sentence_ids"] == [1, 2]
+    assert payload["_next_step"]
 
 
 @pytest.mark.parametrize("error", [RuntimeError("boom"), ValueError("bad")])
@@ -109,3 +112,33 @@ def test_unknown_key_returns_the_documented_envelope() -> None:
         "stderr_tail": "",
         "fix_hint": "Use the exact parameter names from the tool schema.",
     }
+
+
+def test_success_payloads_get_the_next_step_and_compact_lists() -> None:
+    @mcp_tool_guard
+    def vf_jobs(action: str = "list") -> dict[str, object]:
+        return {"ok": True, "jobs": list(range(35))}
+
+    payload = vf_jobs()
+    assert payload["_next_step"]
+    assert len(payload["jobs"]) == 30
+    assert payload["truncated"] is True
+    assert payload["truncated_fields"] == {"jobs": 35}
+    assert payload["total_count"] == 35
+    assert payload["next_offset"] == 30
+
+
+def test_tool_specific_next_step_wins() -> None:
+    @mcp_tool_guard
+    def vf_curation(action: str = "read") -> dict[str, object]:
+        return {"ok": True, "status": "waiting_human", "_next_step": "custom"}
+
+    assert vf_curation()["_next_step"] == "custom"
+
+
+def test_error_payloads_do_not_get_a_next_step() -> None:
+    @mcp_tool_guard
+    def vf_jobs(action: str = "get") -> dict[str, object]:
+        return {"ok": False, "code": "job_not_found"}
+
+    assert "_next_step" not in vf_jobs()

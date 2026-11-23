@@ -33,6 +33,10 @@ steps:
     node: shorts.reframe
     purpose: shorts.reframe
     requires_approval: false
+  - id: curation
+    node: curation.prepare
+    purpose: curation.prepare
+    requires_approval: true
   - id: captions
     node: shorts.captions
     purpose: shorts.captions
@@ -51,6 +55,7 @@ steps:
     requires_approval: true
 approvals:
   - beatmap
+  - curation
   - final_export
 default_style: ""
 compatible_styles: []
@@ -71,11 +76,13 @@ Transforma gravação bruta em Reel vertical com corte agressivo, cutout e legen
 ## Regras
 
 1. Ler `AGENTS.md`, `presets/*.md` e este workflow.
-2. Perguntar ao usuário qual Estilo aplicar.
+2. Perguntar Estilo, Workflow e Modo (`curation` ou `autonomous`).
 3. Gerar `beat_map.json` e aguardar aprovação antes de montar.
-4. Usar somente ferramentas atômicas.
-5. Rodar `qa.visual_10fps` antes da entrega.
-6. Exportar `mp4_youtube`, `resolve`, `premiere` e `kdenlive`.
+4. No modo curadoria, publicar `vf_curation` e aguardar a escolha humana;
+   no modo autônomo, usar `auto_select`.
+5. Usar somente ferramentas atômicas.
+6. Rodar `qa.visual_10fps` antes da entrega.
+7. Exportar `mp4_youtube`, `resolve`, `premiere` e `kdenlive`.
 
 ## Etapas
 
@@ -103,6 +110,10 @@ Transforma gravação bruta em Reel vertical com corte agressivo, cutout e legen
   node: shorts.reframe
   purpose: shorts.reframe
   requires_approval: false
+- id: curation
+  node: curation.prepare
+  purpose: curation.prepare
+  requires_approval: true
 - id: captions
   node: shorts.captions
   purpose: shorts.captions

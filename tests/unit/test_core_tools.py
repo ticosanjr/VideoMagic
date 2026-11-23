@@ -785,3 +785,14 @@ def test_unified_domain_tools_cover_remaining_actions(
     assert tools["vf_media"](
         action="fetch_sfx", project_id=record.project_id, query="whoosh"
     )["sfx"] is True
+
+
+def test_default_export_targets_keep_the_four_deliverables() -> None:
+    from videoflow.application.delivery_bundle import DEFAULT_BUNDLE_TARGETS
+
+    assert set(DEFAULT_BUNDLE_TARGETS) == {
+        "mp4_youtube",
+        "resolve",
+        "premiere",
+        "kdenlive",
+    }

@@ -25,4 +25,6 @@ def test_guard_tool_returns_internal_error_payload() -> None:
 
 
 def test_guard_tool_preserves_successful_results() -> None:
-    assert guard_tool(lambda: {"ok": True})() == {"ok": True}
+    payload = guard_tool(lambda: {"ok": True})()
+    assert payload["ok"] is True
+    assert payload["_next_step"]

@@ -34,7 +34,7 @@ def _bootstrap(tmp_path: Path, **updates):
 def test_templates_are_packaged() -> None:
     agents = templates_dir() / "AGENTS.md"
     assert agents.is_file()
-    assert len(agents.read_text(encoding="utf-8").splitlines()) <= 90
+    assert len(agents.read_text(encoding="utf-8").splitlines()) <= 80
     assert len(list((templates_dir() / "skills").glob("*.md"))) == 3
     assert len(list((templates_dir() / "commands").glob("*.md"))) == 7
 
@@ -73,7 +73,7 @@ def test_bootstrap_creates_workspace_and_syncs_styles(tmp_path: Path) -> None:
     assert "videoflow-mcp" in core["command"]
 
     agents_path = target / "AGENTS.md"
-    assert len(agents_path.read_text(encoding="utf-8").splitlines()) <= 90
+    assert len(agents_path.read_text(encoding="utf-8").splitlines()) <= 80
     agents = agents_path.read_text(encoding="utf-8")
     assert agents.count("<!-- videoflow:opencode:start -->") == 1
     assert "canal-paula-reels" in agents

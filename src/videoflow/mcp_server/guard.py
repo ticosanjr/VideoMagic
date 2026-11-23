@@ -158,6 +158,64 @@ def error_envelope(
     }
 
 
+MAX_LIST_ITEMS = 30
+_PRESERVE_LISTS = frozenset({"capabilities"})
+
+DEFAULT_NEXT_STEP: dict[str, str] = {
+    "vf_project": "Run vf_session_brief to inspect the project and choose the next step.",
+    "vf_session_brief": "Choose the style and workflow, then run vf_ingest.",
+    "vf_ingest": "Run vf_transcript, then vf_decupage.",
+    "vf_transcript": "Run vf_decupage or request more transcript ranges.",
+    "vf_decupage": "Review the beat map, then apply it with vf_timeline.",
+    "vf_timeline": "Preview the result with vf_preview.",
+    "vf_preview": "Request human review or continue with vf_qa.",
+    "vf_qa": "Fix the reported defects and rerun vf_qa, then export.",
+    "vf_export": "Verify the exported files and run vf_qa_final.",
+    "vf_jobs": "Poll with vf_jobs or continue the workflow when the job is done.",
+    "vf_curation": "Inform the board URL and wait for the human decision.",
+}
+
+
+def _truncate_lists(value: Any) -> Any:
+    """Truncate long lists and make the omission explicit to the agent."""
+
+    if not isinstance(value, dict):
+        return value
+    truncated: dict[str, int] = {}
+    for key, item in value.items():
+        if (
+            isinstance(item, list)
+            and key not in _PRESERVE_LISTS
+            and len(item) > MAX_LIST_ITEMS
+        ):
+            value[key] = item[:MAX_LIST_ITEMS]
+            truncated[key] = len(item)
+        elif isinstance(item, dict):
+            _truncate_lists(item)
+    if truncated:
+        value["truncated"] = True
+        value["truncated_fields"] = truncated
+        value.setdefault("total_count", next(iter(truncated.values())))
+        value.setdefault("next_offset", MAX_LIST_ITEMS)
+        value.setdefault("hint", "Use pagination/query parameters to read more.")
+    return value
+
+
+def normalize_success(payload: Any, tool_name: str = "") -> Any:
+    """Add the next-step contract and compact long lists on successful tools."""
+
+    if not isinstance(payload, dict) or payload.get("ok") is False:
+        return payload
+    payload.setdefault(
+        "_next_step",
+        DEFAULT_NEXT_STEP.get(
+            tool_name,
+            "Continue with the next workflow step or inspect the returned payload.",
+        ),
+    )
+    return _truncate_lists(payload)
+
+
 def _fill_execution(value: Any) -> None:
     if not isinstance(value, dict):
         return
@@ -195,7 +253,7 @@ def mcp_tool_guard(func: Any) -> Any:
                 result = await func(*args, **kwargs)
             except Exception as exc:  # noqa: BLE001 - MCP boundary
                 return error_envelope(exc, func=func)
-            return normalize_execution(result)
+            return normalize_execution(normalize_success(result, func.__name__))
 
         async_wrapper.__mcp_guarded__ = True  # type: ignore[attr-defined]
         return async_wrapper
@@ -206,7 +264,7 @@ def mcp_tool_guard(func: Any) -> Any:
             result = func(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001 - MCP boundary
             return error_envelope(exc, func=func)
-        return normalize_execution(result)
+        return normalize_execution(normalize_success(result, func.__name__))
 
     wrapper.__mcp_guarded__ = True  # type: ignore[attr-defined]
     return wrapper
@@ -228,6 +286,9 @@ __all__ = [
     "error_envelope",
     "fill_execution",
     "mcp_tool_guard",
+    "DEFAULT_NEXT_STEP",
+    "MAX_LIST_ITEMS",
     "normalize_execution",
+    "normalize_success",
     "suggest_parameters",
 ]
