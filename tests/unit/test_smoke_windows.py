@@ -122,3 +122,26 @@ def test_mcp_list_tools_prints_the_core_profile(capsys) -> None:
     names = capsys.readouterr().out.split()
     assert "vf_style" in names
     assert len(names) == 18
+
+
+def test_zip_directory_can_deflate_for_release(tmp_path: Path) -> None:
+    import zipfile
+
+    from scripts.build_portable import zip_directory
+
+    source = tmp_path / "bundle"
+    source.mkdir()
+    (source / "payload.bin").write_bytes(b"a" * 200_000)
+    archive = tmp_path / "bundle.zip"
+    zip_directory(
+        source,
+        archive,
+        compression=zipfile.ZIP_DEFLATED,
+        compresslevel=1,
+    )
+    with zipfile.ZipFile(archive) as bundle:
+        assert all(
+            item.compress_type == zipfile.ZIP_DEFLATED
+            for item in bundle.infolist()
+        )
+    assert archive.stat().st_size < 100_000

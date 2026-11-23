@@ -162,7 +162,7 @@ def main() -> int:
     parser.add_argument(
         "--zip",
         action="store_true",
-        help="Zip the onedir bundle after a successful build (stored, fast).",
+        help="Zip the onedir bundle after a successful build (deflate 1, fast).",
     )
     parser.add_argument(
         "--zip-name",
@@ -397,10 +397,15 @@ def main() -> int:
             archive = ROOT / "dist" / (
                 args.zip_name or f"VideoFlow-{_package_version()}-{_platform_tag()}.zip"
             )
-            zip_directory(output, archive)
+            zip_directory(
+                output,
+                archive,
+                compression=zipfile.ZIP_DEFLATED,
+                compresslevel=1,
+            )
             print(
                 f"built: {archive} "
-                f"({archive.stat().st_size / 1_000_000:.1f} MB, stored)"
+                f"({archive.stat().st_size / 1_000_000:.1f} MB, deflate 1)"
             )
     else:
         if not output.is_file():
@@ -430,12 +435,25 @@ def _platform_tag() -> str:
     return f"{system}-{machine}"
 
 
-def zip_directory(source: Path, archive: Path) -> None:
-    """Write a stored zip so a portable onedir folder ships without recompression."""
+def zip_directory(
+    source: Path,
+    archive: Path,
+    *,
+    compression: int = zipfile.ZIP_STORED,
+    compresslevel: int | None = None,
+) -> None:
+    """Write a portable onedir folder as a flat zip.
+
+    Stored is the fastest local option; release builds use deflate level 1 so
+    the CUDA bundle stays under GitHub's 2 GiB release-asset limit.
+    """
 
     archive.parent.mkdir(parents=True, exist_ok=True)
     archive.unlink(missing_ok=True)
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as bundle:
+    options: dict[str, object] = {"compression": compression}
+    if compresslevel is not None:
+        options["compresslevel"] = compresslevel
+    with zipfile.ZipFile(archive, "w", **options) as bundle:
         for path in sorted(source.rglob("*")):
             if path.is_file():
                 bundle.write(path, path.relative_to(source).as_posix())

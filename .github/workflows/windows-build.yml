@@ -65,7 +65,7 @@ jobs:
         run: |
           Remove-Item -Recurse -Force .\dist\videoflow\videoflow-data -ErrorAction SilentlyContinue
           $zip = "dist\VideoFlow-$env:VIDEOFLOW_VERSION-windows-x64-cuda.zip"
-          uv run python -c "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from build_portable import zip_directory; zip_directory(Path('dist/videoflow'), Path(sys.argv[1]))" $zip
+          uv run python -c "import sys, zipfile; from pathlib import Path; sys.path.insert(0, 'scripts'); from build_portable import zip_directory; zip_directory(Path('dist/videoflow'), Path(sys.argv[1]), compression=zipfile.ZIP_DEFLATED, compresslevel=1)" $zip
           Get-Item $zip | Format-List Name,Length
       - name: Build tokenless Windows GPU worker kit
         run: |
