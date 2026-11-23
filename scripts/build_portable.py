@@ -7,6 +7,7 @@ compile. Run this script on the target operating system.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib.util
 import json
 import os
@@ -60,6 +61,26 @@ def ensure_ui_build() -> bool:
     return True
 
 
+def _preload_cuda_dlls() -> None:
+    """Make NVIDIA pip DLL directories visible before importing CTranslate2."""
+
+    if os.name != "nt":
+        return
+    import site
+
+    roots = [Path(item) for item in site.getsitepackages()]
+    for root in roots:
+        nvidia = root / "nvidia"
+        if not nvidia.is_dir():
+            continue
+        for path in sorted(nvidia.glob("*/bin")):
+            if not path.is_dir():
+                continue
+            with contextlib.suppress(AttributeError, OSError):
+                os.add_dll_directory(str(path))
+            os.environ["PATH"] = str(path) + os.pathsep + os.environ.get("PATH", "")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build dist/videoflow for this OS.")
     parser.add_argument(
@@ -105,7 +126,17 @@ def main() -> int:
     parser.add_argument(
         "--with-faster-whisper",
         action="store_true",
-        help="Bundle Faster-Whisper, CTranslate2, and PyAV (model is optional).",
+        help="Bundle Faster-Whisper, CTranslate2, PyAV, and the pinned small model.",
+    )
+    parser.add_argument(
+        "--faster-whisper-runtime",
+        action="store_true",
+        help="Bundle the Faster-Whisper/CTranslate2 runtime without a model.",
+    )
+    parser.add_argument(
+        "--with-cuda",
+        action="store_true",
+        help="Bundle the CTranslate2 CUDA runtime and required NVIDIA DLLs.",
     )
     parser.add_argument(
         "--refresh-faster-whisper",
@@ -236,7 +267,7 @@ def main() -> int:
         os.environ["VIDEOWFLOW_WITH_TRAY"] = "1"
         print("bundling desktop tray dependencies: pystray, Pillow, python-xlib")
 
-    if args.with_faster_whisper or args.refresh_faster_whisper:
+    if args.with_faster_whisper or args.refresh_faster_whisper or args.faster_whisper_runtime:
         missing = [
             name
             for name in (
@@ -256,13 +287,17 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
-        from fetch_faster_whisper import fetch as fetch_faster_whisper
+        if args.with_faster_whisper or args.refresh_faster_whisper:
+            from fetch_faster_whisper import fetch as fetch_faster_whisper
 
-        model = fetch_faster_whisper(
-            vendor / "faster-whisper" / "small",
-            refresh=args.refresh_faster_whisper,
-        )
-        print(f"bundling Faster-Whisper model: {model}")
+            model = fetch_faster_whisper(
+                vendor / "faster-whisper" / "small",
+                refresh=args.refresh_faster_whisper,
+            )
+            print(f"bundling Faster-Whisper model: {model}")
+        else:
+            print("bundling Faster-Whisper runtime without a model")
+        _preload_cuda_dlls()
         import ctranslate2
         import faster_whisper
 
@@ -271,6 +306,41 @@ def main() -> int:
             f"CTranslate2 {ctranslate2.__version__}"
         )
         os.environ["VIDEOWFLOW_WITH_FASTER_WHISPER"] = "1"
+
+    if args.with_cuda:
+        has_runtime = (
+            args.with_faster_whisper
+            or args.refresh_faster_whisper
+            or args.faster_whisper_runtime
+        )
+        if not has_runtime:
+            print(
+                "--with-cuda requires --faster-whisper-runtime or --with-faster-whisper",
+                file=sys.stderr,
+            )
+            return 1
+        missing = [
+            name
+            for name in ("nvidia.cublas", "nvidia.cudnn", "nvidia.cuda_runtime")
+            if importlib.util.find_spec(name) is None
+        ]
+        if missing:
+            print(
+                "The CUDA runtime is missing: "
+                + ", ".join(missing)
+                + ". Install nvidia-cublas-cu12, nvidia-cudnn-cu12, and "
+                "nvidia-cuda-runtime-cu12.",
+                file=sys.stderr,
+            )
+            return 1
+        _preload_cuda_dlls()
+        import ctranslate2
+
+        os.environ["VIDEOWFLOW_WITH_CUDA"] = "1"
+        print(
+            "bundling CTranslate2 CUDA runtime; "
+            f"CUDA devices visible at build time: {ctranslate2.get_cuda_device_count()}"
+        )
 
     os.environ["VIDEOWFLOW_BUNDLE_MODELS"] = "1" if args.with_models else "0"
     os.environ["VIDEOWFLOW_ONEDIR"] = "1" if args.onedir else "0"

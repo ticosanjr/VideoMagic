@@ -275,6 +275,7 @@ class JobManager:
         self._local_ids: set[str] = set()
         self._worker_id = f"videoflow-{uuid4().hex[:8]}"
         self._lock = threading.RLock()
+        self._store_lock = threading.RLock()
         self._retry_thread: threading.Thread | None = None
         self._executor = JobExecutor(
             self,
@@ -1136,27 +1137,32 @@ class JobManager:
     def _persist_job(self, job: Job) -> None:
         if job.deleted or self._store_dir is None:
             return
-        # A pruned terminal job can still be finishing its worker finalizer.
-        # Do not resurrect it in the store after _prune removed it.
-        if job.status in TERMINAL and self._jobs.get(str(job.job_id)) is not job:
-            return
-        try:
-            from videoflow.application.database import upsert_job
+        # Serialize with _prune so a finalizer cannot resurrect a pruned job.
+        with self._store_lock:
+            if job.deleted or self._store_dir is None:
+                return
+            # A pruned terminal job can still be finishing its worker finalizer.
+            # Do not resurrect it in the store after _prune removed it.
+            if job.status in TERMINAL and self._jobs.get(str(job.job_id)) is not job:
+                return
+            payload = job.to_dict()
+            try:
+                from videoflow.application.database import upsert_job
 
-            upsert_job(str(job.job_id), job.to_dict())
-        except Exception:
-            pass
-        try:
-            self._store_dir.mkdir(parents=True, exist_ok=True)
-            path = self._store_dir / f"{job.job_id}.json"
-            temporary = path.with_suffix(".json.tmp")
-            temporary.write_text(
-                json.dumps(job.to_dict(), indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
-            temporary.replace(path)
-        except OSError as exc:
-            logger.warning("could not persist job state for %s: %s", job.job_id, exc)
+                upsert_job(str(job.job_id), payload)
+            except Exception:
+                pass
+            try:
+                self._store_dir.mkdir(parents=True, exist_ok=True)
+                path = self._store_dir / f"{job.job_id}.json"
+                temporary = path.with_suffix(".json.tmp")
+                temporary.write_text(
+                    json.dumps(payload, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                temporary.replace(path)
+            except OSError as exc:
+                logger.warning("could not persist job state for %s: %s", job.job_id, exc)
 
     def _load_jobs(self) -> None:
         if self._store_dir is None:
@@ -1209,17 +1215,18 @@ class JobManager:
             return
         finished.sort(key=lambda item: item.finished_at or "")
         for job in finished[: len(finished) - self._history]:
-            job.deleted = True
-            self._jobs.pop(str(job.job_id), None)
-            if self._store_dir is not None:
-                with contextlib.suppress(OSError):
-                    (self._store_dir / f"{job.job_id}.json").unlink(missing_ok=True)
-            try:
-                from videoflow.application.database import delete_job
+            with self._store_lock:
+                job.deleted = True
+                self._jobs.pop(str(job.job_id), None)
+                if self._store_dir is not None:
+                    with contextlib.suppress(OSError):
+                        (self._store_dir / f"{job.job_id}.json").unlink(missing_ok=True)
+                try:
+                    from videoflow.application.database import delete_job
 
-                delete_job(str(job.job_id))
-            except Exception:
-                pass
+                    delete_job(str(job.job_id))
+                except Exception:
+                    pass
 
 
 def _job_from_dict(payload: dict[str, Any]) -> Job:

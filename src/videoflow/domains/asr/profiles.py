@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from videoflow.application.settings import AppSettings
+from videoflow.runtime import cuda_build
 
 
 @dataclass(frozen=True)
@@ -132,9 +133,19 @@ def resolve_asr_plan(
     device = str(getattr(options, "device", "cpu") or "cpu")
     if device == "cpu":
         device = settings.speech.device
+    forced_device = os.environ.get("VIDEOWFLOW_ASR_DEVICE", "").strip().lower()
+    if forced_device in {"cpu", "cuda", "auto"}:
+        device = forced_device
+    elif cuda_build():
+        device = "cuda"
     compute_type = str(getattr(options, "compute_type", "int8") or "int8")
     if compute_type == "int8":
         compute_type = settings.speech.compute_type
+    forced_compute = os.environ.get("VIDEOWFLOW_ASR_COMPUTE_TYPE", "").strip()
+    if forced_compute:
+        compute_type = forced_compute
+    elif device == "cuda" and compute_type == "int8":
+        compute_type = "int8_float16"
     if profile == "custom":
         model_id = str(getattr(options, "model_id", "") or "") or str(
             settings.models.defaults.get("asr", "")

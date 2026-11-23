@@ -27,20 +27,23 @@ def _faster_entry(
     *,
     vocabulary: str = "vocabulary.txt",
     preprocessor: bool = False,
+    revision: str = "main",
+    model_sha256: str = "",
+    model_size: int | None = None,
 ) -> dict[str, Any]:
-    base = f"https://huggingface.co/{repo}/resolve/main"
+    base = f"https://huggingface.co/{repo}/resolve/{revision}"
     files = [
         (f"{base}/config.json", "config.json", None),
         (f"{base}/tokenizer.json", "tokenizer.json", None),
         (f"{base}/{vocabulary}", vocabulary, None),
-        (f"{base}/model.bin", "model.bin", None),
+        (f"{base}/model.bin", "model.bin", model_sha256 or None),
     ]
     if preprocessor:
         files.insert(
             2,
             (f"{base}/preprocessor_config.json", "preprocessor_config.json", None),
         )
-    return {
+    entry = {
         "label": f"Faster-Whisper {size}",
         "capability": "asr",
         "used_by": ["transcribe"],
@@ -51,6 +54,9 @@ def _faster_entry(
         "target": f"faster-whisper/{size}",
         "files": files,
     }
+    if model_size is not None:
+        entry["model_size"] = int(model_size)
+    return entry
 
 
 def _whisper_entry(size: str, size_mb: int) -> dict[str, Any]:
@@ -114,6 +120,9 @@ CATALOG: dict[str, dict[str, Any]] = {
         1618,
         vocabulary="vocabulary.json",
         preprocessor=True,
+        revision="0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+        model_sha256="e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+        model_size=1617884929,
     ),
     "faster-whisper-large-v3": _faster_entry(
         "large-v3",
@@ -121,6 +130,9 @@ CATALOG: dict[str, dict[str, Any]] = {
         3090,
         vocabulary="vocabulary.json",
         preprocessor=True,
+        revision="edaa852ec7e145841d8ffdb056a99866b5f0a478",
+        model_sha256="69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1",
+        model_size=3087284237,
     ),
     "whisper-base": _whisper_entry("base", 142),
     "whisper-small": _whisper_entry("small", 466),

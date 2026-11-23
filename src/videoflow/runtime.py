@@ -26,6 +26,16 @@ def bundle_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def cuda_build() -> bool:
+    """Whether this bundle was built with the CUDA ASR runtime."""
+    marker = os.environ.get("VIDEOWFLOW_CUDA_BUILD", "").strip().lower()
+    if marker in {"0", "false", "no", "off"}:
+        return False
+    if marker in {"1", "true", "yes", "on"}:
+        return True
+    return (bundle_root() / "videoflow" / "cuda.flag").is_file()
+
+
 def executable_dir() -> Path:
     return Path(sys.executable).resolve().parent
 

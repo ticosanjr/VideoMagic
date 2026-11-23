@@ -97,3 +97,22 @@ def test_pyannote_model_install_uses_huggingface(monkeypatch, tmp_path: Path) ->
     result = models.install_model("pyannote-diarization-3.1", allow_network=True)
     assert result["installed"] is True
     assert Path(str(result["path"]), "config.yaml").is_file()
+
+
+def test_large_models_pin_revision_and_model_hash() -> None:
+    cases = {
+        "faster-whisper-large-v3-turbo": (
+            "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+            "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+        ),
+        "faster-whisper-large-v3": (
+            "edaa852ec7e145841d8ffdb056a99866b5f0a478",
+            "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1",
+        ),
+    }
+    for model_id, (revision, digest) in cases.items():
+        entry = models.CATALOG[model_id]
+        files = {name: (url, expected) for url, name, expected in entry["files"]}
+        model_url, model_digest = files["model.bin"]
+        assert f"/resolve/{revision}/model.bin" in model_url
+        assert model_digest == digest

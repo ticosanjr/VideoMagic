@@ -20,25 +20,64 @@ jobs:
         working-directory: ui
         run: npm ci; npm run build
       - name: Python dependencies
-        run: uv sync --extra dev --group dev --extra tray
-      - name: Build Windows executable
-        run: uv run python scripts/build_portable.py --fetch-ffmpeg --with-silero --with-tray
-      - name: Smoke test Windows executable
+        run: uv sync --extra dev --group dev --extra tray --extra asr-cuda
+      - name: Build Windows CUDA portable
+        run: >
+          uv run python scripts/build_portable.py
+          --onedir --name videoflow
+          --fetch-ffmpeg --with-silero --with-tray
+          --faster-whisper-runtime --with-cuda
+          --skip-ui-build
+      - name: Add portable launcher
         shell: pwsh
         run: |
-          .\dist\videoflow.exe version
-          .\dist\videoflow.exe doctor
-          .\dist\videoflow.exe mcp --help
+          $root = "dist/videoflow"
+          $lines = @(
+            '@echo off',
+            'setlocal',
+            'set "ROOT=%~dp0"',
+            'set "VIDEOWFLOW_HOME=%ROOT%videoflow-data"',
+            'set "VIDEOWFLOW_MODELS_DIR=%ROOT%videoflow-data\models"',
+            'set "VIDEOWFLOW_ASR_DEVICE=cuda"',
+            'set "VIDEOWFLOW_ASR_COMPUTE_TYPE=int8_float16"',
+            'set "VIDEOWFLOW_ASR_MODEL_ID=faster-whisper-large-v3-turbo"',
+            'if "%~1"=="" (',
+            '  "%ROOT%videoflow.exe" tray',
+            ') else (',
+            '  "%ROOT%videoflow.exe" %*',
+            ')'
+          )
+          Set-Content -Path "$root/VideoFlow.cmd" -Value $lines -Encoding ASCII
+      - name: Smoke test Windows CUDA portable
+        shell: pwsh
+        run: |
+          .\dist\videoflow\videoflow.exe version
+          .\dist\videoflow\videoflow.exe doctor
+          .\dist\videoflow\videoflow.exe models list
+          .\dist\videoflow\videoflow.exe mcp --help
+      - name: Package Windows CUDA portable
+        shell: pwsh
+        run: |
+          $version = ((.\dist\videoflow\videoflow.exe version) -split ' ')[1]
+          $zip = "dist\VideoFlow-$version-windows-x64-cuda.zip"
+          Compress-Archive -Path dist\videoflow\* -DestinationPath $zip -Force
+          Get-Item $zip | Format-List Name,Length
       - name: Build tokenless Windows GPU worker kit
         run: |
           uv run python scripts/build_windows_kit.py --output dist
           uv run python -c "import zipfile,pathlib; p=next(pathlib.Path('dist').glob('VideoFlow-Windows-GPU-Worker-*.zip')); z=zipfile.ZipFile(p); names=set(z.namelist()); assert 'worker.env' not in names; assert any(n.startswith('wheels/videoflow_gpu_worker-') for n in names); assert 'VideoFlowGPU.ps1' in names; print(p, len(names), 'files')"
-      - name: Upload Windows artifacts
+      - name: Upload Windows CUDA portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: videoflow-windows-cuda
+          path: dist/VideoFlow-*-windows-x64-cuda.zip
+          if-no-files-found: error
+          compression-level: 0
+      - name: Upload Windows worker kit
         uses: actions/upload-artifact@v4
         with:
           name: videoflow-windows
           path: |
-            dist/videoflow.exe
             dist/VideoFlow-Windows-GPU-Worker-*.zip
             dist/windows-kit.json
           if-no-files-found: error

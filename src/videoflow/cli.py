@@ -19,7 +19,13 @@ from pathlib import Path
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.fonts import fonts_dir
-from videoflow.application.models import model_roots, models_dir
+from videoflow.application.models import (
+    install_model,
+    installed_path,
+    list_models,
+    model_roots,
+    models_dir,
+)
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
 from videoflow.application.services import (
@@ -56,12 +62,14 @@ from videoflow.domain.transcript import parse_srt_file
 from videoflow.domains.audio.filters import audio_filters
 from videoflow.exporters.common import write_text
 from videoflow.runtime import (
+    cuda_build,
     ensure_home,
     find_binary,
     find_faster_whisper_model,
     find_silero_model,
     find_whisper_binary,
     find_whisper_model,
+    is_frozen,
     portable_home,
     ui_dir,
 )
@@ -75,6 +83,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _version()
         if args.command == "doctor":
             return _doctor(install_models=bool(getattr(args, "install_models", False)))
+        if args.command == "models":
+            return _models(args)
         if args.command == "shorts":
             return _shorts(args)
         if args.command == "recipe":
@@ -350,6 +360,21 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip the videoflow_* MCP prompts.",
     )
+    models = sub.add_parser("models", help="List, install, or ensure local models.")
+    models_sub = models.add_subparsers(dest="models_command")
+    models_sub.add_parser("list", help="List local model availability.")
+    models_install = models_sub.add_parser("install", help="Download one model.")
+    models_install.add_argument(
+        "model_id",
+        nargs="?",
+        default=os.environ.get("VIDEOWFLOW_ASR_MODEL_ID", "faster-whisper-large-v3-turbo"),
+    )
+    models_ensure = models_sub.add_parser("ensure", help="Install the model when missing.")
+    models_ensure.add_argument(
+        "model_id",
+        nargs="?",
+        default=os.environ.get("VIDEOWFLOW_ASR_MODEL_ID", "faster-whisper-large-v3-turbo"),
+    )
     return parser
 
 
@@ -427,6 +452,66 @@ def _install_doctor_models() -> dict[str, object]:
     return install
 
 
+def _install_asr_model(model_id: str) -> int:
+    if installed_path(model_id) is not None:
+        print(f"{model_id} is already installed at {installed_path(model_id)}")
+        return 0
+    last = [-1]
+
+    def progress(percent: int, message: str) -> None:
+        if percent == last[0] and percent < 100:
+            return
+        last[0] = percent
+        print(f"[{percent:3d}%] {message}", file=sys.stderr, flush=True)
+
+    try:
+        result = install_model(model_id, allow_network=True, progress=progress)
+    except Exception as exc:  # noqa: BLE001 - CLI must report a readable error
+        print(f"Could not install {model_id}: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def _models(args: argparse.Namespace) -> int:
+    command = getattr(args, "models_command", None)
+    if command == "list":
+        print(json.dumps({"models": list_models()}, indent=2))
+        return 0
+    if command in {"install", "ensure"}:
+        return _install_asr_model(str(args.model_id))
+    print("usage: videoflow models {list|install|ensure}", file=sys.stderr)
+    return 2
+
+
+def _ensure_portable_asr() -> bool:
+    """Download the preferred ASR model on first run of a CUDA portable build."""
+
+    if not is_frozen() or not cuda_build():
+        return True
+    model_id = os.environ.get(
+        "VIDEOWFLOW_ASR_MODEL_ID", "faster-whisper-large-v3-turbo"
+    ).strip()
+    if installed_path(model_id) is not None:
+        return True
+    auto = os.environ.get("VIDEOWFLOW_ASR_AUTO_DOWNLOAD", "1").strip().lower()
+    if auto in {"0", "false", "no", "off"}:
+        print(
+            f"Whisper model {model_id} is not installed. Run "
+            f"`videoflow models install {model_id}` or set "
+            "VIDEOWFLOW_ASR_AUTO_DOWNLOAD=1.",
+            file=sys.stderr,
+        )
+        return False
+    print(
+        f"Whisper model {model_id} is not installed; downloading before startup. "
+        "This can take several minutes.",
+        file=sys.stderr,
+        flush=True,
+    )
+    return _install_asr_model(model_id) == 0
+
+
 def _doctor(*, install_models: bool = False) -> int:
     ensure_home()
     checks: dict[str, object] = {"version": __version__, "home": str(portable_home())}
@@ -474,7 +559,13 @@ def _doctor(*, install_models: bool = False) -> int:
         "model": str(whisper_model) if whisper_model else None,
         "found": bool(whisper_binary and whisper_model),
     }
-    faster_whisper_model = find_faster_whisper_model("small")
+    preferred_model = os.environ.get(
+        "VIDEOWFLOW_ASR_MODEL_ID", "faster-whisper-large-v3-turbo"
+    )
+    preferred_size = preferred_model.removeprefix("faster-whisper-")
+    faster_whisper_model = find_faster_whisper_model(preferred_size) or find_faster_whisper_model(
+        "small"
+    )
     try:
         import faster_whisper
 
@@ -483,9 +574,18 @@ def _doctor(*, install_models: bool = False) -> int:
         faster_whisper_version = None
     checks["faster_whisper"] = {
         "package": faster_whisper_version,
+        "model_id": preferred_model,
         "model": str(faster_whisper_model) if faster_whisper_model else None,
         "found": bool(faster_whisper_version and faster_whisper_model),
     }
+    cuda: dict[str, object] = {"build": cuda_build(), "devices": None}
+    try:
+        import ctranslate2
+
+        cuda["devices"] = int(ctranslate2.get_cuda_device_count())
+    except Exception as exc:  # pragma: no cover - optional runtime
+        cuda["error"] = str(exc)
+    checks["cuda"] = cuda
     silero_model = find_silero_model()
     try:
         import onnxruntime
@@ -835,6 +935,7 @@ def _tray(args: argparse.Namespace) -> int:
         diagnostics = tray_module.tray_diagnostics()
         print(json.dumps(diagnostics, indent=2))
         return 0 if diagnostics.get("available") else 1
+    _ensure_portable_asr()
     if not tray_module.tray_available():
         diagnostics = tray_module.tray_diagnostics()
         print(
@@ -910,6 +1011,7 @@ def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
 
     log_level = load_settings().runtime.log_level
     append_server_log(f"start lock acquired port={args.port} pid={os.getpid()}")
+    _ensure_portable_asr()
     url = _ui_url(args.host, args.port)
     health = probe_service(args.host, args.port)
     if health is not None:
