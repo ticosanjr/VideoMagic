@@ -5,6 +5,14 @@
 Release de hardening estrutural sobre a v4.1.0. Sem mudança de contrato de
 estilos ou de timeline.
 
+### Fixed — tray desktop
+
+- Os builds portáteis Linux e Windows agora instalam o extra `tray` e passam
+  `--with-tray` ao PyInstaller, incluindo `pystray`, Pillow e, no Linux,
+  `python-xlib` no AppImage e no executável.
+- O AppImage volta a iniciar o ícone de tray ao abrir, com backend AppIndicator
+  ou GTK quando o sistema oferece `python3-gi`.
+
 ### Fixed — core silencioso
 
 - WAV 24-bit agora calcula RMS real; `sampwidth` fora de `{2,3}` falha com

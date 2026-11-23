@@ -219,10 +219,11 @@ def main() -> int:
         fetch_silero(vendor, refresh=args.refresh_silero)
 
     if args.with_tray:
+        required = ["pystray", "PIL"]
+        if sys.platform.startswith("linux"):
+            required.append("Xlib")
         missing = [
-            name
-            for name in ("pystray", "PIL", "Xlib")
-            if importlib.util.find_spec(name) is None
+            name for name in required if importlib.util.find_spec(name) is None
         ]
         if missing:
             print(

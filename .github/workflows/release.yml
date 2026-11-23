@@ -47,9 +47,9 @@ jobs:
         working-directory: ui
         run: npm ci && npm run build
       - name: Python dependencies
-        run: uv sync --extra dev --group dev --extra faster-whisper
+        run: uv sync --extra dev --group dev --extra faster-whisper --extra tray
       - name: Build Linux executable
-        run: uv run python scripts/build_portable.py --with-ffmpeg --with-whisper --with-silero --with-faster-whisper
+        run: uv run python scripts/build_portable.py --with-ffmpeg --with-whisper --with-silero --with-faster-whisper --with-tray
       - name: Build AppImage
         run: uv run python scripts/build_appimage.py
       - name: Generate SBOM
@@ -85,9 +85,9 @@ jobs:
         working-directory: ui
         run: npm ci; npm run build
       - name: Python dependencies
-        run: uv sync --extra dev --group dev
+        run: uv sync --extra dev --group dev --extra tray
       - name: Build Windows executable
-        run: uv run python scripts/build_portable.py --fetch-ffmpeg --with-silero
+        run: uv run python scripts/build_portable.py --fetch-ffmpeg --with-silero --with-tray
       - name: Smoke test Windows executable
         shell: pwsh
         run: |

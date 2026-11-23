@@ -5,6 +5,8 @@ worker, perfis MCP estritos e remoção de pipelines/artefatos duplicados.
 
 ## Destaques
 
+- AppImage e executável Windows empacotam o tray (`pystray`, Pillow e
+  `python-xlib` no Linux), restaurando o ícone ao abrir o VideoFlow.
 - WAV 24-bit com RMS real, QA lendo `exports/qa/`, SSE sem bloquear threads e
   códigos HTTP v4 estáveis.
 - LLM com budget e circuit breaker antes do HTTP, cache de status do OpenCode e
