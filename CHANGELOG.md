@@ -1,5 +1,85 @@
 # Changelog
 
+## [4.4.0] - 2026-11-23
+
+Decupagem perfeita, Shorts publicáveis, ergonomia MCP e execução nativa no
+Windows 11 com CUDA/NVENC local.
+
+### Added — decupagem
+
+- União `VAD ∪ ASR` em `build_safe_speech_spans()`: palavras transcritas com
+  `probability >= 0.45` nunca são apagadas como silêncio.
+- Guarda de cortes longos: todo vão removido acima de 15s aparece em
+  `decupage/report.json` com RMS, contagem de palavras e `requires_review`.
+- Piso de pads de 90ms/150ms após o snap acústico, quantizado em frames.
+- `vf_decupage(action="run_full")` executa a ordem canônica
+  `audio.vad → transcribe → speech.editorial_clean → retakes.cull →
+  decupage.snap → edit.timeline`.
+- `retakes.cull` sem VAD retorna `missing_prerequisite` com `fix_hint`.
+
+### Added — Shorts e curadoria
+
+- `shorts.select` honra `count`, calcula `speech_ratio` na janela editada e
+  prefere `TALKING_HEAD` a `SCREEN_SHARE_FULL` em crops 9:16.
+- `burn_subtitles=True` queima o `.ass` no MP4 e mantém o sidecar.
+- `time_basis` `edited`/`source` com alias `timeline` e erro explícito fora da
+  timeline.
+- Clipes abaixo de 3s falham com `invalid_short_duration` antes do FFmpeg.
+- Board de curadoria aceita `short` e `cut_review`, com player de vídeo.
+
+### Changed — áudio e entrega
+
+- `TARGET_LUFS=-16.0`, `LOUDNORM_TARGET_TP_DB=-2.0` e
+  `QA_MAX_TRUE_PEAK_DBTP=-1.0` em uma única constante.
+- `audio.finalize` roda automaticamente quando o export precisa do mix e
+  `final_mix.wav` ainda não existe.
+- Entrega sempre em `VideoFlow_Output/{project_slug}/{categoria}`.
+
+### Changed — MCP
+
+- `vf_style` entra no perfil `core`: **18 core / 22 full**.
+- `vf_project` aceita `create`/`new`, `output` opcional em
+  `$VF_WORKSPACE_ROOT/projects/{slug}` e retorna `project_id` + `uuid`.
+- Slugs, UUIDs e nomes de projeto são resolvidos no boundary de **todas** as
+  tools e recursos.
+- `vf_run` aceita `step_params` e distribui `params` plano apenas para os campos
+  válidos de cada step; chaves desconhecidas retornam `invalid_params`.
+- `vf_jobs(action="wait")` retorna `{ok, job_id, status, result, error,
+  artifacts}` e nunca `{}`.
+- `ValidationError` inclui `expected_fields` e `fix_hint` com os campos
+  esperados.
+- `vf_export` sempre retorna payload estruturado.
+
+### Added — Windows nativo e GPU local
+
+- Escape único `escape_ffmpeg_filter_path()` para `C\:/...`, usado em `ass=`,
+  `subtitles=`, `fontsdir=`, `fontfile=` e `lut3d=`.
+- Fontes nativas de `%WINDIR%\Fonts`, sem depender de `fc-match`.
+- Serviços no Windows usam PID file, `netstat`/`tasklist`, `ctypes` e
+  `taskkill`, sem `/proc`, `killpg` ou `resource`.
+- Render gate usa `msvcrt`/`fcntl` via `FileLock` compartilhado.
+- Detecção automática de CUDA local via CTranslate2/`nvidia-smi`; Faster-Whisper
+  usa `float16` e FFmpeg usa `h264_nvenc` com `yuv420p` (sem NVDEC em 10-bit).
+- `doctor` reporta `local_gpu`, `nvenc` e fontes.
+
+### Added — release Windows
+
+- Bundle `onedir` + onefile opcional, zip stored rápido e launcher
+  `VideoFlow.cmd`.
+- `hiddenimports` de curadoria, `vf_shared` e lock compartilhado.
+- `scripts/smoke_windows.py` valida `version`, `doctor`, `mcp --profile core
+  --list-tools` e `serve` (`/health` e `/api/v1/curation/boards`) com `PATH`
+  limpo, encerrando o servidor em `finally`.
+- Workflow Windows roda o smoke e publica o zip CUDA como artifact.
+
+### Validation
+
+- `ruff check src packages tests scripts`: limpo.
+- `pytest -q`: 2960 passed, 1 skipped, 1 xfailed; cobertura 96,78%.
+- `pytest -m media`: 29 passed, 2 skipped.
+- UI: `svelte-check` 0 erros/0 warnings, 53 testes, build concluído.
+- `scripts/smoke_windows.py --help` e execução real do smoke: OK.
+
 ## [4.3.1] - 2026-11-23
 
 Correção do portable Windows e publicação do build CUDA com Whisper.
