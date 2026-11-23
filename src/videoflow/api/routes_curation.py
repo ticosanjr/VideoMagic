@@ -87,8 +87,11 @@ def register_curation_routes(app: FastAPI) -> None:
         item = next((entry for entry in board.items if entry.item_id == item_id), None)
         if item is None or not item.local_path:
             raise HTTPException(status_code=404, detail="curation item not found")
+        candidate = Path(item.local_path).expanduser()
+        if not candidate.is_absolute():
+            candidate = output / candidate
         try:
-            path = resolve_allowed(Path(item.local_path), allowed_roots())
+            path = resolve_allowed(candidate, allowed_roots())
         except PathJailError as exc:
             raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
         if not path.is_file():

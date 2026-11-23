@@ -9,49 +9,43 @@ import {
   TABS
 } from "./navigation";
 
-describe("navigation areas", () => {
-  it("organizes every tab under exactly one area", () => {
-    const tabs = AREAS.flatMap((area) => area.tabs);
-    expect(new Set(tabs).size).toBe(tabs.length);
-    expect(tabs.sort()).toEqual(TABS.map((tab) => tab.id).sort());
-  });
-
-  it("keeps the MCP control order", () => {
-    expect(AREAS.map((area) => area.id)).toEqual(["runs", "setup"]);
-    expect(areaTabs("runs")).toEqual(["overview", "jobs"]);
-    expect(defaultTabForArea("setup")).toBe("workspace");
-  });
-
-  it("maps tabs to areas", () => {
-    expect(areaForTab("jobs")).toBe("runs");
-    expect(areaForTab("connect")).toBe("setup");
-    expect(areaForTab("gpu")).toBe("setup");
+describe("three-screen navigation", () => {
+  it("exposes exactly curation, jobs, and setup", () => {
+    expect(TABS.map((tab) => tab.id)).toEqual(["curation", "jobs", "setup"]);
+    expect(AREAS.map((area) => area.id)).toEqual(["main"]);
+    expect(areaTabs("main")).toEqual(["curation", "jobs", "setup"]);
+    expect(defaultTabForArea("main")).toBe("curation");
+    expect(areaForTab("jobs")).toBe("main");
   });
 });
 
 describe("resolveRoute", () => {
   it("reads flat hashes", () => {
-    expect(resolveRoute("#jobs")).toEqual({ area: "runs", tab: "jobs" });
+    expect(resolveRoute("#jobs")).toEqual({ area: "main", tab: "jobs" });
+    expect(resolveRoute("#setup")).toEqual({ area: "main", tab: "setup" });
   });
 
-  it("reads area/tab hashes", () => {
-    expect(resolveRoute("#setup/providers")).toEqual(
-      { area: "setup", tab: "providers" }
-    );
+  it("reads curation project deep links", () => {
+    expect(resolveRoute("#curation/abc-123")).toEqual({
+      area: "main",
+      tab: "curation"
+    });
   });
 
-  it("redirects legacy aliases", () => {
-    expect(resolveRoute("#plugins").tab).toBe("extensions");
-    expect(resolveRoute("#integrations").tab).toBe("connect");
-    expect(resolveRoute("#home").tab).toBe("overview");
+  it("redirects legacy setup aliases", () => {
+    expect(resolveRoute("#plugins").tab).toBe("setup");
+    expect(resolveRoute("#gpu").tab).toBe("setup");
+    expect(resolveRoute("#connect").tab).toBe("setup");
+    expect(resolveRoute("#home").tab).toBe("curation");
   });
 
-  it("falls back to runs/overview", () => {
-    expect(resolveRoute("")).toEqual({ area: "runs", tab: "overview" });
-    expect(resolveRoute("#unknown")).toEqual({ area: "runs", tab: "overview" });
+  it("falls back to curation", () => {
+    expect(resolveRoute("")).toEqual({ area: "main", tab: "curation" });
+    expect(resolveRoute("#unknown")).toEqual({ area: "main", tab: "curation" });
   });
 
   it("builds flat hashes", () => {
-    expect(hashFor("gpu")).toBe("#gpu");
+    expect(hashFor("setup")).toBe("#setup");
+    expect(hashFor("curation")).toBe("#curation");
   });
 });

@@ -1069,6 +1069,80 @@ export interface StyleSummary {
   updated_at: string;
 }
 
+export interface CurationItem {
+  item_id: string;
+  category: "style" | "music" | "sfx" | "broll" | "image";
+  scene_id: string;
+  title: string;
+  local_path: string;
+  media_type: "audio" | "video" | "image" | "style";
+  duration_sec: number;
+  recommended: boolean;
+  reason: string;
+  status: "pending" | "selected" | "rejected";
+}
+
+export interface CurationBoard {
+  project_id: string;
+  board_id: string;
+  status: "waiting_human" | "decided" | "delegated_to_ai";
+  items: CurationItem[];
+  updated_at: string;
+}
+
+export interface CurationDecision {
+  project_id: string;
+  board_id: string;
+  status: "waiting_human" | "decided" | "delegated_to_ai";
+  selected_ids: string[];
+  rejected_ids: string[];
+  updated_at: string;
+}
+
+export interface CurationBoardSummary {
+  project_id: string;
+  board_id: string;
+  status: CurationBoard["status"];
+  item_count: number;
+  updated_at: string;
+  output: string;
+}
+
+export async function listCurationBoards(
+  pendingOnly = false
+): Promise<CurationBoardSummary[]> {
+  const suffix = pendingOnly ? "?pending_only=true" : "";
+  const response = await request<{ ok: boolean; boards: CurationBoardSummary[] }>(
+    `/api/v1/curation/boards${suffix}`
+  );
+  return response.boards ?? [];
+}
+
+export async function getCurationBoard(projectId: string): Promise<{
+  board: CurationBoard;
+  decisions: CurationDecision | null;
+}> {
+  return request(`/api/v1/curation/${encodeURIComponent(projectId)}`);
+}
+
+export function curationMediaUrl(projectId: string, itemId: string): string {
+  return `/api/v1/curation/${encodeURIComponent(projectId)}/media/${encodeURIComponent(itemId)}`;
+}
+
+export async function submitCurationDecision(
+  projectId: string,
+  payload: {
+    selected_ids?: string[];
+    rejected_ids?: string[];
+    delegate_to_ai?: boolean;
+  }
+): Promise<{ ok: boolean; board: CurationBoard | null; decisions: CurationDecision | null }> {
+  return request(`/api/v1/curation/${encodeURIComponent(projectId)}/decide`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function listStyles(): Promise<StyleSummary[]> {
   const response = await request<{ ok: boolean; styles: StyleSummary[] }>("/api/v1/styles");
   return response.styles ?? [];

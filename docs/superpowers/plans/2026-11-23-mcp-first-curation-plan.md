@@ -591,3 +591,36 @@ Riscos residuais: /curation/boards lista todos os boards conhecidos; use
 ?pending_only=true para a tela de pendentes. O board não valida local_path no
 publish; a validação ocorre no endpoint de mídia com resolve_allowed.
 ```
+
+### Registro de execução — P0-3
+
+```text
+Fase: P0-3
+Data: 2026-11-23
+Arquivos criados:
+  ui/src/lib/CurationBoard.svelte
+  ui/src/lib/SetupPanel.svelte
+Arquivos alterados:
+  ui/src/routes/+page.svelte
+  ui/src/lib/{api,navigation,i18n,glossary}.ts
+  ui/src/lib/{navigation,panelRender}.test.ts
+  src/videoflow/api/routes_curation.py (local_path relativo ao projeto)
+Painéis removidos:
+  CapabilitiesPanel, FormatsPanel, HelpPanel, ModelsPanel,
+  PluginsPanel, ServicesPanel
+Painéis preservados como componentes internos:
+  GpuPanel, StylesPanel, IntegrationsPanel, WorkspacePanel,
+  SettingsPanel (dentro de Advanced settings) e HitlInbox (modal de Jobs)
+Navegação: Curation, Jobs, Setup (3 telas de topo).
+Setup: Worker GPU, Styles & Workflows, OpenCode & Workspace.
+HITL: aprovações/perguntas continuam no modal Needs you, aberto a partir de
+Jobs e do header.
+Comandos de validação:
+  cd ui && npm run check && npm test -- --run && npm run build
+  npx playwright test e2e/gpu.spec.ts
+Resultado: svelte-check 0; Vitest 53 passed; build OK; Playwright 2 passed.
+Regressão Python: 24 passed no gate curation/MCP; ruff limpo.
+Riscos residuais: Formatos, Plugins e Serviços deixam de ter tela dedicada;
+seguem disponíveis por API/CLI quando ainda existirem no backend. Settings e
+Workspace ficam dentro de Setup para não perder paths e runtime.
+```

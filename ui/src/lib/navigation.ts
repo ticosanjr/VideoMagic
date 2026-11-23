@@ -1,21 +1,7 @@
 import type { IconName } from "$lib/ui/icons";
 
-export type AreaId = "runs" | "setup";
-
-export type TabId =
-  | "overview"
-  | "jobs"
-  | "models"
-  | "providers"
-  | "services"
-  | "extensions"
-  | "connect"
-  | "workspace"
-  | "styles"
-  | "formats"
-  | "help"
-  | "gpu"
-  | "settings";
+export type AreaId = "main";
+export type TabId = "curation" | "jobs" | "setup";
 
 export interface TabMeta {
   id: TabId;
@@ -28,28 +14,41 @@ export interface AreaMeta {
   tabs: TabId[];
 }
 
-export const AREAS: AreaMeta[] = [
-  { id: "runs", tabs: ["overview", "jobs"] },
+/** Three top-level screens. The old setup tabs are aliases for Setup. */
+export const TABS: TabMeta[] = [
+  {
+    id: "curation",
+    area: "main",
+    legacy: ["overview", "home", "produce", "runs", "curation"]
+  },
+  { id: "jobs", area: "main", legacy: ["job"] },
   {
     id: "setup",
-    tabs: ["workspace", "connect", "models", "providers", "services", "extensions", "styles", "formats", "help", "gpu", "settings"]
+    area: "main",
+    legacy: [
+      "workspace",
+      "connect",
+      "integrations",
+      "models",
+      "providers",
+      "capabilities",
+      "services",
+      "extensions",
+      "plugins",
+      "styles",
+      "presets",
+      "formats",
+      "help",
+      "gpu",
+      "gpu-offload",
+      "acceleration",
+      "settings"
+    ]
   }
 ];
 
-export const TABS: TabMeta[] = [
-  { id: "overview", area: "runs", legacy: ["home", "produce"] },
-  { id: "jobs", area: "runs", legacy: ["runs"] },
-  { id: "models", area: "setup", legacy: [] },
-  { id: "providers", area: "setup", legacy: ["capabilities"] },
-  { id: "services", area: "setup", legacy: [] },
-  { id: "extensions", area: "setup", legacy: ["plugins"] },
-  { id: "connect", area: "setup", legacy: ["integrations"] },
-  { id: "workspace", area: "setup", legacy: [] },
-  { id: "styles", area: "setup", legacy: ["presets"] },
-  { id: "formats", area: "setup", legacy: [] },
-  { id: "help", area: "setup", legacy: ["instructions"] },
-  { id: "gpu", area: "setup", legacy: ["gpu-offload", "acceleration"] },
-  { id: "settings", area: "setup", legacy: [] }
+export const AREAS: AreaMeta[] = [
+  { id: "main", tabs: TABS.map((tab) => tab.id) }
 ];
 
 const BY_ID = new Map<TabId, TabMeta>(TABS.map((tab) => [tab.id, tab]));
@@ -62,33 +61,30 @@ export function isTabId(value: string): value is TabId {
 }
 
 export function tabMeta(tab: TabId): TabMeta {
-  return BY_ID.get(tab) ?? BY_ID.get("overview")!;
+  return BY_ID.get(tab) ?? BY_ID.get("curation")!;
 }
 
-export function areaForTab(tab: TabId): AreaId {
-  return tabMeta(tab).area;
+export function areaForTab(_tab: TabId): AreaId {
+  return "main";
 }
 
-export function areaTabs(area: AreaId): TabId[] {
-  return AREAS.find((item) => item.id === area)?.tabs ?? ["overview"];
+export function areaTabs(_area: AreaId): TabId[] {
+  return TABS.map((tab) => tab.id);
 }
 
-export function defaultTabForArea(area: AreaId): TabId {
-  return areaTabs(area)[0];
+export function defaultTabForArea(_area: AreaId): TabId {
+  return "curation";
 }
 
-/** Resolve `#tab`, `#area/tab`, or a legacy alias. */
+/** Resolve `#tab`, `#tab/<project_id>`, or a legacy alias. */
 export function resolveRoute(hash: string): { area: AreaId; tab: TabId } {
   const raw = hash.replace(/^#/, "").trim();
-  if (!raw) return { area: "runs", tab: "overview" };
-  const [first, second] = raw.split("/");
-  if (second && isTabId(second) && areaForTab(second) === first) {
-    return { area: first as AreaId, tab: second };
-  }
-  if (isTabId(first)) return { area: areaForTab(first), tab: first };
+  if (!raw) return { area: "main", tab: "curation" };
+  const first = raw.split("/")[0];
+  if (isTabId(first)) return { area: "main", tab: first };
   const legacy = LEGACY.get(first);
-  if (legacy) return { area: areaForTab(legacy), tab: legacy };
-  return { area: "runs", tab: "overview" };
+  if (legacy) return { area: "main", tab: legacy };
+  return { area: "main", tab: "curation" };
 }
 
 export function hashFor(tab: TabId): string {
@@ -112,22 +108,11 @@ export function areaHintKey(area: AreaId): string {
 }
 
 export const AREA_ICONS: Record<AreaId, IconName> = {
-  runs: "activity",
-  setup: "settings"
+  main: "activity"
 };
 
 export const TAB_ICONS: Record<TabId, IconName> = {
-  overview: "sparkles",
+  curation: "sparkles",
   jobs: "activity",
-  models: "cpu",
-  providers: "plug",
-  services: "server",
-  extensions: "puzzle",
-  connect: "link",
-  workspace: "folder",
-  styles: "sparkles",
-  formats: "grid",
-  help: "info",
-  gpu: "gpu",
-  settings: "settings"
+  setup: "settings"
 };

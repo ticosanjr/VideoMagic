@@ -2,6 +2,7 @@ const STRINGS: Record<string, Record<string, string>> = {
   en: {
     produce: "Produce",
     overview: "Overview",
+    curation: "Curation",
     overview_hint: "Favorites, pending gates, and recent runs",
     edit: "Edit",
     runs: "Runs",
@@ -69,6 +70,7 @@ const STRINGS: Record<string, Record<string, string>> = {
   "pt-BR": {
     produce: "Produzir",
     overview: "Visão geral",
+    curation: "Curadoria",
     overview_hint: "Favoritas, gates pendentes e execuções recentes",
     recipes: "Receitas",
     lamera: "Lamera",

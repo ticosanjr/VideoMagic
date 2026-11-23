@@ -1,33 +1,21 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import CapabilitiesPanel from "$lib/CapabilitiesPanel.svelte";
+  import CurationBoard from "$lib/CurationBoard.svelte";
   import ErrorBanner from "$lib/ErrorBanner.svelte";
-  import FormatsPanel from "$lib/FormatsPanel.svelte";
-  import GpuPanel from "$lib/GpuPanel.svelte";
   import GpuStatusPill from "$lib/GpuStatusPill.svelte";
-  import HelpPanel from "$lib/HelpPanel.svelte";
   import HitlInbox from "$lib/HitlInbox.svelte";
-  import IntegrationsPanel from "$lib/IntegrationsPanel.svelte";
   import JobsPanel from "$lib/JobsPanel.svelte";
-  import ModelsPanel from "$lib/ModelsPanel.svelte";
-  import PluginsPanel from "$lib/PluginsPanel.svelte";
-  import ServicesPanel from "$lib/ServicesPanel.svelte";
-  import StylesPanel from "$lib/StylesPanel.svelte";
-  import WorkspacePanel from "$lib/WorkspacePanel.svelte";
-  import SettingsPanel from "$lib/SettingsPanel.svelte";
-  import SetupHealth from "$lib/SetupHealth.svelte";
+  import SetupPanel from "$lib/SetupPanel.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Logo from "$lib/ui/Logo.svelte";
   import {
     errorMessage,
     getSettings,
     getSystem,
-    listJobs,
     listPendingInteractions,
     saveSettings,
     type AppSettings,
     type HiltPending,
-    type Job,
     type SystemInfo
   } from "$lib/api";
   import { t } from "$lib/i18n";
@@ -37,52 +25,27 @@
   import "../app.css";
 
   import {
-    AREAS,
-    AREA_ICONS,
+    TABS,
     TAB_ICONS,
-    areaForTab,
-    areaTabs,
-    defaultTabForArea,
     hashFor,
     resolveRoute,
-    type AreaId,
     type TabId
   } from "$lib/navigation";
 
   const TAB_HINTS: Record<TabId, string> = {
-    overview: "MCP server health, setup checks, and recent jobs",
-    jobs: "Jobs started by MCP tools and their outputs",
-    models: "Optional on-demand speech and vision models",
-    providers: "AI provider configuration, tests, and fallbacks",
-    services: "Inspect, stop, and restart local VideoFlow processes",
-    extensions: "Local plugin packages and sandbox status",
-    connect: "MCP and REST setup for OpenCode, Paperclip, and DeepSeek",
-    workspace: "Choose the workspace folder and install the MCP automatically",
-    styles: "Edit the Markdown style catalog used by presets and agents",
-    formats: "Aspect ratios, caption presets, and Shorts safe zones",
-    help: "MCP workflow, example prompts, resources, and worker troubleshooting",
-    gpu: "Pair a Windows GPU worker and validate its capabilities",
-    settings: "Local runtime, paths, models, speech, TTS, and quality"
+    curation: "Review style, music, SFX, B-roll, and image candidates",
+    jobs: "Queued, running, paused, and finished jobs with human approvals",
+    setup: "Windows GPU, styles, workspace, and OpenCode bootstrap"
   };
 
   let system = $state<SystemInfo | null>(null);
-  let activeTab = $state<TabId>("overview");
-  const activeArea = $derived(areaForTab(activeTab));
-  const subTabs = $derived(areaTabs(activeArea));
+  let activeTab = $state<TabId>("curation");
   let connecting = $state(true);
   let systemError = $state("");
   let locale = $state("en");
-  let allowExternal = $state(false);
-  let allowedHosts = $state("");
-  let jobs = $state<Job[]>([]);
   let pendingHilt = $state<HiltPending[]>([]);
   let inboxOpen = $state(false);
-  let jobsTimer: ReturnType<typeof setInterval> | undefined;
-
-  const recentJobs = $derived(jobs.slice(0, 6));
-  const runningJobs = $derived(
-    jobs.filter((job) => ["running", "queued"].includes(job.status))
-  );
+  let hitlTimer: ReturnType<typeof setInterval> | undefined;
 
   async function connectToService() {
     connecting = true;
@@ -102,14 +65,6 @@
         }
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
-    }
-  }
-
-  async function refreshJobs() {
-    try {
-      jobs = await listJobs();
-    } catch {
-      // Keep the last snapshot while the service restarts.
     }
   }
 
@@ -194,7 +149,7 @@
 
   $effect(() => {
     if (typeof document === "undefined") return;
-    document.title = `VideoFlow — ${t(locale, activeArea)} · ${t(locale, activeTab)}`;
+    document.title = `VideoFlow — ${t(locale, activeTab)}`;
   });
 
   onMount(() => {
@@ -209,13 +164,9 @@
     syncHash();
     window.addEventListener("hashchange", syncHash);
     void connectToService();
-    void refreshJobs();
     void refreshHilt();
-    jobsTimer = setInterval(() => {
-      if (!document.hidden) {
-        void refreshJobs();
-        void refreshHilt();
-      }
+    hitlTimer = setInterval(() => {
+      if (!document.hidden) void refreshHilt();
     }, 8000);
     void getSettings()
       .then(({ settings }) => {
@@ -227,13 +178,13 @@
       .catch(() => {});
     return () => {
       window.removeEventListener("hashchange", syncHash);
-      clearInterval(jobsTimer);
+      clearInterval(hitlTimer);
     };
   });
 </script>
 
 <svelte:head>
-  <title>VideoFlow — MCP control panel</title>
+  <title>VideoFlow — curation, jobs, and setup</title>
   <meta name="description" content="Local MCP-first video pipeline control panel." />
 </svelte:head>
 
@@ -258,44 +209,23 @@
       </div>
 
       <nav class="mt-4" aria-label="Control panel">
-        <div class="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0" role="tablist" aria-label="Areas">
-          {#each AREAS as area}
+        <div class="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0" role="tablist" aria-label="Screens">
+          {#each TABS as tab (tab.id)}
             <button
               type="button"
               role="tab"
-              aria-selected={activeArea === area.id}
-              aria-label={t(locale, area.id)}
-              onclick={() => selectTab(defaultTabForArea(area.id))}
-              onkeydown={(event) => onTabKey(event, AREAS.map((item) => item.id), area.id, (id) => selectTab(defaultTabForArea(id as AreaId)))}
-              class={`flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-[length:var(--vf-text-sm)] font-medium transition-colors lg:w-full ${activeArea === area.id ? "bg-sky-500/15 text-sky-100 ring-1 ring-inset ring-sky-400/20" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-100"}`}
+              aria-selected={activeTab === tab.id}
+              aria-label={t(locale, tab.id)}
+              title={TAB_HINTS[tab.id]}
+              onclick={() => selectTab(tab.id)}
+              onkeydown={(event) => onTabKey(event, TABS.map((item) => item.id), tab.id, (id) => selectTab(id as TabId))}
+              class={`flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-[length:var(--vf-text-sm)] font-medium transition-colors lg:w-full ${activeTab === tab.id ? "bg-sky-500/15 text-sky-100 ring-1 ring-inset ring-sky-400/20" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-100"}`}
             >
-              <Icon name={AREA_ICONS[area.id]} size={15} class={activeArea === area.id ? "text-sky-300" : ""} />
-              <span class="whitespace-nowrap">{t(locale, area.id)}</span>
+              <Icon name={TAB_ICONS[tab.id]} size={15} class={activeTab === tab.id ? "text-sky-300" : ""} />
+              <span class="whitespace-nowrap">{t(locale, tab.id)}</span>
             </button>
           {/each}
         </div>
-
-        {#if subTabs.length > 1}
-          <div class="mt-3 border-t border-neutral-800 pt-3">
-            <div class="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0" role="tablist" aria-label={t(locale, activeArea)}>
-              {#each subTabs as tabId}
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === tabId}
-                  aria-label={t(locale, tabId)}
-                  title={TAB_HINTS[tabId]}
-                  onclick={() => selectTab(tabId)}
-                  onkeydown={(event) => onTabKey(event, subTabs, tabId, (id) => selectTab(id as TabId))}
-                  class={`flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[length:var(--vf-text-xs)] transition-colors lg:w-full ${activeTab === tabId ? "bg-white/[0.07] text-neutral-100" : "text-neutral-500 hover:bg-white/[0.03] hover:text-neutral-200"}`}
-                >
-                  <Icon name={TAB_ICONS[tabId]} size={13} class={activeTab === tabId ? "text-sky-300" : ""} />
-                  <span class="whitespace-nowrap">{t(locale, tabId)}</span>
-                </button>
-              {/each}
-            </div>
-          </div>
-        {/if}
       </nav>
 
       <div class="mt-4 hidden space-y-2 border-t border-neutral-800 pt-3 lg:block">
@@ -314,7 +244,7 @@
       <header class="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-neutral-800 bg-neutral-950/80 px-4 py-3">
         <div class="min-w-0">
           <div class="flex items-center gap-1.5 text-[length:var(--vf-text-xs)] text-neutral-500">
-            <span>{t(locale, activeArea)}</span>
+            <span>VideoFlow</span>
             <span aria-hidden="true">/</span>
             <span class="text-neutral-300">{t(locale, activeTab)}</span>
           </div>
@@ -322,7 +252,7 @@
           <p class="mt-0.5 hidden max-w-2xl truncate text-[length:var(--vf-text-xs)] text-neutral-500 sm:block">{TAB_HINTS[activeTab]}</p>
         </div>
         <div class="flex flex-wrap items-center justify-end gap-1.5">
-          <GpuStatusPill onopen={() => selectTab("gpu")} />
+          <GpuStatusPill onopen={() => selectTab("setup")} />
           <button
             type="button"
             onclick={() => void cycleTheme()}
@@ -358,94 +288,15 @@
       {/if}
 
       <div id="panel-content" class="scroll-mt-24">
-        {#if activeTab === "overview"}
-          <div class="space-y-4">
-            <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-5">
-              <p class="vf-label text-sky-300/80">MCP</p>
-              <h2 class="mt-1 text-[length:var(--vf-text-2xl)] font-semibold tracking-tight text-white">Local pipeline, agent-controlled</h2>
-              <p class="mt-2 max-w-3xl text-[length:var(--vf-text-sm)] leading-6 text-neutral-400">
-                VideoFlow exposes its production surface through MCP. Use OpenCode, Paperclip, or any MCP client to create projects, run steps, inspect jobs, and export masters. This panel only configures and observes the local service.
-              </p>
-              <div class="mt-4 grid gap-3 sm:grid-cols-3">
-                <div class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                  <p class="vf-label">Transport</p>
-                  <p class="mt-1 font-mono text-[length:var(--vf-text-xs)] text-neutral-200">stdio · /mcp/</p>
-                </div>
-                <div class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                  <p class="vf-label">Running</p>
-                  <p class="mt-1 text-[length:var(--vf-text-sm)] text-neutral-100">{runningJobs.length} jobs · {pendingHilt.length} approvals</p>
-                </div>
-                <div class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                  <p class="vf-label">Server</p>
-                  <p class="mt-1 text-[length:var(--vf-text-sm)] text-neutral-100">{system?.version ?? "offline"}</p>
-                </div>
-              </div>
-            </section>
-
-            <SetupHealth />
-
-            <section class="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4">
-              <div class="flex items-end justify-between gap-3">
-                <div>
-                  <p class="vf-label">Recent jobs</p>
-                  <h3 class="mt-1 text-[length:var(--vf-text-lg)] font-semibold text-neutral-100">MCP activity</h3>
-                </div>
-                <button type="button" onclick={() => selectTab("jobs")} class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-300 hover:border-sky-500/40">Open jobs</button>
-              </div>
-              {#if recentJobs.length === 0}
-                <p class="mt-4 text-[length:var(--vf-text-sm)] text-neutral-500">No jobs yet. Start one from your MCP client.</p>
-              {:else}
-                <div class="mt-3 overflow-x-auto">
-                  <table class="w-full text-left text-[length:var(--vf-text-xs)]">
-                    <thead class="text-neutral-500">
-                      <tr><th class="py-1 pr-4">Job</th><th class="py-1 pr-4">Status</th><th class="py-1">Stage</th></tr>
-                    </thead>
-                    <tbody>
-                      {#each recentJobs as job (job.job_id)}
-                        <tr class="border-t border-white/5 text-neutral-300">
-                          <td class="py-2 pr-4 font-mono">{job.job_id.slice(0, 10)}</td>
-                          <td class="py-2 pr-4">{job.status}</td>
-                          <td class="py-2">{job.stage || job.message || "—"}</td>
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </div>
-              {/if}
-            </section>
-          </div>
+        {#if activeTab === "curation"}
+          <CurationBoard />
         {:else if activeTab === "jobs"}
           <JobsPanel
             onreview={() => (inboxOpen = true)}
-            onopen={() => void refreshJobs()}
+            onopen={() => void refreshHilt()}
           />
-        {:else if activeTab === "models"}
-          <ModelsPanel />
-        {:else if activeTab === "services"}
-          <ServicesPanel />
-        {:else if activeTab === "providers"}
-          <CapabilitiesPanel
-            allowExternal={allowExternal}
-            {allowedHosts}
-            onToggle={(value) => (allowExternal = value)}
-            onHosts={(value) => (allowedHosts = value)}
-          />
-        {:else if activeTab === "extensions"}
-          <PluginsPanel />
-        {:else if activeTab === "workspace"}
-          <WorkspacePanel />
-        {:else if activeTab === "connect"}
-          <IntegrationsPanel />
-        {:else if activeTab === "styles"}
-          <StylesPanel />
-        {:else if activeTab === "formats"}
-          <FormatsPanel />
-        {:else if activeTab === "help"}
-          <HelpPanel />
-        {:else if activeTab === "gpu"}
-          <GpuPanel />
-        {:else if activeTab === "settings"}
-          <SettingsPanel />
+        {:else}
+          <SetupPanel />
         {/if}
       </div>
 
