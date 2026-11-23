@@ -30,7 +30,6 @@ from videoflow.application.deliverables import (
 from videoflow.application.dubbing import generate_short_dubbing
 from videoflow.application.intelligence import build_intelligence
 from videoflow.application.jobs import Job, JobManager
-from videoflow.application.live_source import live_sources
 from videoflow.application.multimodal import analyze_short_entry
 from videoflow.application.multimodal_llm import analyze_short_llm_entry
 from videoflow.application.previews import (

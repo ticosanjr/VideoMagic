@@ -173,47 +173,6 @@ def test_pending_endpoint_lists_the_waiting_job(monkeypatch, tmp_path: Path) -> 
     assert any(item["job_id"] == str(job.job_id) for item in items)
 
 
-def test_hilt_channel_and_secret_routes(monkeypatch, tmp_path: Path) -> None:
-    client, _manager = _client(monkeypatch, tmp_path)
-    channels = client.get("/api/v1/hilt/channels")
-    assert channels.status_code == 200
-    ids = {item["id"] for item in channels.json()["channels"]}
-    assert {"local", "email", "slack", "signal"} <= ids
-
-    local = client.post("/api/v1/hilt/test", json={"channel": "local"})
-    assert local.status_code == 200
-    assert local.json()["ok"] is True
-
-    listing = client.get("/api/v1/hilt/secrets")
-    assert listing.status_code == 200
-    assert "VIDEOWFLOW_SMTP_PASSWORD" in listing.json()["secrets"]
-
-    rejected = client.post(
-        "/api/v1/hilt/secrets",
-        json={"name": "NOT_ALLOWED", "value": "x"},
-    )
-    assert rejected.status_code == 409
-
-    saved = client.post(
-        "/api/v1/hilt/secrets",
-        json={"name": "VIDEOWFLOW_SMTP_PASSWORD", "value": "secret"},
-    )
-    assert saved.status_code == 200
-    assert client.get("/api/v1/hilt/secrets").json()["secrets"][
-        "VIDEOWFLOW_SMTP_PASSWORD"
-    ] is True
-
-
-def test_slack_url_verification(monkeypatch, tmp_path: Path) -> None:
-    client, _manager = _client(monkeypatch, tmp_path)
-    response = client.post(
-        "/api/v1/hilt/slack/events",
-        json={"type": "url_verification", "challenge": "abc"},
-    )
-    assert response.status_code == 200
-    assert response.json() == {"ok": True, "challenge": "abc"}
-
-
 def test_hilt_artifact_download_and_cancel(monkeypatch, tmp_path: Path) -> None:
     client, manager = _client(monkeypatch, tmp_path)
     source = tmp_path / "source.mp4"
@@ -329,14 +288,6 @@ def test_upload_with_unknown_file_request_is_rejected(monkeypatch, tmp_path: Pat
 
 def test_hilt_invalid_payloads_and_waiting_guard(monkeypatch, tmp_path: Path) -> None:
     client, manager = _client(monkeypatch, tmp_path)
-    for path in ("/api/v1/hilt/slack/events", "/api/v1/hilt/email/inbound"):
-        broken = client.post(
-            path,
-            content=b"{not json",
-            headers={"content-type": "application/json"},
-        )
-        assert broken.status_code == 409
-
     source = tmp_path / "source.mp4"
     source.write_bytes(b"x")
     job = manager.start(

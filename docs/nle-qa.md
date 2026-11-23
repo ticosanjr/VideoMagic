@@ -61,28 +61,6 @@ The media test `test_kdenlive_project_renders_with_melt` runs this path in CI
 when `melt` is available. MLT may warn about missing optional plugins such as
 `movit`, `qtblend`, or `affine`; those warnings are reported, not hidden.
 
-## Automated evidence (2026-11-13)
-
-`scripts/qa_evidence.py` now collects the reproducible evidence without marking
-the gate as signed:
-
-```bash
-uv run python scripts/qa_evidence.py \
-  --exports build/smoke-appimage/demo/exports \
-  --job-output build/smoke-appimage/demo
-```
-
-Latest report: `docs/qa-evidence/qa-20261113T113812Z.{json,md}`.
-
-- Kdenlive 26.08.3 (Flatpak `org.kde.kdenlive`).
-- Structural validation: FCPXML, XMEML, and Kdenlive all **ok**.
-- MLT render through the Flatpak `melt`: **ok** (`497,550` bytes).
-- The rich NLE fixture in `tests/contract/test_nle_finishing.py` still covers
-  titles, guides, B-roll, colour filters, audio stem, and affine zoom.
-
-The automated evidence proves the project graph resolves and renders. It does
-not replace a human opening the project, checking the UI, and signing below.
-
 ## Manual import checklist
 
 Automated XML checks do not prove that an NLE accepts the project interactively.

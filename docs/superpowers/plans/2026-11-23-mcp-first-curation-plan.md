@@ -655,3 +655,39 @@ Riscos residuais: o limite de 30 itens não mede tokens; a lista de capabilities
 exceção explícita. O AGENTS gerado está exatamente no limite de 80 linhas;
 qualquer novo catálogo maior exige compactar o template.
 ```
+
+### Registro de execução — P2-1
+
+```text
+Fase: P2-1
+Data: 2026-11-23
+Removidos:
+  application/hilt_channels/, steps/research/, application/search/
+  application/live_source.py, application/publishing.py
+  application/plugins.py, application/plugin_sandbox.py, plugin_api.py
+  engine/recipes/definitions_{lamera,opusclip,full_ai_editor,synthetic}.py
+  docs históricos (3.0-blockers, backlog, migrations, performance/refactor,
+  hilt, plugins, shell, ui-spec) e docs/qa-evidence/
+  scripts/{cut_eval,train_audio_events,resolve_smoke,tray_smoke,qa_evidence,
+  gpu_acceptance,gpu_worker_smoke}.py
+Preservado:
+  assert_public_url movido para application/url_safety.py
+  hitl.py e o fluxo local de aprovações/perguntas
+  analytics.review e experiment.evaluate (sem publish.queue)
+  application/intelligence/ e application/retakes/
+  uma única entrada MCP ``videoflow``
+Ajustes:
+  API de plugins e canais externos removida
+  SettingsPanel sem canais externos/research
+  e2e_micro_gate grava docs/evidence/
+  runner sem o agrupamento de research
+Comandos de validação:
+  uv run ruff check src packages scripts
+  uv run pytest -q
+  cd ui && npm run check && npm test -- --run
+Resultado: 2899 passed, 1 skipped, 1 xfailed; media 29 passed, 2 skipped;
+coverage 96.80%; svelte-check 0; Vitest 53 passed.
+Riscos residuais: o schema de settings ainda aceita campos antigos de
+notificações/search para leitura de configurações existentes, mas não há UI nem
+rotas para configurá-los.
+```

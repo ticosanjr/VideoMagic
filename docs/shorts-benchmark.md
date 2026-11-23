@@ -4,13 +4,6 @@
 
 The phase 7 harness is deterministic and produces JSON and Markdown evidence.
 
-Evidence:
-
-```text
-docs/qa-evidence/shorts-benchmark.json
-docs/qa-evidence/shorts-benchmark.md
-```
-
 ## What it checks
 
 - Scene-boundary F1 on a 10-minute synthetic corpus with known cuts.

@@ -359,8 +359,6 @@ def _task_for_schema(schema_name: str) -> str:
         return "cleanup.context"
     if "factcheck" in name:
         return "factcheck.audit"
-    if "research" in name:
-        return "research.consolidate"
     if "translation" in name:
         return "translation.transcript"
     if "emoji" in name:

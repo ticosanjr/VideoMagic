@@ -421,7 +421,6 @@ def register_provider_routes(app: FastAPI) -> None:
             "stock",
             "translation",
             "diarization",
-            "publishing",
         }
         if capability not in known:
             raise HTTPException(

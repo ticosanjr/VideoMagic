@@ -73,9 +73,6 @@ class CurationPrepareStep(BaseStep):
                 + [str((manifest.get("sample") or {}).get("path") or "")],
                 job_id=str(context.metadata.get("job_id") or ""),
             )
-            from videoflow.application import hilt_channels
-
-            hilt_channels.notify_request(context.output, request, token)
             response = hilt.load_response(context.output, request.interaction_id)
             if response is None:
                 raise HumanInputRequiredError(

@@ -631,26 +631,6 @@ _add_recipe(
     description="Render Shorts and one thumbnail variant per Short.",
 )
 _add_recipe(
-    "publish_queue",
-    "Publish queue",
-    _shorts(minimum=20, maximum=60, count=3, top_k=3)
-    + [
-        {
-            "id": "metadata",
-            "type": "metadata.pack",
-            "needs": ["render"],
-            "params": {"platform": "youtube"},
-        },
-        {
-            "id": "queue",
-            "type": "publish.queue",
-            "needs": ["render"],
-            "params": {},
-        },
-    ],
-    description="Render Shorts and enqueue them for publishing.",
-)
-_add_recipe(
     "analytics_review",
     "Analytics review",
     [

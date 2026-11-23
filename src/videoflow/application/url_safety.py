@@ -1,4 +1,4 @@
-"""URL validation for external fetches."""
+"""Public URL validation used by asset downloads and external fetches."""
 
 from __future__ import annotations
 

@@ -9,14 +9,13 @@ import pytest
 
 from tests.recipe_jobs import manager_with_runner, start_recipe
 from videoflow.application import database
-from videoflow.application.plugins import load_plugins
 from videoflow.application.shorts import ShortClip
 from videoflow.core.expressions import resolve_value
 from videoflow.core.recipe import parse_recipe
 from videoflow.domain.errors import ApprovalRequiredError
 from videoflow.engine.recipes import get_recipe, list_recipes
 from videoflow.engine.runner import RecipeRunner
-from videoflow.steps import get_step, requirements_by_type, step_types
+from videoflow.steps import requirements_by_type, step_types
 from videoflow.steps.shorts_score import ScoreParams, ShortsScoreStep
 
 
@@ -225,37 +224,6 @@ def test_shorts_score_top_k_and_diversity(tmp_path: Path) -> None:
     assert context.selected_shorts[0].score >= context.selected_shorts[1].score
 
 
-def test_plugin_loader_registers_step(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
-    plugin = tmp_path / "plugins" / "demo"
-    plugin.mkdir(parents=True)
-    (plugin / "plugin.json").write_text(
-        json.dumps(
-            {
-                "id": "demo",
-                "name": "Demo",
-                "version": "0.1.0",
-                "entry": "plugin.py",
-                "enabled": True,
-            }
-        )
-    )
-    (plugin / "plugin.py").write_text(
-        "from pydantic import BaseModel\n"
-        "from videoflow.steps.base import BaseStep, StepIO\n"
-        "from videoflow.steps.registry import register_step\n"
-        "@register_step\n"
-        "class DemoStep(BaseStep):\n"
-        "    type = 'demo.step'\n"
-        "    title = 'Demo'\n"
-        "    def run(self, context, params, io):\n"
-        "        io.report(100, 'ok')\n"
-    )
-    loaded = load_plugins()
-    assert loaded and loaded[0]["loaded"] is True
-    assert get_step("demo.step").type == "demo.step"
-
-
 def test_database_metrics_and_backup(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
     database.upsert_job("job-1", {"job_id": "job-1", "status": "succeeded"})
@@ -344,7 +312,6 @@ def test_thumbnail_experiment_selects_winner(tmp_path: Path) -> None:
         metadata: dict[str, object] = {}
 
     ExperimentEvaluateStep().run(Context(), ExperimentParams(), StepIO(stage="experiment"))
-    import json
 
     payload = json.loads((tmp_path / "delivery" / "experiment.json").read_text())
     assert payload["winner"]["name"] == "variant-2.png"

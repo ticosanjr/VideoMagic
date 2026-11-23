@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from videoflow.application import hilt, hilt_channels
+from videoflow.application import hilt
 from videoflow.core.context import PipelineContext
 from videoflow.domain.errors import (
     ApprovalRequiredError,
@@ -93,7 +93,6 @@ class HumanGateStep(_HumanStep):
             job_id=self._job_id(context),
             recipe_id=self._recipe_id(context),
         )
-        hilt_channels.notify_request(context.output, request, token)
         response = hilt.load_response(context.output, request.interaction_id)
         if response is None:
             raise ApprovalRequiredError(
@@ -182,7 +181,6 @@ class HumanInputStep(_HumanStep):
             job_id=self._job_id(context),
             recipe_id=self._recipe_id(context),
         )
-        hilt_channels.notify_request(context.output, request, token)
         response = hilt.load_response(context.output, request.interaction_id)
         if response is None:
             raise HumanInputRequiredError(
@@ -257,7 +255,6 @@ class HumanFilesStep(_HumanStep):
             job_id=self._job_id(context),
             recipe_id=self._recipe_id(context),
         )
-        hilt_channels.notify_request(context.output, request, token)
         response = hilt.load_response(context.output, request.interaction_id)
         if response is None:
             raise HumanInputRequiredError(

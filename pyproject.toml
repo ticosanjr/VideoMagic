@@ -129,8 +129,8 @@ omit = [
   "*/application/ports.py",
   "*/application/runner.py",
   "*/application/jobs.py",
-  # Offline cut-calibration tooling, exercised by scripts/build_reference_edl.py
-  # and scripts/cut_eval.py rather than by the runtime recipe.
+  # Offline cut-calibration tooling, exercised by
+  # scripts/build_reference_edl.py rather than by the runtime recipe.
   "*/application/audio_compare.py",
   "*/application/reference_edl.py",
 ]

@@ -404,16 +404,6 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             requires=["optional opencv-python-headless for faces"],
         ),
         _entry(
-            "publish_webhook",
-            "Webhook publishing",
-            "export",
-            "available",
-            "Schedule generated Short metadata/assets to a configured webhook.",
-            "POST /api/v1/jobs/{job_id}/shorts/{index}/publish",
-            "videoflow_schedule_short",
-            requires=["webhook URL", "network access"],
-        ),
-        _entry(
             "voiceover",
             "Voice-over",
             "audio",

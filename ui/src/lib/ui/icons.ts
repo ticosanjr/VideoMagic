@@ -147,7 +147,6 @@ export const STEP_ICON_NAMES: Record<string, IconName> = {
   "localization.dub": "mic",
   "human.gate": "users",
   "metadata.pack": "tag",
-  "publish.queue": "send",
   "publish.webhook": "webhook",
   "chapters.plan": "bookmark",
   "nle.qa": "check",

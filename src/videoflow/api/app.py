@@ -18,9 +18,7 @@ from videoflow.api.openapi import install_openapi
 from videoflow.api.routes import register_routes
 from videoflow.application.backups import scheduled_backup
 from videoflow.application.database import migrate_home
-from videoflow.application.hilt_channels import start_pollers, stop_pollers
 from videoflow.application.jobs import JobManager
-from videoflow.application.plugins import load_plugins
 from videoflow.application.service_definitions import autostart
 from videoflow.application.service_definitions import stop_all as stop_managed_services
 from videoflow.application.settings import load_settings
@@ -40,7 +38,6 @@ def create_app(
     with_mcp: bool = False,
     jobs: JobManager | None = None,
     start_publisher: bool = False,
-    start_hilt_pollers: bool = True,
 ) -> FastAPI:
     """Build the loopback app.
 
@@ -53,8 +50,6 @@ def create_app(
     if os.environ.get("VIDEOWFLOW_BACKUP_ON_START", "").lower() in {"1", "true", "yes"}:
         with suppress(Exception):
             scheduled_backup(keep=settings.runtime.history)
-    if os.environ.get("VIDEOWFLOW_PLUGINS", "1") != "0":
-        load_plugins()
     manager = jobs or JobManager(
         store_dir=portable_home() / "jobs",
         max_active=settings.runtime.max_jobs,
@@ -84,15 +79,6 @@ def create_app(
     _install_common(app)
     install_openapi(app)
     app.state.jobs = manager
-
-    @app.on_event("startup")
-    def _start_hilt_pollers() -> None:
-        if start_hilt_pollers:
-            start_pollers(manager)
-
-    @app.on_event("shutdown")
-    def _stop_hilt_pollers() -> None:
-        stop_pollers()
 
     @app.middleware("http")
     async def cache_and_version_headers(
@@ -188,14 +174,12 @@ def create_http_app(
 ) -> FastAPI:
     """Loopback app with API routes, MCP HTTP, and an optional static rack UI."""
 
-    settings = load_settings()
     resolved_ui = None if headless else (ui if ui is not None else ui_dir())
     return create_app(
         with_mcp=True,
         ui=resolved_ui,
         jobs=jobs,
         start_publisher=True,
-        start_hilt_pollers=settings.headless.start_hilt_pollers,
     )
 
 

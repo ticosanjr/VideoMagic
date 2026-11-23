@@ -1,4 +1,4 @@
-"""Delivery steps: metadata, thumbnails, publishing, analytics, and NLE QA."""
+"""Delivery analytics and experiment evaluation steps."""
 
 from __future__ import annotations
 
@@ -12,17 +12,10 @@ from videoflow.application.deliverables import (
     select_thumbnail,
     thumbnail_metrics,
 )
-from videoflow.application.publishing import enqueue_publish
 from videoflow.core.context import PipelineContext
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.registry import register_step
 
-
-class PublishQueueParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    target: str = ""
-    platform: str = "youtube"
 
 class AnalyticsReviewParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -35,45 +28,6 @@ class ExperimentParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     choose_best: bool = True
-
-@register_step
-class PublishQueueStep(BaseStep):
-    type = "publish.queue"
-    title = "Publish queue"
-    description = "Enqueue rendered Shorts to a configured webhook target."
-    status = "available"
-    icon = "↗"
-    color = "#22c55e"
-    requires = ("shorts.render",)
-    produces = ("publish_queue",)
-    params_model = PublishQueueParams
-
-    def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
-        options = PublishQueueParams.model_validate(params)
-        if not options.target:
-            io.report(100, "Publish skipped: no target configured")
-            return
-        queued = []
-        for index, entry in enumerate(context.shorts):
-            path = entry.get("path") if isinstance(entry, dict) else None
-            if not path:
-                continue
-            try:
-                queued.append(
-                    enqueue_publish(
-                        target_name=options.target,
-                        asset_path=Path(str(path)),
-                        title=str(entry.get("title") or f"Short {index + 1}"),
-                        platform=options.platform,
-                    )
-                )
-            except Exception as exc:
-                context.warnings.append(f"Publish queue failed for Short {index}: {exc}")
-        target = context.output / "delivery" / "publish-queue.json"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(json.dumps(queued, indent=2) + "\n", encoding="utf-8")
-        context.artifacts["publish_queue"] = str(target)
-        io.report(100, f"{len(queued)} Short(s) queued")
 
 @register_step
 class AnalyticsReviewStep(BaseStep):

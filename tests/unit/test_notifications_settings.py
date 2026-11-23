@@ -10,7 +10,7 @@ import pytest
 from videoflow.application import hilt
 from videoflow.application import settings as settings_module
 from videoflow.application.settings import AppSettings, NotificationSettings
-from videoflow.domain.hilt import HiltFileRequest, HiltRequest
+from videoflow.domain.hilt import HiltRequest
 
 
 def _request() -> HiltRequest:
@@ -131,27 +131,6 @@ def test_hitl_flag_disables_local_delivery(tmp_path: Path) -> None:
     assert not (tmp_path / "notifications.jsonl").exists()
 
 
-def test_notify_request_requires_master_and_hitl(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.application import hilt_channels
-
-    monkeypatch.delenv("VIDEOWFLOW_NOTIFICATIONS", raising=False)
-    request = _request()
-    assert (
-        hilt_channels.notify_request(
-            tmp_path, request, "token-value-123456789",
-            settings=AppSettings(),
-        )
-        == []
-    )
-    settings = _enabled_settings(notify_hitl=False)
-    assert (
-        hilt_channels.notify_request(
-            tmp_path, request, "token-value-123456789", settings=settings
-        )
-        == []
-    )
-
-
 def test_test_local_channel_forces_one_popup(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = _fake_desktop(monkeypatch)
     result = hilt.test_local_channel("Test")
@@ -219,32 +198,3 @@ def test_notify_local_logs_a_write_failure(
     hilt._notify_local(tmp_path, _request(), settings=_enabled_settings())
     events = (tmp_path / "events.jsonl").read_text(encoding="utf-8").splitlines()
     assert json.loads(events[-1])["detail"]["delivered"] is True
-
-
-def test_notify_request_skips_the_local_pseudo_channel(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    from videoflow.application import hilt_channels
-    from videoflow.application.hilt_channels import outbound as outbound_module
-
-    monkeypatch.delenv("VIDEOWFLOW_NOTIFICATIONS", raising=False)
-    monkeypatch.setattr(
-        outbound_module,
-        "_send_email",
-        lambda settings, message: "email ok",
-    )
-    request = _request().model_copy(update={"channels": ["local", "email"]})
-    results = hilt_channels.notify_request(
-        tmp_path, request, "token-value-123456789", settings=_enabled_settings()
-    )
-    assert [item["channel"] for item in results] == ["email"]
-
-
-def test_outbound_message_lists_requested_files() -> None:
-    from videoflow.application.hilt_channels.outbound import message_for
-
-    request = _request().model_copy(
-        update={"files": [HiltFileRequest(id="brief", label="Brief PDF")]}
-    )
-    message = message_for(request, "token")
-    assert "- brief: Brief PDF" in message.body

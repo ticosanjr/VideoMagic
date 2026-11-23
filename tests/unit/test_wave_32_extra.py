@@ -597,9 +597,6 @@ def test_curation_step_interactive(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         "videoflow.steps.curation.hilt.load_response", lambda *args, **kwargs: None
     )
-    monkeypatch.setattr(
-        "videoflow.application.hilt_channels.notify_request", lambda *args, **kwargs: None
-    )
     with pytest.raises(HumanInputRequiredError):
         CurationPrepareStep().run(
             context, CurationParams(interactive=True), StepIO()

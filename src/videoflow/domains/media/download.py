@@ -11,8 +11,8 @@ from pathlib import Path
 import httpx
 
 from videoflow.application.capabilities import ensure_external_allowed
-from videoflow.application.search import assert_public_url
 from videoflow.application.settings import AppSettings, load_settings
+from videoflow.application.url_safety import assert_public_url
 from videoflow.domain.errors import CapabilityUnavailableError, IngestError
 from videoflow.domains.media.models import AssetCandidate
 from videoflow.runtime import find_binary

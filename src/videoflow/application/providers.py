@@ -24,7 +24,6 @@ Capability = Literal[
     "stock",
     "translation",
     "diarization",
-    "publishing",
 ]
 
 
@@ -110,7 +109,7 @@ def provider_readiness(item: dict[str, object]) -> tuple[bool, list[str]]:
     elif capability in {"asr", "tts", "translation", "vision", "diarization"}:
         if not base_url:
             missing.append("base_url")
-    elif capability in {"stock", "publishing"}:
+    elif capability == "stock":
         if not (api_key_env or base_url):
             missing.append("api_key_env")
     elif not (base_url or model or api_key_env):
@@ -224,12 +223,7 @@ def resolve_chain(capability: Capability) -> list[dict[str, object]]:
 
 def first_provider(capability: Capability) -> dict[str, object] | None:
     chain = resolve_chain(capability)
-    if chain:
-        return chain[0]
-    from videoflow import plugin_api
-
-    fallback = plugin_api.provider(capability)
-    return fallback if fallback else None
+    return chain[0] if chain else None
 
 
 def fallback_manifest() -> dict[str, list[dict[str, object]]]:
@@ -241,6 +235,5 @@ def fallback_manifest() -> dict[str, list[dict[str, object]]]:
         "stock",
         "translation",
         "diarization",
-        "publishing",
     )
     return {capability: resolve_chain(capability) for capability in capabilities}

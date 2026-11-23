@@ -220,8 +220,8 @@ inesperado do worker é.
 ## Benchmark
 
 O harness determinístico e o procedimento do golden video estão em
-[decupage-benchmark.md](decupage-benchmark.md) e
-[qa-evidence/decupage-benchmark.json](qa-evidence/decupage-benchmark.json).
+[decupage-benchmark.md](decupage-benchmark.md), com os testes
+determinísticos atuais.
 
 ```bash
 uv run pytest tests/unit/test_decupage_snap.py tests/unit/test_decupage_review.py -q

@@ -411,34 +411,7 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "channels": "Notification channels: local, email, slack, signal.",
         "expires_hours": "Hours before the interaction is considered overdue.",
     },
-    "research.multi_agent": {
-        "topic": "Research directive; blank uses the recipe topic variable.",
-        "scopes": "Optional scoped research questions; blank uses four default scopes.",
-        "search_providers": (
-            "Override the provider chain: local, crawl, searxng, wikipedia, "
-            "internet_archive."
-        ),
-        "allow_external_services": "Allow external providers and page fetches for this step.",
-        "allowed_external_hosts": "Optional host allowlist for external fetches.",
-        "max_results": "Maximum search results per scope.",
-        "fetch_pages": "Maximum pages to fetch per scope.",
-        "max_cases": "Maximum cases kept per agent.",
-    },
-    "research.consolidate": {
-        "provider_id": "Optional LLM provider id for deduplication.",
-        "max_cases": "Maximum cases in the master dossier.",
-        "require_sources": "Flag cases with no citation for human review.",
-    },
-    "presenter.profile": {
-        "paths": "Transcript or script files used to derive the presenter voice.",
-        "max_chars": "Maximum characters read from the samples.",
-    },
-    "script.dual_output": {
-        "target_words": "Approximate narration length.",
-        "max_sections": "Maximum number of script sections.",
-        "presenter_profile": "Optional presenter profile text or profile path.",
-        "max_cases_per_call": "Research cases sent to one model call.",
-    },
+
     "style.guide": {
         "directive": "Editorial visual and audio direction; the brief answer is used when empty.",
         "reference_paths": "Output-relative reference boards or style images.",
@@ -536,10 +509,6 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
     },
     "metadata.pack": {
         "platform": "Platform whose metadata format is generated.",
-    },
-    "publish.queue": {
-        "target": "Queue target name.",
-        "platform": "Platform label stored with the publish item.",
     },
     "export.nle": {
         "targets": "NLE formats to write.",

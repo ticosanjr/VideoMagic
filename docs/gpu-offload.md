@@ -46,5 +46,4 @@ published with a release.
 
 The automated gates are green. A 3.4.0 release requires a real Windows NVIDIA
 worker for the ASR, NVENC, and matte thresholds; see
-[performance-3.4.md](performance-3.4.md) and
 [windows-worker.md](windows-worker.md).

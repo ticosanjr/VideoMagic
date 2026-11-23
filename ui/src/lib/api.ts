@@ -915,28 +915,6 @@ export interface StepRun {
   outputs: string[];
 }
 
-export interface PublishTarget {
-  name: string;
-  description: string;
-  webhook_url: string;
-  secret_name: string;
-  enabled: boolean;
-}
-
-export interface PublishQueueItem {
-  id: string;
-  target: string;
-  asset_path: string;
-  title: string;
-  description: string;
-  hashtags: string[];
-  platform: string;
-  scheduled_at: string;
-  status: string;
-  attempts: number;
-  last_error: string;
-}
-
 export interface ProjectTemplate {
   name: string;
   description: string;
@@ -1565,52 +1543,6 @@ export async function createDirectory(parent: string, name: string): Promise<FsE
   return response.entry;
 }
 
-export async function getPublishTargets(): Promise<PublishTarget[]> {
-  const response = await request<{ ok: boolean; targets: PublishTarget[] }>(
-    "/api/v1/publish/targets"
-  );
-  return response.targets;
-}
-
-export async function savePublishTarget(
-  name: string,
-  webhookUrl: string,
-  description = ""
-): Promise<PublishTarget> {
-  const response = await request<{ ok: boolean; target: PublishTarget }>(
-    `/api/v1/publish/targets/${encodeURIComponent(name)}`,
-    {
-      method: "PUT",
-      body: JSON.stringify({
-        description,
-        webhook_url: webhookUrl,
-        secret_name: "VIDEOWFLOW_PUBLISH_TOKEN",
-        enabled: true
-      })
-    }
-  );
-  return response.target;
-}
-
-export async function scheduleShortPublish(
-  jobId: string,
-  index: number,
-  payload: {
-    target: string;
-    platform: string;
-    tone: string;
-    scheduled_at?: string | null;
-    allow_external_services?: boolean;
-    allowed_external_hosts?: string[];
-  }
-): Promise<PublishQueueItem> {
-  const response = await request<{ ok: boolean; item: PublishQueueItem }>(
-    `/api/v1/jobs/${jobId}/shorts/${index}/publish`,
-    { method: "POST", body: JSON.stringify(payload) }
-  );
-  return response.item;
-}
-
 export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
   const response = await request<{ ok: boolean; templates: ProjectTemplate[] }>(
     "/api/v1/project-templates"
@@ -1762,25 +1694,6 @@ export async function uploadFont(file: File): Promise<FontAsset> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) raiseApiError(response, payload, path, "font_upload_failed");
   return payload.font as FontAsset;
-}
-
-export interface PluginPayload {
-  ok: boolean;
-  plugins: Array<Record<string, unknown>>;
-  panels: Array<Record<string, unknown>>;
-}
-
-export async function loadPluginCatalog(reload = false): Promise<PluginPayload> {
-  return request<PluginPayload>(reload ? "/api/v1/plugins/reload" : "/api/v1/plugins", {
-    method: reload ? "POST" : "GET"
-  });
-}
-
-export async function setPluginEnabled(pluginId: string, enabled: boolean): Promise<void> {
-  await request(`/api/v1/plugins/${encodeURIComponent(pluginId)}/enable`, {
-    method: "POST",
-    body: JSON.stringify({ enabled })
-  });
 }
 
 export async function getCapabilities(allowExternal = false): Promise<CapabilitiesResponse> {
@@ -2729,15 +2642,7 @@ export interface TimelineTitleCue {
   style: "title" | "lower_third";
 }
 
-export interface LiveSourceState {
-  status: "missing" | "preparing" | "ready" | "failed";
-  url: string;
-  reason: string;
-  path: string;
-  error: string;
-  started_at: string;
-  finished_at: string;
-}
+
 
 export interface TimelineData {
   ok: boolean;
@@ -2750,7 +2655,6 @@ export interface TimelineData {
   source_duration_sec: number;
   live_eligible: boolean;
   live_reason: string;
-  live_source?: LiveSourceState;
   video: TimelineClip[];
   audio: TimelineClip[];
   captions: Array<{
@@ -2841,7 +2745,7 @@ export interface ProviderConfig {
     | "stock"
     | "translation"
     | "diarization"
-    | "publishing";
+;
   base_url: string;
   api_key_env: string;
   model: string;
@@ -3442,21 +3346,6 @@ export function previewFileUrl(jobId: string): string {
 
 export function jobSourceFileUrl(jobId: string): string {
   return `/api/v1/jobs/${encodeURIComponent(jobId)}/source/file`;
-}
-
-export async function getLiveSourceStatus(jobId: string): Promise<LiveSourceState> {
-  const response = await request<{ ok: boolean; live_source: LiveSourceState }>(
-    `/api/v1/jobs/${encodeURIComponent(jobId)}/live-source/status`
-  );
-  return response.live_source;
-}
-
-export async function prepareLiveSource(jobId: string): Promise<LiveSourceState> {
-  const response = await request<{ ok: boolean; live_source: LiveSourceState }>(
-    `/api/v1/jobs/${encodeURIComponent(jobId)}/live-source`,
-    { method: "POST" }
-  );
-  return response.live_source;
 }
 
 export function jobOverlayFileUrl(jobId: string, overlayId: string): string {

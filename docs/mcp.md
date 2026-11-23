@@ -196,10 +196,8 @@ whisper.cpp Vulkan for `asr`, and the local `audio.diarize` step for `diarize`.
 
 The worker exposes `/health`, content-addressed `/artifacts`, async
 `/jobs/{capability}`, status and artifact download endpoints, token auth,
-VRAM/model TTL and an allowlisted handler registry. `scripts/gpu_worker_smoke.py
---local` starts the real worker app on loopback with deterministic handlers to
-exercise upload, ASR, upscale, and local fallback; the same script with `--url`
-runs the manual Windows GPU smoke.
+VRAM/model TTL and an allowlisted handler registry. The Windows GPU acceptance
+is exercised with `scripts/e2e_micro_gate.py` and the worker tests.
 
 ## Delivery bundle
 

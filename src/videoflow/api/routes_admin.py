@@ -1,4 +1,4 @@
-"""Service, model, plugin, and settings administration routes."""
+"""Service, model, and settings administration routes."""
 
 from __future__ import annotations
 
@@ -15,11 +15,6 @@ from videoflow.application.models import (
     remove_model,
     update_model,
     verify_model,
-)
-from videoflow.application.plugins import (
-    list_plugins,
-    load_plugins,
-    set_plugin_enabled,
 )
 from videoflow.application.service_definitions import (
     ServiceDefinition,
@@ -61,18 +56,8 @@ class LocalModelRequest(BaseModel):
     license: str = ""
 
 
-def _plugins_payload(items: list[dict[str, object]]) -> dict[str, object]:
-    from videoflow import plugin_api
-
-    return {
-        "ok": True,
-        "plugins": items,
-        "panels": [{"id": key, **value} for key, value in plugin_api.PANELS.items()],
-    }
-
-
 def register_admin_routes(app: FastAPI) -> None:
-    """Register service, model, plugin, and settings routes."""
+    """Register service, model, and settings routes."""
 
     @app.get("/api/v1/services/definitions")
     def service_definitions_list() -> dict[str, object]:
@@ -245,25 +230,6 @@ def register_admin_routes(app: FastAPI) -> None:
     def models_remove(model_id: str) -> dict[str, object]:
         remove_model(model_id)
         return {"ok": True, "removed": model_id}
-
-    @app.get("/api/v1/plugins")
-    def plugins_list() -> dict[str, object]:
-        return _plugins_payload(list_plugins())
-
-    @app.post("/api/v1/plugins/reload")
-    def plugins_reload() -> dict[str, object]:
-        return _plugins_payload(load_plugins())
-
-    @app.post("/api/v1/plugins/{plugin_id}/enable")
-    def plugins_enable(plugin_id: str, request: dict[str, bool]) -> dict[str, object]:
-        try:
-            payload = set_plugin_enabled(plugin_id, bool(request.get("enabled", True)))
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=404,
-                detail={"ok": False, "code": "plugin_not_found", "message": str(exc)},
-            ) from exc
-        return {"ok": True, "plugin": payload}
 
     @app.get("/api/v1/settings")
     def settings_get() -> dict[str, object]:

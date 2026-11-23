@@ -158,14 +158,14 @@ def test_ui_dir_resolution(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     assert fallback is None or (fallback / "index.html").is_file()
 
 
-def test_create_app_schedules_backup_and_skips_plugins(
+def test_create_app_schedules_backup(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     calls: list[str] = []
     monkeypatch.setenv("VIDEOWFLOW_BACKUP_ON_START", "1")
-    monkeypatch.setenv("VIDEOWFLOW_PLUGINS", "0")
-    monkeypatch.setattr(app_module, "scheduled_backup", lambda **_kwargs: calls.append("backup"))
-    monkeypatch.setattr(app_module, "load_plugins", lambda: calls.append("plugins"))
+    monkeypatch.setattr(
+        app_module, "scheduled_backup", lambda **_kwargs: calls.append("backup")
+    )
 
     app = create_app(ui=None)
 

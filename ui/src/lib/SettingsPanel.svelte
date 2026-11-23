@@ -9,13 +9,9 @@
     getIntelligenceModels,
     getIntelligenceStatus,
     getSettings,
-    listHiltChannels,
     resetSettings,
-    saveHiltSecret,
     saveSettings,
-    testHiltChannel,
     type AppSettings,
-    type HiltChannelStatus,
     type IntelligenceStatus
   } from "$lib/api";
 
@@ -27,10 +23,6 @@
   let status = $state("");
   let busy = $state(false);
   let query = $state("");
-  let hiltChannels = $state<HiltChannelStatus[]>([]);
-  let hiltStatus = $state("");
-  let secretValues = $state<Record<string, string>>({});
-  let secretNames = $state<string[]>([]);
   let intelligence = $state<IntelligenceStatus | null>(null);
   let intelligenceBusy = $state(false);
   let intelligenceModels = $state<string[]>([]);
@@ -49,21 +41,11 @@
       env = payload.env;
       restartRequired = payload.restart_required;
       rootsText = (settings.paths?.allowed_roots ?? []).join(", ");
-      const hilt = await listHiltChannels();
-      hiltChannels = hilt.channels;
       try {
         intelligence = await getIntelligenceStatus();
       } catch {
         intelligence = null;
       }
-      secretNames = [
-        settings.notifications.email.smtp_password_secret,
-        settings.notifications.email.imap_password_secret,
-        settings.notifications.slack.webhook_secret,
-        settings.notifications.slack.bot_token_secret,
-        settings.notifications.slack.signing_secret,
-        settings.notifications.signal.password_secret
-      ].filter((value, index, all) => value && all.indexOf(value) === index);
     } catch (reason) {
       error = errorMessage(reason);
     }
@@ -147,29 +129,6 @@
       error = errorMessage(reason);
     } finally {
       busy = false;
-    }
-  }
-
-  async function testChannel(channel: string) {
-    hiltStatus = "";
-    try {
-      const result = await testHiltChannel(channel);
-      hiltStatus = `${channel}: ${result.ok ? "ok" : "failed"} — ${result.message}`;
-    } catch (reason) {
-      hiltStatus = errorMessage(reason);
-    }
-  }
-
-  async function saveSecret(name: string) {
-    const value = secretValues[name] ?? "";
-    if (!value.trim()) return;
-    hiltStatus = "";
-    try {
-      await saveHiltSecret(name, value);
-      secretValues = { ...secretValues, [name]: "" };
-      hiltStatus = `${name} saved.`;
-    } catch (reason) {
-      hiltStatus = errorMessage(reason);
     }
   }
 
@@ -299,123 +258,6 @@
         <div class="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-neutral-400">
           <label class="flex items-center gap-1"><input type="checkbox" bind:checked={settings.notifications.local.enabled} class="h-3.5 w-3.5" />local log</label>
           <label class="flex items-center gap-1"><input type="checkbox" bind:checked={settings.notifications.local.desktop} class="h-3.5 w-3.5" />desktop notification</label>
-          <button type="button" onclick={() => void testChannel("local")} class="rounded border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300">Send test notification</button>
-        </div>
-      </section>
-
-      <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4" data-settings-section>
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <h3 class="text-xs font-semibold text-neutral-100">Human-in-the-loop channels</h3>
-          <span class="text-[10px] text-neutral-500">external delivery for pending requests</span>
-        </div>
-        <div class="mt-3 grid gap-2">
-          <label class="text-[10px] text-neutral-500">Default channels (comma-separated)
-            <input
-              value={(settings?.notifications.default_channels ?? []).join(", ")}
-              oninput={(event) => { if (settings) settings.notifications.default_channels = splitList(event.currentTarget.value); }}
-              class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-100"
-            />
-          </label>
-          <label class="text-[10px] text-neutral-500">Public base URL for reply links
-            <input bind:value={settings.notifications.base_url} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] text-neutral-100" />
-          </label>
-        </div>
-
-        <div class="mt-4 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-          <div class="flex items-center justify-between gap-2">
-            <label class="flex items-center gap-1 text-[11px] text-neutral-200"><input type="checkbox" bind:checked={settings.notifications.email.enabled} class="h-3.5 w-3.5" />E-mail</label>
-            <button type="button" onclick={() => void testChannel("email")} class="rounded border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300">Test</button>
-          </div>
-          <div class="mt-2 grid gap-2 sm:grid-cols-2">
-            <label class="text-[10px] text-neutral-500">SMTP host<input bind:value={settings.notifications.email.smtp_host} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">SMTP port<input type="number" bind:value={settings.notifications.email.smtp_port} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">SMTP user<input bind:value={settings.notifications.email.smtp_user} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">From<input bind:value={settings.notifications.email.from_address} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">To (comma)<input value={(settings?.notifications.email.to_addresses ?? []).join(", ")} oninput={(event) => { if (settings) settings.notifications.email.to_addresses = splitList(event.currentTarget.value); }} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">IMAP host<input bind:value={settings.notifications.email.imap_host} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">IMAP port<input type="number" bind:value={settings.notifications.email.imap_port} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">IMAP user<input bind:value={settings.notifications.email.imap_user} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">Allowed senders (comma)<input value={(settings?.notifications.email.allowed_senders ?? []).join(", ")} oninput={(event) => { if (settings) settings.notifications.email.allowed_senders = splitList(event.currentTarget.value); }} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">SMTP/IMAP secret names<input bind:value={settings.notifications.email.smtp_password_secret} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
-          </div>
-        </div>
-
-        <div class="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-          <div class="flex items-center justify-between gap-2">
-            <label class="flex items-center gap-1 text-[11px] text-neutral-200"><input type="checkbox" bind:checked={settings.notifications.slack.enabled} class="h-3.5 w-3.5" />Slack</label>
-            <button type="button" onclick={() => void testChannel("slack")} class="rounded border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300">Test</button>
-          </div>
-          <div class="mt-2 grid gap-2 sm:grid-cols-2">
-            <label class="text-[10px] text-neutral-500">Mode
-              <select bind:value={settings.notifications.slack.mode} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100">
-                <option value="webhook">webhook</option>
-                <option value="bot">bot</option>
-              </select>
-            </label>
-            <label class="text-[10px] text-neutral-500">Channel<input bind:value={settings.notifications.slack.channel} placeholder="#videoflow" class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">Allowed users (comma)<input value={(settings?.notifications.slack.allowed_users ?? []).join(", ")} oninput={(event) => { if (settings) settings.notifications.slack.allowed_users = splitList(event.currentTarget.value); }} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">Webhook secret name<input bind:value={settings.notifications.slack.webhook_secret} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">Bot token secret name<input bind:value={settings.notifications.slack.bot_token_secret} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">Signing secret name<input bind:value={settings.notifications.slack.signing_secret} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
-          </div>
-        </div>
-
-        <div class="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-          <div class="flex items-center justify-between gap-2">
-            <label class="flex items-center gap-1 text-[11px] text-neutral-200"><input type="checkbox" bind:checked={settings.notifications.signal.enabled} class="h-3.5 w-3.5" />Signal</label>
-            <button type="button" onclick={() => void testChannel("signal")} class="rounded border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300">Test</button>
-          </div>
-          <div class="mt-2 grid gap-2 sm:grid-cols-2">
-            <label class="text-[10px] text-neutral-500">signal-cli REST URL<input bind:value={settings.notifications.signal.api_url} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">Number<input bind:value={settings.notifications.signal.number} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">Recipients (comma)<input value={(settings?.notifications.signal.recipients ?? []).join(", ")} oninput={(event) => { if (settings) settings.notifications.signal.recipients = splitList(event.currentTarget.value); }} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-            <label class="text-[10px] text-neutral-500">Allowed senders (comma)<input value={(settings?.notifications.signal.allowed_senders ?? []).join(", ")} oninput={(event) => { if (settings) settings.notifications.signal.allowed_senders = splitList(event.currentTarget.value); }} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-          </div>
-        </div>
-
-        <div class="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-          <p class="text-[10px] uppercase tracking-wide text-neutral-500">Secrets</p>
-          <div class="mt-2 grid gap-2">
-            {#each secretNames as name}
-              <div class="flex items-end gap-2">
-                <label class="min-w-0 flex-1 text-[10px] text-neutral-500">{name}
-                  <input
-                    type="password"
-                    value={secretValues[name] ?? ""}
-                    oninput={(event) => (secretValues = { ...secretValues, [name]: event.currentTarget.value })}
-                    class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100"
-                  />
-                </label>
-                <button type="button" onclick={() => void saveSecret(name)} class="rounded border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">Save</button>
-              </div>
-            {/each}
-            <p class="text-[9px] text-neutral-600">Secrets use the OS keyring when available; the file fallback is 0600. Values are never returned.</p>
-          </div>
-        </div>
-        {#if hiltStatus}<p class="mt-2 text-[10px] text-emerald-300" role="status">{hiltStatus}</p>{/if}
-        {#if hiltChannels.length}
-          <div class="mt-2 flex flex-wrap gap-1">
-            {#each hiltChannels as channel}
-              <span class="rounded-full border border-neutral-700 px-2 py-0.5 text-[9px] text-neutral-400">{channel.id}: {channel.available ? "ready" : "not configured"}</span>
-            {/each}
-          </div>
-        {/if}
-      </section>
-
-      <section class="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4" data-settings-section>
-        <h3 class="text-xs font-semibold text-neutral-100">Research providers</h3>
-        <p class="mt-1 text-[10px] text-neutral-500">Local, free, and self-hosted sources. External fetches require the explicit allow flag or a configured local host.</p>
-        <div class="mt-3 grid gap-2 sm:grid-cols-2">
-          <label class="text-[10px] text-neutral-500">Providers (comma)<input value={(settings?.search.providers ?? []).join(", ")} oninput={(event) => { if (settings) settings.search.providers = splitList(event.currentTarget.value); }} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-          <label class="text-[10px] text-neutral-500">SearXNG URL<input bind:value={settings.search.searxng_url} placeholder="http://127.0.0.1:8080" class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
-          <label class="text-[10px] text-neutral-500">Local corpus paths (comma)<input value={(settings?.search.local_paths ?? []).join(", ")} oninput={(event) => { if (settings) settings.search.local_paths = splitList(event.currentTarget.value); }} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
-          <label class="text-[10px] text-neutral-500">Crawl seed URLs (comma)<input value={(settings?.search.seed_urls ?? []).join(", ")} oninput={(event) => { if (settings) settings.search.seed_urls = splitList(event.currentTarget.value); }} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-[10px] text-neutral-100" /></label>
-          <label class="text-[10px] text-neutral-500">Wikipedia language<input bind:value={settings.search.wikipedia_language} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-          <label class="text-[10px] text-neutral-500">Max results<input type="number" bind:value={settings.search.max_results} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-          <label class="text-[10px] text-neutral-500">Pages per scope<input type="number" bind:value={settings.search.fetch_pages} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-          <label class="text-[10px] text-neutral-500">Cache TTL hours<input type="number" bind:value={settings.search.cache_ttl_hours} class="mt-1 w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[10px] text-neutral-100" /></label>
-          <label class="flex items-center gap-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.search.enabled} class="h-3.5 w-3.5" />enabled</label>
-          <label class="flex items-center gap-1 text-[10px] text-neutral-400"><input type="checkbox" bind:checked={settings.search.allow_network} class="h-3.5 w-3.5" />allow network by default</label>
         </div>
       </section>
 

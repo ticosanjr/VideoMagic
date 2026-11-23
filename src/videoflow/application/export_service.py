@@ -6,7 +6,6 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
-from videoflow import plugin_api
 from videoflow.domain.errors import ExportError
 from videoflow.domain.state import ProjectState
 from videoflow.exporters.edl import export_edl
@@ -106,13 +105,7 @@ def export_timeline(
         if progress is not None:
             progress(target, 0)
         if target not in FILENAMES:
-            handler = plugin_api.exporter(target)
-            if handler is None:
-                raise ExportError(f"Unknown export target: {target}")
-            artifacts[target] = Path(handler(state, directory))
-            if progress is not None:
-                progress(target, 100)
-            continue
+            raise ExportError(f"Unknown export target: {target}")
         if filenames is not None and target in filenames:
             destination = directory / filenames[target]
         else:

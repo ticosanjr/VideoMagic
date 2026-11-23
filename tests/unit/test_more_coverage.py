@@ -4,10 +4,6 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
-from videoflow.application import search
-from videoflow.application.search import SearchSettings, fetch_document, search_web
 from videoflow.core.context import PipelineContext
 from videoflow.steps.art_direction import (
     StoryboardUnitsStep,
@@ -99,26 +95,3 @@ def test_assets_pipeline_empty_paths(tmp_path: Path) -> None:
     AssetsLicenseAuditStep().run(context, AuditParams(), StepIO())
     AssetsAssignStep().run(context, AssignParams(), StepIO())
     assert (context.output / "assets" / "assignments.json").is_file()
-
-
-def test_search_errors_and_fetch_content(monkeypatch) -> None:
-    with pytest.raises(search.SearchError):
-        search_web(
-            "x",
-            settings=SearchSettings(providers=["unknown"]),
-        )
-    class TextResponse:
-        status_code = 200
-        headers = {"content-type": "application/octet-stream"}
-        content = b"binary"
-        encoding = "utf-8"
-
-    monkeypatch.setattr(search.documents.httpx, "get", lambda *args, **kwargs: TextResponse())
-    monkeypatch.setattr(search.documents, "_assert_public_url", lambda *args, **kwargs: None)
-    monkeypatch.setattr(search.documents, "_robots_allowed", lambda *args, **kwargs: True)
-    with pytest.raises(search.SearchError):
-        fetch_document(
-            "https://example.com/file.bin",
-            SearchSettings(),
-            allow_external_services=True,
-        )

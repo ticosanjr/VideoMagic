@@ -26,18 +26,14 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Job persistence | SQLite is read first and JSON fills gaps; interrupted jobs are requeued on startup; cancel/force stop/stop all kill FFmpeg, remove jobs from the store, and drain the queue |
 | NLE finishing | native titles, markers, colour filters, B-roll lane, and audio master in FCPXML/XMEML/Kdenlive, with `scripts/qa_nle.py` ([nle-qa.md](nle-qa.md)) |
 | Export nodes | Separate timeline (Resolve/Premiere/Kdenlive) and video (ultrafast default) nodes, each independently configurable and quickly enabled/disabled |
-| Plugins | exporter and provider registration, manifest permissions, static sandbox allowlist ([plugins.md](plugins.md)) |
 | UI guidance | naming, tooltips, microcopy, empty states, units ([ui-copy.md](ui-copy.md)) |
 | Error catalog | codes, HTTP status, meaning, next action ([errors.md](errors.md)) |
-| Release gates | 3.16.0 evidence and the two open 3.0 blockers ([3.0-blockers.md](3.0-blockers.md)) |
 | Coverage | per-layer baseline and the remaining gap ([coverage.md](coverage.md)) |
 | Voice cloning | Optional ElevenLabs provider, consent, profile/sample API, and TTS/patch fallback ([voice-clone.md](voice-clone.md)) |
 | Settings | searchable settings with units, help tips, discard/reset ([settings.md](settings.md)) |
 | Copilot | LLM recipe drafts and timeline edit plans, provider/service setup, validation rules ([copilot.md](copilot.md)) |
 | Assistant and review | Allowlisted tool-calling with approval/diff/cost, run graph, variant comparison ([projects-assistant.md](manuals/projects-assistant.md)) |
 | Recut and recipe library | Recut Replacement (+ retakes), detailed VAD/cut controls, favorites/recent/tags on the server ([recipes.md](recipes.md)) |
-| Human-in-the-loop | Durable approvals, questions, file handoffs, local/e-mail/Slack/Signal notifications, the Full AI Editor recipe, and the Lamera workspace/inbox ([hilt.md](hilt.md)) |
-| Research and script | Local/SearXNG/Wikipedia/Internet Archive providers, scoped agents, concurrent sibling research, citation validation, consolidation, presenter profile, and dual script ([research.md](research.md)) |
 | Vision and decoupage | Eye-contact green labels with MediaPipe/YOLO/OpenCV backends, reference XML calibration, frame-accurate speech map, entity extraction, phonetic corrections, and single-word/quoted event hints ([vision-decoupage.md](vision-decoupage.md)) |
 | Art direction and assets | Style guide, unit storyboard, Pexels/Pixabay/Openverse/Wikimedia/Internet Archive/YouTube discovery, license ledger with expiry blockers, and export gating ([assets-licensing.md](assets-licensing.md)) |
 | Motion and audio | JSON scene codegen, FFmpeg motion renderer, style-guide-driven music/Foley, final audio mix, notch filtering, and intro compiler ([motion-audio.md](motion-audio.md)) |
@@ -48,7 +44,7 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Voice clone | Optional ElevenLabs synthesis, consent metadata, profile/sample API, and TTS/patch fallback |
 | Integrations | OpenCode and Paperclip over MCP/REST with DeepSeek, prompts, config, and troubleshooting ([integrations.md](integrations.md)) |
 | Hardening | fault injection, log rotation, scheduled backups, AA keyboard/focus/reduced-motion, 1,000-clip writer stress ([hardening.md](hardening.md)) |
-| Hybrid GPU | `ComputeRouter` local/remote placement, VRAM estimates, circuit fallback, and worker status in `vf_capabilities` ([gpu-worker.md](gpu-worker.md)); [Windows kit](windows-worker.md); [acceptance](performance-3.4.md) |
+| Hybrid GPU | `ComputeRouter` local/remote placement, VRAM estimates, circuit fallback, and worker status in `vf_capabilities` ([gpu-worker.md](gpu-worker.md)); [Windows kit](windows-worker.md) |
 | Cancellation | FFmpeg runs in its own process group; render and preview cancel within one poll and delete partial output |
 | Queue claim | SQLite `BEGIN IMMEDIATE` claim with lease ownership, heartbeat, and expired-lease recovery |
 | Frame cache | Per-revision, per-height JPEG frames under `preview/frames/<revision>/` |
@@ -68,7 +64,6 @@ non-normative at [origin/prd-pt.md](origin/prd-pt.md).
 | Local Faster-Whisper with whisper.cpp fallback, and ASR HTTP | implemented; pinned small model bundled in release builds; partial transcript resume and model/device ETA |
 | Local filesystem browser with allowlisted roots | implemented; no media upload |
 | URL import | implemented via optional yt-dlp; external policy and host allowlist apply |
-| Webhook publishing | implemented; targets, persistent queue, scheduler, metadata generation |
 | Translation and audio QA | implemented; LLM transcript translation plus EBU R128 loudness/true-peak QA |
 | Secrets and failover | implemented; env/keyring/0600 secret store and ordered LLM provider failover |
 | Recipe automation | implemented; SQLite schedules, retry/backoff, run history, watch-file signatures, and a local scheduler |
@@ -125,21 +120,11 @@ Every stub has a strict `xfail` contract in `tests/contract/`.
 | [Intelligence](intelligence.md) | You are configuring OpenCode V2, DeepSeek, or task routing |
 | [Scene intelligence](scenes.md) | You are building or debugging the scene map and keyframe cache |
 | [Format presets](formats.md) | You are creating output geometry, safe zones, or platform targets |
-| [Performance profile](performance-3.10.md) | You are tuning worker lanes, NVENC, transfers, or Windows |
-| [Cycle 1 gate](qa-evidence/cycle1-gate.md) | You are validating media contract, audio drift, or remote NVENC |
-| [Cycle 2 gate](qa-evidence/cycle2-gate.md) | You are validating edited-timeline Shorts, loudness, or caption safe zones |
-| [Cycle 3 gate](qa-evidence/cycle3-gate.md) | You are validating scene speed, PiP faces, keyframes, or FCPXML quarantine |
-| [Cycle 4 micro gate](qa-evidence/cycle4-micro-gate.md) | You are validating advanced FX, keyless media, style preview, or release-kit titles |
-| [Performance profile 3.13](performance-3.13.md) | You need job progress, priority, warmup, adaptive transfer, or scene tuning |
-| [Refactor and hardening 3.14](refactor-3.14.md) | You are changing scene rules, Short IO, styles/formats, discovery, or worker security |
-| [Refactor and throughput 3.15](refactor-3.15.md) | You are changing worker handlers, dashboard assets, or Short render concurrency |
 | [Shorts benchmark](shorts-benchmark.md) | You are validating phase 7 F1, throughput, captions, and safe zones |
-| [OpusClip parity](opusclip-parity.md) | You are comparing the OpusClip feature set or running the OpusClip-style recipes |
 | [Cache](cache.md) | A rerun is slower than it should be |
 | [Testing](testing.md) | You are adding tests or running a release gate |
 | [API](api.md) | You are wiring the UI or a script |
 | [MCP](mcp.md) | You are connecting an agent |
-| [UI specification](ui-spec.md) | Recipe studio and canvas timeline |
 | [Exporters](exporters.md) | You are writing FCPXML, xmeml, or Kdenlive MLT |
 | [Security](security.md) | You are handling paths, secrets, or prompts |
 

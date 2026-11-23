@@ -539,40 +539,6 @@ def test_thumbnail_pack_copies_variants_and_warns(
     assert (context.output / "thumbnails" / "variant-1-1.png").is_file()
 
 
-def test_publish_queue_skips_and_enqueues_with_failures(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from videoflow.steps import delivery_publish
-    from videoflow.steps.delivery import PublishQueueParams, PublishQueueStep
-
-    reports: list[str] = []
-    io = StepIO(progress=lambda stage, pct, msg: reports.append(msg))
-    context = make_context(tmp_path, shorts=[{"path": "one.mp4"}])
-    PublishQueueStep().run(context, PublishQueueParams(), io)
-    assert "Publish skipped" in reports[-1]
-    assert "publish_queue" not in context.artifacts
-
-    def fake_enqueue(**kwargs: object) -> dict[str, object]:
-        if str(kwargs["asset_path"]).endswith("boom.mp4"):
-            raise RuntimeError("target exploded")
-        return {"target": kwargs["target_name"], "title": kwargs["title"]}
-
-    monkeypatch.setattr(delivery_publish, "enqueue_publish", fake_enqueue)
-    context.shorts = [
-        {"path": "one.mp4", "title": "One"},
-        {"title": "no path"},
-        {"path": "boom.mp4", "title": "Boom"},
-    ]
-    PublishQueueStep().run(context, PublishQueueParams(target="hook"), io)
-    queued = json.loads(
-        (context.output / "delivery" / "publish-queue.json").read_text(encoding="utf-8")
-    )
-    assert [item["title"] for item in queued] == ["One"]
-    assert context.artifacts["publish_queue"].endswith("publish-queue.json")
-    assert any("Publish queue failed for Short 2" in warning for warning in context.warnings)
-    assert "1 Short(s) queued" in reports[-1]
-
-
 def test_analytics_review_median_and_unreadable_source(tmp_path: Path) -> None:
     from videoflow.steps.delivery import AnalyticsReviewParams, AnalyticsReviewStep
 

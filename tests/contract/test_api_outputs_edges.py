@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 
 from tests.contract.api_helpers import _client, _job
 
@@ -10,64 +9,6 @@ def _error(response) -> dict:
     payload = response.json()
     detail = payload.get("detail", payload)
     return detail if isinstance(detail, dict) else {"errors": detail}
-
-
-def test_live_source_routes_and_errors(monkeypatch, tmp_path: Path) -> None:
-    from videoflow.api.routes_outputs import artifacts as routes_module
-    from videoflow.application.live_source import LiveSourceState
-
-    client, manager = _client(monkeypatch, tmp_path)
-    (tmp_path / "source.mp4").write_bytes(b"source")
-    job = _job(manager, tmp_path)
-    base = f"/api/v1/jobs/{job.job_id}"
-
-    state = LiveSourceState(status="preparing", reason="probing", path="")
-
-    class Fake:
-        def status(self, job, *, height):
-            return state
-
-        def start(self, job, *, height):
-            return LiveSourceState(status="ready", url="/live", path=str(tmp_path / "x.mp4"))
-
-        def file(self, job, *, height):
-            return None
-
-    monkeypatch.setattr(routes_module, "live_sources", Fake())
-    assert client.get(f"{base}/live-source/status").json()["live_source"]["status"] == "preparing"
-    assert client.post(f"{base}/live-source").json()["live_source"]["status"] == "ready"
-    missing = client.get(f"{base}/live-source/file")
-    assert missing.status_code == 409
-    assert _error(missing)["code"] == "state_not_ready"
-
-    target = tmp_path / "live.mp4"
-    target.write_bytes(b"live")
-    Fake.file = lambda self, job, *, height: target
-    monkeypatch.setattr(routes_module, "live_sources", Fake())
-    served = client.get(f"{base}/live-source/file")
-    assert served.status_code == 200
-
-    monkeypatch.setattr(routes_module, "live_sources", Fake())
-    monkeypatch.setattr(
-        routes_module,
-        "load_state",
-        lambda path: (_ for _ in ()).throw(OSError("bad state")),
-    )
-    assert client.get(f"{base}/live-source/status").json()["live_source"]["status"] == "preparing"
-    monkeypatch.setattr(
-        routes_module,
-        "load_state",
-        lambda path: SimpleNamespace(media_info=SimpleNamespace(height=720)),
-    )
-
-    class BrokenFile:
-        def file(self, job, *, height):
-            raise OSError("bad state")
-
-    monkeypatch.setattr(routes_module, "live_sources", BrokenFile())
-    failed = client.get(f"{base}/live-source/file")
-    assert failed.status_code == 422
-    assert _error(failed)["code"] == "live_source_failed"
 
 
 def test_source_file_missing_media_and_missing_file(monkeypatch, tmp_path: Path) -> None:

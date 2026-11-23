@@ -37,8 +37,7 @@ uv run ruff check src tests scripts
 uv run mypy                             # scoped to domain + cache (see pyproject.toml)
 uv run python scripts/build_portable.py --fetch-ffmpeg  # packaging smoke
 uv run python scripts/nle_multi_smoke.py --json-out /tmp/nle-smoke.json
-uv run python scripts/gpu_worker_smoke.py --local
-uv run python scripts/gpu_worker_smoke.py --url http://windows-host:8766
+uv run python scripts/e2e_micro_gate.py --help
 
 ./scripts/gate_local.sh                 # fast default
 ./scripts/gate_local.sh --full          # complete gate

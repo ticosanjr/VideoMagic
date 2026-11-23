@@ -43,7 +43,7 @@ def test_step_outputs_are_listed_read_saved_and_downloaded(
     assert client.get(f"/api/v1/jobs/{job.job_id}/steps/nope/outputs").status_code == 404
 
 
-def test_providers_services_models_plugins_and_system(monkeypatch, tmp_path: Path) -> None:
+def test_providers_services_models_and_system(monkeypatch, tmp_path: Path) -> None:
     client, _manager = _client(monkeypatch, tmp_path)
     provider = {
         "id": "demo",

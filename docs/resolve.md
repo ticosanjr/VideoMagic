@@ -13,25 +13,6 @@ the static FCPXML export remains the supported path.
   installation.
 - The configured Python can `import DaVinciResolveScript`.
 
-## Manual smoke
-
-```bash
-uv run python scripts/resolve_smoke.py \
-  --json-out docs/qa-evidence/resolve-smoke-$(date +%F).json
-```
-
-The command writes availability, product/version, current project, and the
-roundtrip result. It exits `0` only when Resolve is available.
-
-Push an FCPXML timeline and read markers/cuts back:
-
-```bash
-uv run python scripts/resolve_smoke.py \
-  --fcpxml /path/to/exports/timeline.fcpxml \
-  --direction push \
-  --json-out /tmp/resolve-smoke.json
-```
-
 ## Scope
 
 - Push: write FCPXML and import it through the Resolve API.
