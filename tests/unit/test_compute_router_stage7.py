@@ -57,7 +57,7 @@ class FakeClient:
 
 def test_router_uses_capability_vram_costs() -> None:
     client = FakeClient(free=3000)
-    router = ComputeRouter(client=client, min_vram_mb=0)
+    router = ComputeRouter(client=client, min_vram_mb=0, offload_all_heavy=False)
     assert router.decide("asr").mode == "local"
     assert router.decide("render_nvenc").mode == "remote"
     assert router.decide("asr").execution_node == "local"
@@ -78,7 +78,7 @@ def test_router_respects_capability_settings() -> None:
 
 def test_router_execute_remote_and_local_fallback() -> None:
     client = FakeClient()
-    router = ComputeRouter(client=client, min_vram_mb=0)
+    router = ComputeRouter(client=client, min_vram_mb=0, offload_all_heavy=False)
     remote = router.execute("asr", lambda: "remote-value", lambda: "local-value")
     assert remote["value"] == "remote-value"
     assert remote["remote"] is True
@@ -97,7 +97,7 @@ def test_router_execute_remote_and_local_fallback() -> None:
 
 def test_router_execute_skips_remote_when_capability_is_missing() -> None:
     client = FakeClient()
-    router = ComputeRouter(client=client, min_vram_mb=0)
+    router = ComputeRouter(client=client, min_vram_mb=0, offload_all_heavy=False)
     result = router.execute("render_nvenc", lambda: "remote", lambda: "local")
     assert result["value"] == "remote"
     missing = router.execute("diarize", lambda: "remote", lambda: "local")
@@ -245,7 +245,7 @@ def test_execute_batch_keeps_going_after_worker_failure(monkeypatch) -> None:
             )
 
     client = Client()
-    router = ComputeRouter(client=client, min_vram_mb=0)
+    router = ComputeRouter(client=client, min_vram_mb=0, offload_all_heavy=False)
     monkeypatch.setattr(
         "videoflow.application.compute.router_from_settings",
         lambda settings=None: router,
@@ -271,3 +271,34 @@ def test_execute_batch_keeps_going_after_worker_failure(monkeypatch) -> None:
     ]
     assert sum(item["remote"] for item in results) == 2
     assert results[-1]["fallback_reason"]
+
+
+def test_heavy_capability_forces_remote_even_when_vram_and_queue_are_tight() -> None:
+    client = FakeClient(free=0)
+    router = ComputeRouter(
+        client=client,
+        min_vram_mb=4096,
+        max_queue=0,
+        max_gpu_utilization=1.0,
+        offload_all_heavy=True,
+    )
+    decision = router.decide("asr")
+    assert decision.mode == "remote"
+    assert decision.is_remote is True
+
+
+def test_heavy_auto_policy_fails_closed_when_worker_is_offline() -> None:
+    class Offline:
+        def health(self, timeout: float | None = None) -> WorkerHealth:
+            return WorkerHealth(available=False, message="offline")
+
+        def close(self) -> None:
+            return None
+
+    router = ComputeRouter(client=Offline(), offload_all_heavy=True)
+    try:
+        router.execute("asr", lambda: "remote", lambda: "local")
+    except Exception as exc:  # noqa: BLE001 - assert the typed code
+        assert getattr(exc, "code", "") == "gpu_worker_offline"
+    else:  # pragma: no cover - fail-closed must raise
+        raise AssertionError("heavy auto policy must fail closed")

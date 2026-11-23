@@ -327,3 +327,79 @@ def test_asr_retries_without_vad_when_onnx_is_broken(tmp_path: Path) -> None:
     assert payload["vad_fallback"] is True
     assert "SessionOptions" in payload["vad_error"]
     assert payload["segments"][0]["text"] == "ola"
+
+
+def test_ingest_pcm_handler_extracts_48k_stereo(tmp_path: Path, monkeypatch) -> None:
+    commands: list[list[str]] = []
+    from subprocess import CompletedProcess
+
+    from gpu_worker.gpu_handlers import audio as audio_handlers
+
+    def fake_run(tokens: list[str], *, timeout: float = 3600.0) -> None:
+        commands.append(tokens)
+        Path(tokens[-1]).write_bytes(b"wav")
+
+    monkeypatch.setattr(audio_handlers, "_run", fake_run)
+    monkeypatch.setattr(
+        audio_handlers.subprocess,
+        "run",
+        lambda *args, **kwargs: CompletedProcess(
+            args[0],
+            0,
+            stdout=(
+                '{"streams": [{"codec_type": "video", '
+                '"avg_frame_rate": "30/1", "r_frame_rate": "30/1"}]}'
+            ),
+            stderr="",
+        ),
+    )
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+    handler = gpu_handlers.make_ingest_pcm_handler(
+        Settings(work_dir=tmp_path / "worker")
+    )
+    outputs = handler({}, [source], tmp_path / "work")
+    command = " ".join(commands[0])
+    assert "pcm_s24le" in command
+    assert "-ar 48000" in command
+    assert outputs[0].name == "ingest.wav"
+    assert outputs[1].name == "probe.json"
+
+
+def test_audio_finalize_handler_runs_two_pass_loudnorm(tmp_path: Path, monkeypatch) -> None:
+    commands: list[list[str]] = []
+    from subprocess import CompletedProcess
+
+    from gpu_worker.gpu_handlers import audio as audio_handlers
+
+    def fake_run(tokens: list[str], *, timeout: float = 3600.0) -> None:
+        commands.append(tokens)
+        Path(tokens[-1]).write_bytes(b"wav")
+
+    measured = {
+        "input_i": "-20.0",
+        "input_tp": "-2.0",
+        "input_lra": "5.0",
+        "input_thresh": "-30.0",
+        "target_offset": "0.1",
+    }
+    monkeypatch.setattr(audio_handlers, "_run", fake_run)
+    monkeypatch.setattr(
+        audio_handlers.subprocess,
+        "run",
+        lambda *args, **kwargs: CompletedProcess(
+            args[0],
+            0,
+            stdout="",
+            stderr="summary\n" + json.dumps(measured),
+        ),
+    )
+    source = tmp_path / "voice.wav"
+    source.write_bytes(b"wav")
+    handler = gpu_handlers.make_audio_finalize_handler(
+        Settings(work_dir=tmp_path / "worker")
+    )
+    outputs = handler({"target_lufs": -15.5}, [source], tmp_path / "work")
+    assert outputs[0].name == "audio_final.wav"
+    assert "measured_I=-20.0" in " ".join(commands[0])
+    assert "linear=true" in " ".join(commands[0])

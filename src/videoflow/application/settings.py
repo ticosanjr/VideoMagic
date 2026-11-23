@@ -390,6 +390,8 @@ class GpuSettings(BaseModel):
             "upscale": True,
             "tts": False,
             "comfyui": False,
+            "ingest_pcm": True,
+            "audio_finalize": True,
         }
     )
     shared_mount_enabled: bool = False

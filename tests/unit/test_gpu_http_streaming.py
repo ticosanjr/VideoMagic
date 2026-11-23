@@ -260,6 +260,8 @@ class _UploadWorker:
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         path = request.url.path
+        if path.startswith("/artifacts/") and request.method == "HEAD":
+            return httpx.Response(404, json={"error": "not found"})
         if path == "/artifacts/init":
             return httpx.Response(
                 200,
@@ -286,7 +288,7 @@ def test_client_uploads_with_resumable_chunks(tmp_path: Path) -> None:
     assert artifact_id == hashlib.sha256(b"0123456789").hexdigest()
     assert worker.content == b"0123456789"
     methods = [request.method for request in worker.requests]
-    assert methods == ["POST", "PATCH", "PATCH", "PATCH", "POST"]
+    assert methods == ["HEAD", "POST", "PATCH", "PATCH", "PATCH", "POST"]
 
 
 class _DownloadWorker:

@@ -43,6 +43,12 @@ def migrate_settings(payload: dict[str, Any]) -> dict[str, Any]:
     migrated.setdefault("automation", {})
     migrated.setdefault("models", {})
     migrated.setdefault("intelligence", {})
+    gpu = migrated.get("gpu")
+    if isinstance(gpu, dict):
+        capabilities = gpu.get("capabilities")
+        if isinstance(capabilities, dict):
+            capabilities.setdefault("ingest_pcm", True)
+            capabilities.setdefault("audio_finalize", True)
     return migrated
 
 

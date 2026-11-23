@@ -54,6 +54,7 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
         discovery_timeout: float = _DEFAULT_DISCOVERY_TIMEOUT,
         worker_source: str = "",
         offline_error: type[Exception] | None = None,
+        offload_all_heavy: bool | None = None,
     ) -> None:
         normalized_mode = (mode or _DEFAULT_MODE).strip().lower()
         if normalized_mode not in COMPUTE_MODES:
@@ -92,6 +93,11 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
             normalized_source = "settings" if self.worker_url else "none"
         self.worker_source = normalized_source
         self.offline_error = offline_error or WorkerOfflineError
+        self.offload_all_heavy = (
+            _env_bool("VF_GPU_OFFLOAD_ALL_HEAVY", True)
+            if offload_all_heavy is None
+            else bool(offload_all_heavy)
+        )
 
 
     @classmethod
@@ -123,6 +129,7 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
                 if config.source == "env"
                 else ("settings" if config.worker_url else "none")
             ),
+            offload_all_heavy=_env_bool("VF_GPU_OFFLOAD_ALL_HEAVY", True),
         )
 
 

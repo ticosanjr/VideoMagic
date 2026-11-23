@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from vf_shared.compute.capabilities import is_heavy_capability
 from vf_shared.compute.execution import ExecutionRecord, now_iso
 
 
@@ -35,7 +36,10 @@ class RouterExecuteMixin:
         policy = str(compute_policy or "auto").strip().lower()
         if policy not in {"auto", "local", "remote", "remote_only"}:
             raise ValueError(f"invalid compute policy: {compute_policy!r}")
-        strict_remote = policy in {"remote", "remote_only"} and not allow_slow_cpu_fallback
+        strict_remote = (
+            policy in {"remote", "remote_only"}
+            or (policy == "auto" and self.offload_all_heavy and is_heavy_capability(capability))
+        ) and not allow_slow_cpu_fallback
         started_at = now_iso()
         decision = None if policy == "local" else self.decide(
             capability, required_vram_mb

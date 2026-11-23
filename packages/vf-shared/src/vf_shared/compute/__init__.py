@@ -2,8 +2,19 @@
 
 from __future__ import annotations
 
-from vf_shared.compute.capabilities import CAPABILITIES, VRAM_COST_MB, vram_cost
-from vf_shared.compute.client import GPUWorkerClient, GPUWorkerError
+from vf_shared.compute.capabilities import (
+    CAPABILITIES,
+    HEAVY_CAPABILITIES,
+    VRAM_COST_MB,
+    canonical_capability,
+    is_heavy_capability,
+    vram_cost,
+)
+from vf_shared.compute.client import (
+    GPUWorkerAuthError,
+    GPUWorkerClient,
+    GPUWorkerError,
+)
 from vf_shared.compute.config import (
     GpuConfig,
     clear_gpu_config,
@@ -30,15 +41,19 @@ __all__ = [
     "ComputeRouter",
     "DiscoveredWorker",
     "ExecutionRecord",
+    "GPUWorkerAuthError",
     "GPUWorkerClient",
     "GPUWorkerError",
     "GpuConfig",
     "GpuDiscovery",
+    "HEAVY_CAPABILITIES",
     "JobStatus",
+    "canonical_capability",
     "clear_gpu_config",
     "config_path",
     "env_worker_url",
     "load_gpu_config",
+    "is_heavy_capability",
     "load_gpu_config_file",
     "save_gpu_config",
     "VRAM_COST_MB",

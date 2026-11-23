@@ -10,6 +10,10 @@ from gpu_worker.gpu_handlers.asr import (
     make_asr_handler,
     make_forced_align_handler,
 )
+from gpu_worker.gpu_handlers.audio import (
+    make_audio_finalize_handler,
+    make_ingest_pcm_handler,
+)
 from gpu_worker.gpu_handlers.common import (
     _available,
     _binary_available,
@@ -147,8 +151,15 @@ def register_builtin_handlers(
         registry.register_handler(
             "ffmpeg_transcode", make_ffmpeg_transcode_handler(settings)
         )
+        registry.register_handler(
+            "ingest_pcm", make_ingest_pcm_handler(settings)
+        )
+        registry.register_handler(
+            "audio_finalize", make_audio_finalize_handler(settings)
+        )
     else:
-        registry.mark_unavailable("short_render", "FFmpeg is not available")
+        for capability in ("short_render", "ingest_pcm", "audio_finalize"):
+            registry.mark_unavailable(capability, "FFmpeg is not available")
     registry.mark_unavailable(
         "audio_events", "YAMNet ONNX model is not configured on the worker"
     )

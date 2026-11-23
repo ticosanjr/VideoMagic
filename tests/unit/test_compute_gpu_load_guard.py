@@ -29,6 +29,7 @@ def _router(utilization: float, cap: float) -> ComputeRouter:
         mode="auto",
         worker_url="http://worker:8766",
         max_gpu_utilization=cap,
+        offload_all_heavy=False,
         client=FakeClient(utilization),  # type: ignore[arg-type]
     )
 

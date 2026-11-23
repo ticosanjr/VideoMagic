@@ -24,6 +24,12 @@ class GPUWorkerError(RuntimeError):
         self.status_code = status_code
 
 
+class GPUWorkerAuthError(GPUWorkerError):
+    """Raised when the worker rejects the configured token."""
+
+    code = "gpu_worker_auth_failed"
+
+
 class GPUWorkerUnsupported(GPUWorkerError):
     """Raised when the worker does not implement an optional transport endpoint."""
 

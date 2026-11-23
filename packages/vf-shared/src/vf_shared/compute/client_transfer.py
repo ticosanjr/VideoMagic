@@ -38,19 +38,54 @@ class ClientTransferMixin:
         """
 
         if isinstance(content, (bytes, bytearray, memoryview)):
+            payload = bytes(content)
+            digest = hashlib.sha256(payload).hexdigest()
+            existing = self.probe_artifact(digest)
+            if existing is not None:
+                self._record_transfer("upload_dedup", 1)
+                return existing
             response = self._request(
                 "POST",
                 "/artifacts",
-                files={"file": ("artifact.bin", bytes(content))},
+                files={"file": ("artifact.bin", payload)},
             )
             return self._artifact_id(response)
         source = Path(content)
         if not source.is_file():
             raise FileNotFoundError(f"artifact not found: {source}")
+        digest = _sha256_file(source)
+        existing = self.probe_artifact(digest)
+        if existing is not None:
+            self._record_transfer("upload_dedup", 1)
+            return existing
         try:
-            return self.upload_resumable(source, progress=progress, cancel=cancel)
+            return self.upload_resumable(
+                source, progress=progress, cancel=cancel, digest=digest
+            )
         except GPUWorkerUnsupported:
             return self._upload_multipart(source)
+
+    def probe_artifact(self, sha256: str) -> str | None:
+        """Return the worker artifact id when the content hash is already cached.
+
+        Workers older than the HEAD endpoint answer 404/405; callers then use the
+        existing resumable init path, which also deduplicates by SHA-256.
+        """
+
+        clean = str(sha256 or "").strip().lower()
+        if len(clean) != 64 or any(char not in "0123456789abcdef" for char in clean):
+            raise ValueError(f"invalid SHA-256: {sha256!r}")
+        try:
+            response = self._request(
+                "HEAD",
+                f"/artifacts/{quote(clean, safe='')}",
+                timeout=self.timeout,
+            )
+        except GPUWorkerError as exc:
+            if exc.status_code in {404, 405}:
+                return None
+            raise
+        return response.headers.get("X-VF-Artifact-Id") or clean
 
 
     def _upload_multipart(self, source: Path) -> str:
@@ -80,6 +115,7 @@ class ClientTransferMixin:
         *,
         progress: Callable[[int, int], None] | None = None,
         cancel: Callable[[], bool] | None = None,
+        digest: str = "",
     ) -> str:
         """Upload a file with resumable chunks and SHA-256 verification."""
 
@@ -87,7 +123,7 @@ class ClientTransferMixin:
         if not path.is_file():
             raise FileNotFoundError(f"artifact not found: {path}")
         size = path.stat().st_size
-        digest = _sha256_file(path)
+        digest = str(digest or _sha256_file(path)).strip().lower()
         try:
             init = self._request(
                 "POST",

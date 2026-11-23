@@ -434,7 +434,7 @@ def test_router_auto_remote_and_fallbacks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     worker = FakeWorker()
-    router = _router(worker, monkeypatch)
+    router = _router(worker, monkeypatch, VF_GPU_OFFLOAD_ALL_HEAVY="0")
 
     assert router.decide("upscale", required_vram_mb=8192).mode == "remote"
 

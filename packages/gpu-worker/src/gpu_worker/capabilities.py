@@ -22,6 +22,8 @@ VRAM_COST_MB: dict[str, int] = {
     "sfx": 1024,
     "diarize": 2048,
     "comfyui": 4096,
+    "ingest_pcm": 0,
+    "audio_finalize": 0,
 }
 
 BUILTIN_CAPABILITIES = tuple(sorted(VRAM_COST_MB))

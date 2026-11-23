@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Annotated, Any
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from gpu_worker.api_models import UploadInit
@@ -30,6 +30,21 @@ def register_upload_routes(app: FastAPI, ctx: Any) -> None:
         finally:
             await file.close()
         return {"artifact_id": record.id, "sha256": record.id, "bytes": record.size}
+
+    @app.head("/artifacts/{artifact_id}")
+    def head_artifact(artifact_id: str) -> Response:
+        """Check the content-addressed cache without downloading the artifact."""
+
+        clean = artifact_id.strip().lower()
+        if re.fullmatch(r"[0-9a-f]{64}", clean) is None:
+            raise HTTPException(status_code=400, detail="artifact id must be SHA-256")
+        record = artifacts.get(clean)
+        if record is None:
+            raise HTTPException(status_code=404, detail="artifact not found")
+        return Response(
+            status_code=200,
+            headers={"X-VF-Artifact-Id": record.id},
+        )
 
     @app.post("/artifacts/init")
     def init_artifact(body: UploadInit) -> dict[str, Any]:

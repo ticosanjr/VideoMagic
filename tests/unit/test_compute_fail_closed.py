@@ -153,7 +153,9 @@ def test_auto_mode_uses_the_stable_degraded_reason() -> None:
             },
         )(),
     )
-    result = router.execute("asr", lambda: "remote", lambda: "local")
+    result = router.execute(
+        "asr", lambda: "remote", lambda: "local", allow_slow_cpu_fallback=True
+    )
     assert result["value"] == "local"
     assert result["degraded"] is True
     assert result["degraded_reason"] == "windows_gpu_offline_fallback_cpu"
@@ -240,7 +242,9 @@ def test_auto_policy_keeps_the_stable_fallback_reason() -> None:
         mode="auto", worker_url="http://worker:8766", client=_OfflineClient()
     )
 
-    outcome = router.execute("asr", lambda: "remote", lambda: "local")
+    outcome = router.execute(
+        "asr", lambda: "remote", lambda: "local", allow_slow_cpu_fallback=True
+    )
 
     assert outcome["value"] == "local"
     assert outcome["degraded"] is True

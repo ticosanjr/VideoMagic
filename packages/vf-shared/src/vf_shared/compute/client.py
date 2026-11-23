@@ -11,6 +11,7 @@ import httpx
 from vf_shared.compute.models import WorkerHealth
 
 from .client_common import (
+    GPUWorkerAuthError,
     GPUWorkerError,
     GPUWorkerUnsupported,
     _json_object,
@@ -97,9 +98,11 @@ class GPUWorkerClient(ClientTransferMixin, ClientJobsMixin):
             )
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            raise GPUWorkerError(
-                f"worker request failed: {exc.response.status_code} {exc.response.text[:200]}",
-                status_code=exc.response.status_code,
+            status = exc.response.status_code
+            error_cls = GPUWorkerAuthError if status == 401 else GPUWorkerError
+            raise error_cls(
+                f"worker request failed: {status} {exc.response.text[:200]}",
+                status_code=status,
             ) from exc
         except httpx.HTTPError as exc:
             raise GPUWorkerError(f"worker request failed: {exc}") from exc
@@ -113,4 +116,9 @@ class GPUWorkerClient(ClientTransferMixin, ClientJobsMixin):
         return WorkerHealth.from_payload(_json_object(response))
 
 
-__all__ = ["GPUWorkerClient", "GPUWorkerError", "GPUWorkerUnsupported"]
+__all__ = [
+    "GPUWorkerAuthError",
+    "GPUWorkerClient",
+    "GPUWorkerError",
+    "GPUWorkerUnsupported",
+]

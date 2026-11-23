@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import time
 
-from vf_shared.compute.capabilities import vram_cost
+from vf_shared.compute.capabilities import (
+    canonical_capability,
+    is_heavy_capability,
+    vram_cost,
+)
 from vf_shared.compute.config import (
     env_worker_url,
     load_gpu_config,
@@ -122,6 +126,8 @@ class RouterHealthMixin:
         health: WorkerHealth,
         capability: str,
         required_vram_mb: int,
+        *,
+        force: bool = False,
     ) -> str | None:
         if not health.available:
             detail = f": {health.message}" if health.message else ""
@@ -136,6 +142,8 @@ class RouterHealthMixin:
             offered = {item.lower() for item in health.capabilities}
             if capability.lower() not in offered:
                 return f"capability not available remotely: {capability}"
+        if force:
+            return None
         required = max(int(required_vram_mb), self.min_vram_mb, 0)
         if required > health.vram_free_mb:
             return (
@@ -159,12 +167,16 @@ class RouterHealthMixin:
         """Choose ``remote`` or ``local`` for one capability request."""
 
         capability = str(capability or "")
+        canonical = canonical_capability(capability)
         if self.mode == "local_only":
             return _local("local_only mode", capability)
 
         health = self.health()
         required = max(int(required_vram_mb or 0), vram_cost(capability), 0)
-        reason = self._remote_block_reason(health, capability, required)
+        force = self.offload_all_heavy and is_heavy_capability(capability)
+        reason = self._remote_block_reason(
+            health, canonical, required, force=force
+        )
         if reason is not None:
             return _local(reason, capability)
         return WorkerDecision(

@@ -22,15 +22,49 @@ VRAM_COST_MB: dict[str, int] = {
     "sfx": 1024,
     "diarize": 2048,
     "comfyui": 4096,
+    "ingest_pcm": 0,
+    "audio_finalize": 0,
 }
 
 CAPABILITIES = tuple(sorted(VRAM_COST_MB))
+
+# Every worker capability can be slower than the controller CPU. ``selftest``
+# stays local because it only probes the worker itself.
+HEAVY_CAPABILITIES = frozenset(name for name in VRAM_COST_MB if name != "selftest")
+
+_CAPABILITY_ALIASES = {
+    "scene": "scene_analyze",
+    "matte": "segment_matte",
+    "shorts_render": "short_render",
+    "audio_finalize": "audio_finalize",
+    "ingest_pcm": "ingest_pcm",
+}
+
+
+def canonical_capability(name: str) -> str:
+    """Map historical names used by callers to the worker capability."""
+
+    clean = str(name or "").strip().lower()
+    return _CAPABILITY_ALIASES.get(clean, clean)
+
+
+def is_heavy_capability(name: str) -> bool:
+    """Whether the capability should be forced onto the Windows worker."""
+
+    return canonical_capability(name) in HEAVY_CAPABILITIES
 
 
 def vram_cost(capability: str, default: int = 0) -> int:
     """Return the estimated VRAM for a capability."""
 
-    return int(VRAM_COST_MB.get(str(capability or "").lower(), default))
+    return int(VRAM_COST_MB.get(canonical_capability(str(capability or "")), default))
 
 
-__all__ = ["CAPABILITIES", "VRAM_COST_MB", "vram_cost"]
+__all__ = [
+    "CAPABILITIES",
+    "HEAVY_CAPABILITIES",
+    "VRAM_COST_MB",
+    "canonical_capability",
+    "is_heavy_capability",
+    "vram_cost",
+]

@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from vf_shared.compute.capabilities import canonical_capability
 from vf_shared.compute.execution import ExecutionRecord, now_iso
 
 from .router_common import _shared_relative, _valid_shared_file
@@ -29,6 +30,7 @@ class RouterSubmitMixin:
         transport and whether the job was degraded.
         """
 
+        capability = canonical_capability(capability)
         body = dict(payload or {})
         started_at = now_iso()
         started = time.perf_counter()

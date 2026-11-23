@@ -6,6 +6,10 @@ from gpu_worker.gpu_handlers.asr import (
     make_asr_handler,
     make_forced_align_handler,
 )
+from gpu_worker.gpu_handlers.audio import (
+    make_audio_finalize_handler,
+    make_ingest_pcm_handler,
+)
 from gpu_worker.gpu_handlers.common import (
     _NVENC_CACHE,
     _NVENC_PROBES,
@@ -79,8 +83,10 @@ __all__ = [
     "_scene_sample_times",
     "_scene_visuals",
     "make_asr_handler",
+    "make_audio_finalize_handler",
     "make_face_track_handler",
     "make_ffmpeg_transcode_handler",
+    "make_ingest_pcm_handler",
     "make_forced_align_handler",
     "make_render_nvenc_handler",
     "make_scene_analyze_handler",

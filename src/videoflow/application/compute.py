@@ -36,7 +36,12 @@ def router_from_settings(settings: Any | None = None) -> ComputeRouter:
         fallback_local=gpu.fallback_local,
         max_gpu_utilization=float(gpu.max_gpu_utilization_pct),
         allowed_capabilities={
-            capability for capability, enabled in gpu.capabilities.items() if enabled
+            capability
+            for capability, enabled in {
+                **{"ingest_pcm": True, "audio_finalize": True},
+                **gpu.capabilities,
+            }.items()
+            if enabled
         },
         discovery_enabled=gpu.discovery_enabled,
     )
