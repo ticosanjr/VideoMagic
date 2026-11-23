@@ -559,8 +559,8 @@ Arquivos alterados:
   tests/unit/test_{compute_fail_closed,compute_router_stage7,compute_gpu_load_guard,gpu_capabilities,gpu_http_streaming,vf_contracts_compute}.py
 Comando de validação:
   uv run pytest tests/unit/test_worker_media_id_cache.py tests/unit/test_compute_fail_closed.py tests/unit/test_gpu_worker.py -q
-Resultado: 43 passed
-Regressão: 3003 passed, 1 skipped, 1 xfailed; media 29 passed, 2 skipped.
+Resultado: 45 passed
+Regressão: 3004 passed, 1 skipped, 1 xfailed; media 29 passed, 2 skipped.
 Riscos residuais: fila/VRAM/utilização são ignoradas para capabilities pesadas por
 decisão explícita; jobs podem esperar na fila do worker. Workers antigos sem
 HEAD usam o fallback /artifacts/init.

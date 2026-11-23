@@ -165,3 +165,22 @@ def test_old_settings_enable_new_heavy_capabilities() -> None:
     capabilities = migrated["gpu"]["capabilities"]
     assert capabilities["ingest_pcm"] is True
     assert capabilities["audio_finalize"] is True
+
+
+def test_changed_file_gets_a_new_hash_and_misses(tmp_path: Path) -> None:
+    source = tmp_path / "clip.wav"
+    source.write_bytes(b"first")
+    first_digest = _sha(source.read_bytes())
+    source.write_bytes(b"second")
+    second_digest = _sha(source.read_bytes())
+    assert first_digest != second_digest
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith(first_digest):
+            return httpx.Response(200, headers={"X-VF-Artifact-Id": first_digest})
+        return httpx.Response(404)
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    client = GPUWorkerClient("http://worker.test", http_client=http)
+    assert client.probe_artifact(first_digest) == first_digest
+    assert client.probe_artifact(second_digest) is None
