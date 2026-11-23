@@ -32,7 +32,6 @@ Windows e limpeza dos subsistemas fora do escopo de edição.
 - Sidecars de estado calculam o SHA-256 dos bytes já escritos, sem reler cada
   arquivo após a gravação.
 - Listagem de artefatos resolve cada caminho uma única vez.
-- `vf_capabilities` não repete mais o probe de computação.
 - Corrigidos: deadlock de `heartbeat`/`update_result`, jobs podados que
   ressuscitavam do SQLite, cache de schema após restore, escrita atômica de
   providers e coluna `recipe` para receitas aninhadas.
