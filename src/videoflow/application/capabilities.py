@@ -7,12 +7,17 @@ and the operator has not set the global kill switch.
 
 from __future__ import annotations
 
+import copy
 import os
+import time
 from collections.abc import Sequence
 from urllib.parse import urlparse
 
 from videoflow.application.compute import compute_status
 from videoflow.domain.errors import CapabilityUnavailableError
+
+_MANIFEST_TTL_SEC = max(float(os.environ.get("VF_CAPABILITY_CACHE_SEC", "30.0")), 0.0)
+_MANIFEST_CACHE: dict[bool, tuple[float, list[dict[str, object]]]] = {}
 
 _LOCAL_HOSTS = {
     "0.0.0.0",
@@ -21,6 +26,12 @@ _LOCAL_HOSTS = {
     "host.docker.internal",
     "localhost",
 }
+
+
+def clear_capability_cache() -> None:
+    """Drop cached manifests after a compute or provider settings change."""
+
+    _MANIFEST_CACHE.clear()
 
 
 def external_services_allowed(requested: bool) -> bool:
@@ -61,10 +72,18 @@ def ensure_external_allowed(
 
 
 def capability_manifest(*, allow_external_services: bool = False) -> list[dict[str, object]]:
-    """Return the current capability surface with availability and provenance."""
+    """Return the current capability surface with availability and provenance.
+
+    The static surface is cached briefly because the compute entry probes the
+    worker and callers poll this endpoint from the UI and MCP.
+    """
 
     external = external_services_allowed(allow_external_services)
-    return [
+    now = time.monotonic()
+    cached = _MANIFEST_CACHE.get(external)
+    if cached is not None and now - cached[0] < _MANIFEST_TTL_SEC:
+        return copy.deepcopy(cached[1])
+    entries = [
         _entry(
             "local_files",
             "Local media",
@@ -72,7 +91,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Probe, extract PCM, and keep media inside the path allowlist.",
             "GET /api/v1/media/probe",
-            "videoflow_load_media",
+            "vf_ingest",
         ),
         _entry(
             "recipe_engine",
@@ -92,7 +111,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "Canvas timeline with drag, trim, split, ripple delete, undo, redo, "
             "and JSON project-state revisions.",
             "PATCH /api/v1/jobs/{job_id}/timeline",
-            "videoflow_edit_timeline",
+            "vf_timeline",
         ),
         _entry(
             "timeline_preview",
@@ -101,7 +120,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Browser preview MP4 plus waveforms synced to the playhead.",
             "POST /api/v1/jobs/{job_id}/preview",
-            "videoflow_create_preview",
+            "vf_preview",
         ),
         _entry(
             "broll_approval",
@@ -110,7 +129,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Approve, reject, and reorder planned B-roll before Short rendering.",
             "PATCH /api/v1/jobs/{job_id}/broll",
-            "videoflow_approve_broll",
+            "vf_shorts",
         ),
         _entry(
             "timeline_markers",
@@ -119,7 +138,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Markers with labels, jump-to-time, and per-track mute/solo/lock.",
             "POST /api/v1/jobs/{job_id}/timeline/markers",
-            "videoflow_add_marker",
+            "vf_timeline",
         ),
         _entry(
             "timeline_batch",
@@ -128,7 +147,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Atomic batch moves/deletes and ripple trim with a single revision.",
             "PATCH /api/v1/jobs/{job_id}/timeline/batch",
-            "videoflow_edit_timeline",
+            "vf_timeline",
         ),
         _entry(
             "render_queue",
@@ -137,7 +156,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Background MP4 render with progress, cancel, and download.",
             "POST /api/v1/jobs/{job_id}/render",
-            "videoflow_render_mp4",
+            "vf_export",
         ),
         _entry(
             "translation",
@@ -146,7 +165,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "LLM-backed sentence translation with SRT/JSON artifacts.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "secret_store",
@@ -155,7 +174,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Environment, OS keyring, or 0600 fallback; values are never returned.",
             "POST /api/v1/providers/{id}/secret",
-            "videoflow_set_provider_secret",
+            "not exposed",
         ),
         _entry(
             "schedules",
@@ -165,7 +184,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "Persistent once/interval schedules and watch folders with a local "
             "20-second scheduler.",
             "GET /api/v1/schedules",
-            "videoflow_list_schedules",
+            "not exposed",
         ),
         _entry(
             "review_approval",
@@ -174,7 +193,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Approve or reject a run checklist with reviewer and comment.",
             "PATCH /api/v1/jobs/{job_id}/review",
-            "videoflow_decide_review",
+            "vf_jobs",
         ),
         _entry(
             "thumbnail_ab",
@@ -183,7 +202,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Generate multiple thumbnail candidates and persist the selection.",
             "POST /api/v1/jobs/{job_id}/thumbnails/select",
-            "videoflow_select_thumbnail",
+            "vf_shorts",
         ),
         _entry(
             "color_grade",
@@ -192,7 +211,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Deterministic eq grade and optional .cube LUT applied to MP4 previews.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "flow_control",
@@ -202,7 +221,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "Executable conditional, loop, and subflow nodes with per-file "
             "isolated outputs.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "providers",
@@ -211,7 +230,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Persisted providers.json with defaults and fallback chains per capability.",
             "GET /api/v1/providers",
-            "videoflow_list_providers",
+            "vf_capabilities",
         ),
         _entry(
             "audio_master",
@@ -220,7 +239,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "High-pass, FFT denoise, and EBU R128 loudness render to master.wav.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
             requires=["ffmpeg"],
         ),
         _entry(
@@ -230,7 +249,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Deterministic title-card and speaker lower-third plan.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "analytics_import",
@@ -239,7 +258,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Normalize retention/CTR CSV rows into analytics.json.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "review",
@@ -248,7 +267,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Deterministic pre-publish review checks for each run.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "url_import",
@@ -257,7 +276,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Download public http(s) links through yt-dlp.",
             "POST /api/v1/media/import",
-            "videoflow_import_url",
+            "vf_ingest",
             requires=["yt-dlp", "network access"],
         ),
         _entry(
@@ -267,7 +286,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Faster-Whisper or whisper.cpp on the local machine.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "silero_vad",
@@ -276,7 +295,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Local speech detection with an FFmpeg fallback.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "nle_exports",
@@ -285,7 +304,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "FCPXML, xmeml, and native Kdenlive MLT from one timeline.",
             "POST /api/v1/recipes/run",
-            "videoflow_export_fcpxml",
+            "vf_export",
         ),
         _entry(
             "direct_mp4",
@@ -294,7 +313,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Render the validated main timeline to H.264/AAC with FFmpeg.",
             "POST /api/v1/recipes/run",
-            "videoflow_export_fcpxml",
+            "vf_export",
             requires=["ffmpeg with libx264"],
         ),
         _entry(
@@ -305,7 +324,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "Crossfade and fade-to-black transitions in FCPXML, XMEML, and MP4; "
             "Kdenlive parity is pending.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "speaker_turns",
@@ -314,7 +333,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "partial",
             "Heuristic pause-based speaker ids and speaker-colored ASS captions.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "broll",
@@ -324,7 +343,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "Local/stock B-roll plans, approval ordering, and multi-overlay "
             "rendering in Shorts.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
             requires=["local B-roll asset directory"],
         ),
         _entry(
@@ -334,7 +353,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Two-panel split-screen rendering for Shorts.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "local_tts",
@@ -343,7 +362,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "partial",
             "Piper CLI voice-over synthesis when a binary and voice model are installed.",
             "POST /api/v1/jobs/{job_id}/shorts/{index}/voiceover",
-            "videoflow_generate_short_voiceover",
+            "vf_audio",
             requires=["piper", "voice model"],
         ),
         _entry(
@@ -353,7 +372,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Run one recipe over a folder, one file at a time, with per-item jobs.",
             "POST /api/v1/batches",
-            "videoflow_run_batch",
+            "vf_run",
         ),
         _entry(
             "shorts_aspects",
@@ -362,7 +381,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Render 9:16, 4:5, 3:4, 2:3, 1:1, or 16:9 social clips.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
             requires=["ffmpeg"],
         ),
         _entry(
@@ -372,7 +391,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Limit Short selection to a start/end range of the source.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "intro_outro",
@@ -381,7 +400,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "PNG/JPEG intro and outro cards with configurable durations.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "vision_llm",
@@ -390,7 +409,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "partial",
             "Frame sampling plus OpenAI-compatible multimodal chat analysis.",
             "POST /api/v1/jobs/{job_id}/shorts/{index}/analyze/llm",
-            "videoflow_analyze_short_llm",
+            "vf_qa",
             requires=["vision-capable OpenAI-compatible model", "network access"],
         ),
         _entry(
@@ -400,7 +419,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "partial",
             "Audio-emotion heuristics and motion/optional face analysis for a Short.",
             "POST /api/v1/jobs/{job_id}/shorts/{index}/analyze",
-            "videoflow_analyze_short",
+            "vf_qa",
             requires=["optional opencv-python-headless for faces"],
         ),
         _entry(
@@ -410,7 +429,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "partial",
             "External OpenAI-compatible TTS mixed over a Short.",
             "POST /api/v1/jobs/{job_id}/shorts/{index}/voiceover",
-            "videoflow_generate_short_voiceover",
+            "vf_audio",
             requires=["external TTS provider", "network access"],
         ),
         _entry(
@@ -420,7 +439,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Looping music bed with volume, fades, and optional speech ducking.",
             "POST /api/v1/assets/music",
-            "videoflow_upload_music",
+            "vf_audio",
         ),
         _entry(
             "watermark",
@@ -429,7 +448,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "PNG/JPEG overlay with position, margin, width ratio, and opacity.",
             "POST /api/v1/assets/images",
-            "videoflow_upload_image",
+            "vf_media",
         ),
         _entry(
             "speech_enhancement",
@@ -439,7 +458,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "FFmpeg high-pass, FFT denoise, and loudness normalization for "
             "rendered Shorts. NLE source audio is unchanged.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "custom_fonts",
@@ -448,7 +467,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Upload TTF/OTF files and use their internal family names in ASS.",
             "POST /api/v1/assets/fonts",
-            "videoflow_upload_font",
+            "vf_media",
         ),
         _entry(
             "scene_changes",
@@ -457,7 +476,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "FFmpeg scene scores that boost Shorts around visual cuts.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "motion_tracking",
@@ -466,7 +485,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Low-resolution frame-difference focus estimation for Short reframing.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "face_tracking",
@@ -475,7 +494,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "partial",
             "Optional OpenCV Haar face detection; falls back to motion tracking.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
             requires=["opencv-python-headless"],
         ),
         _entry(
@@ -485,7 +504,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Reusable flat job configuration templates.",
             "GET /api/v1/project-templates",
-            "videoflow_list_project_templates",
+            "not exposed",
         ),
         _entry(
             "config_io",
@@ -494,7 +513,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Versioned JSON envelopes with non-secret run options.",
             "POST /api/v1/config/export",
-            "videoflow_export_config",
+            "not exposed",
         ),
         _entry(
             "brand_templates",
@@ -503,7 +522,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Reusable caption, overlay, music, and intro/outro bundles.",
             "GET /api/v1/brand-templates",
-            "videoflow_list_brand_templates",
+            "vf_style",
         ),
         _entry(
             "caption_branding",
@@ -512,7 +531,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Keyword highlighting, contextual emoji, and brand vocabulary.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "caption_preview",
@@ -530,7 +549,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             external,
             "OpenAI-compatible service for retakes, Shorts, and future curation.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _external_entry(
             "external_asr",
@@ -539,7 +558,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             external,
             "OpenAI-compatible transcription endpoint.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "shorts_editor",
@@ -548,7 +567,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Trim, retitle, reframe, and re-render one selected Short.",
             "POST /api/v1/jobs/{job_id}/shorts/{index}/edit",
-            "videoflow_edit_short",
+            "vf_shorts",
         ),
         _entry(
             "prompt_to_clip",
@@ -557,7 +576,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Focus Short selection with an explicit topic or instruction.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "reprompt",
@@ -566,7 +585,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Refine a previous Short selection with a new instruction.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
             requires=["shorts.json from the previous run"],
         ),
         _entry(
@@ -576,7 +595,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Mark or move the highest-scoring sentence to the first seconds.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "thumbnails",
@@ -585,7 +604,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Extract one Short frame and burn a caption-style title.",
             "POST /api/v1/jobs/{job_id}/shorts/{index}/thumbnail",
-            "videoflow_generate_short_thumbnail",
+            "vf_shorts",
         ),
         _entry(
             "metadata",
@@ -594,7 +613,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Deterministic title, description, and hashtags per platform.",
             "POST /api/v1/jobs/{job_id}/shorts/{index}/metadata",
-            "videoflow_generate_short_metadata",
+            "vf_shorts",
         ),
         _entry(
             "virality_score",
@@ -603,7 +622,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "partial",
             "Explainable heuristic score. Not a platform-trained predictor.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
         ),
         _entry(
             "visual_tracking",
@@ -613,7 +632,7 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "Motion, OpenCV face tracking, smoothed crop keyframes, and "
             "split-screen layouts. MediaPipe/YOLO remain optional.",
             "POST /api/v1/recipes/run",
-            "vf_exec",
+            "vf_run",
             requires=["optional OpenCV/MediaPipe/YOLO"],
         ),
         _entry(
@@ -623,11 +642,13 @@ def capability_manifest(*, allow_external_services: bool = False) -> list[dict[s
             "available",
             "Translation plus external TTS dubbing over a Short.",
             "POST /api/v1/jobs/{job_id}/shorts/{index}/dub",
-            "videoflow_dub_short",
+            "vf_audio",
             requires=["external LLM", "external TTS"],
         ),
         _compute_entry(),
     ]
+    _MANIFEST_CACHE[external] = (now, entries)
+    return copy.deepcopy(entries)
 
 
 def _compute_entry() -> dict[str, object]:

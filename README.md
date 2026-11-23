@@ -6,7 +6,7 @@ removes silence and retakes, adds J-cuts and punch-ins, proposes vertical
 Shorts, masters the dialogue bed, and exports timelines for DaVinci Resolve,
 Adobe Premiere Pro, and Kdenlive.
 
-> Status: 4.2.0 local stable. **22 MCP tools** in the full profile (17 in
+> Status: 4.3.0 local stable. **22 MCP tools** in the full profile (17 in
 > core), 22 styles, stateful step
 > chains, multi-NLE delivery, and opt-in Windows GPU offload with a
 > self-healing worker kit. GPU speed certification awaits Windows/NVIDIA
@@ -35,15 +35,14 @@ and works fully offline out of the box. A GPU is not required.
 
 ## MCP usage
 
-Create a project, discover nodes with `vf_catalog_search` or
-`vf://docs/steps`, run them with `vf_exec(action="step")`, then inspect the
-job and export the delivery bundle:
+Create a project, discover nodes with the `vf://docs/steps` resource, run them
+with `vf_run`, then inspect the job and export the delivery bundle:
 
 ```text
 vf_project(action="init", output="/projects/interview", sources=["/media/a.mp4"])
-vf_exec(action="step", step_id="ingest", params={"sources": ["/media/a.mp4"]})
-vf_exec(action="step", step_id="transcribe", params={"language": "pt"})
-vf_exec(action="step", step_id="edit.timeline", params={})
+vf_run(project_id="...", steps=["ingest"], params={"sources": ["/media/a.mp4"]})
+vf_run(project_id="...", steps=["transcribe"], params={"language": "pt"})
+vf_run(project_id="...", steps=["edit.timeline"])
 vf_export(project_id="...", targets="all")
 ```
 

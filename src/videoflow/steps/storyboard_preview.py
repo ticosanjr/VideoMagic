@@ -13,6 +13,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.files import read_json_or
 from videoflow.application.motion import build_scenes, render_scene
 from videoflow.core.context import PipelineContext
 from videoflow.steps.base import BaseStep, StepIO
@@ -34,13 +35,6 @@ class StoryboardPreviewParams(BaseModel):
     fps: int = Field(default=30, ge=1, le=120)
     render: bool = True
     draft_scale: float = Field(default=1.0, ge=0.1, le=1.0)
-
-
-def _read_json(path: Path, default: Any) -> Any:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return default
 
 
 def _units(payload: Any) -> list[dict[str, Any]]:
@@ -83,8 +77,8 @@ class StoryboardPreviewStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = StoryboardPreviewParams.model_validate(params)
-        units = _units(_read_json(context.output / options.units_path, {}))
-        style_payload = _read_json(context.output / options.style_path, {})
+        units = _units(read_json_or(context.output / options.units_path, {}))
+        style_payload = read_json_or(context.output / options.style_path, {})
         style = style_payload if isinstance(style_payload, dict) else {}
         selected = _select(units)
         scenes = build_scenes(

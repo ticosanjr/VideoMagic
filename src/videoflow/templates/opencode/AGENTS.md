@@ -27,7 +27,7 @@ Workspace preparado pelo VideoFlow {{VERSION}}.
    5. `vf_timeline(action="apply_beatmap")`; use `vf_fx_*` somente se o
       estilo exigir.
    6. `vf_preview` + `vf_qa`; exporte `mp4`, `resolve`, `premiere` e
-      `kdenlive` com `vf_export`, depois rode `vf_qa_final`.
+      `kdenlive` com `vf_export`, depois rode `vf_qa`.
 5. **Siga `_next_step`** retornado pelas tools; ele indica a próxima ação
    concreta e evita polling desnecessário.
 6. **Persistência de estilo.** Estilo novo ou clonado deve ser salvo no
@@ -35,7 +35,7 @@ Workspace preparado pelo VideoFlow {{VERSION}}.
 7. **Segurança.** Não grave tokens/API keys no workspace; use variáveis de
    ambiente (`VF_GPU_WORKER_TOKEN`, etc.).
 8. **Entrega em uma pasta.** Ao concluir, sem outro destino, rode
-   `vf_exec(action="step", step_id="delivery.collect", params={"mode":"copy"})`
+   `vf_run(project_id="...", steps=["delivery.collect"], params={"mode":"copy"})`
    para consolidar em `./VideoFlow_Output/{videos,exports,shorts,scenes}`.
 9. **Offload pesado.** ASR, alinhamento, matte, NVENC, scene analysis,
    ingest PCM e áudio final são forçados no Worker Windows quando saudável;

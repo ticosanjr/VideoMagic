@@ -1,6 +1,6 @@
 # Shorts batch schema
 
-`vf_shorts_batch` validates every clip with `extra="forbid"`. Unknown keys are
+`vf_shorts` validates every clip with `extra="forbid"`. Unknown keys are
 rejected instead of silently ignored.
 
 ## Required

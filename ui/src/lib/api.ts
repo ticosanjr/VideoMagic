@@ -453,14 +453,6 @@ export interface HiltPending {
   interaction: HiltInteraction;
 }
 
-export interface HiltChannelStatus {
-  id: string;
-  label: string;
-  enabled: boolean;
-  available: boolean;
-  detail: string;
-}
-
 export interface Job {
   job_id: string;
   status: JobStatus;
@@ -2444,35 +2436,6 @@ export async function listPendingInteractions(): Promise<HiltPending[]> {
     "/api/v1/hilt/pending"
   );
   return response.interactions ?? [];
-}
-
-export async function listHiltChannels(): Promise<{
-  default: string[];
-  channels: HiltChannelStatus[];
-}> {
-  return request<{ default: string[]; channels: HiltChannelStatus[] }>(
-    "/api/v1/hilt/channels"
-  );
-}
-
-export async function testHiltChannel(
-  channel: string,
-  title = "VideoFlow HILT test"
-): Promise<{ ok: boolean; channel: string; message: string }> {
-  return request<{ ok: boolean; channel: string; message: string }>(
-    "/api/v1/hilt/test",
-    { method: "POST", body: JSON.stringify({ channel, title }) }
-  );
-}
-
-export async function saveHiltSecret(
-  name: string,
-  value: string
-): Promise<{ ok: boolean; name: string; present: boolean }> {
-  return request<{ ok: boolean; name: string; present: boolean }>(
-    "/api/v1/hilt/secrets",
-    { method: "POST", body: JSON.stringify({ name, value }) }
-  );
 }
 
 export async function runRecipeStep(

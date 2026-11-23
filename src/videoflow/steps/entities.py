@@ -10,6 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.files import read_json_or
 from videoflow.application.narrative import PROPER, extract_entities
 from videoflow.core.context import PipelineContext
 from videoflow.steps.base import BaseStep, StepIO
@@ -55,13 +56,6 @@ def _replace(value: Any, mappings: dict[str, str]) -> Any:
     if isinstance(value, dict):
         return {key: _replace(item, mappings) for key, item in value.items()}
     return value
-
-
-def _read_json(path: Path, default: Any) -> Any:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return default
 
 
 class EntityExtractParams(BaseModel):
@@ -356,7 +350,7 @@ class EntityExtractStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = EntityExtractParams.model_validate(params)
-        blocks = _block_items(_read_json(context.output / options.blocks_path, {}))
+        blocks = _block_items(read_json_or(context.output / options.blocks_path, {}))
         script_path = context.output / options.script_path
         try:
             script = script_path.read_text(encoding="utf-8", errors="replace")
@@ -496,10 +490,10 @@ class EntityApplyStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = EntityApplyParams.model_validate(params)
-        corrections = _read_json(context.output / options.corrections_path, {})
+        corrections = read_json_or(context.output / options.corrections_path, {})
         answers = corrections.get("answers", {}) if isinstance(corrections, dict) else {}
         mappings = _mappings(answers if isinstance(answers, dict) else {})
-        manifest = _read_json(context.output / options.narrative_path, {})
+        manifest = read_json_or(context.output / options.narrative_path, {})
         if not manifest:
             manifest = context.metadata.get("narrative_entities", {})
         corrected = _replace(manifest, mappings)

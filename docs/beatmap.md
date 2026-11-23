@@ -62,7 +62,7 @@ atomically. A validation error leaves the timeline untouched.
 
 ## Planning and overlays
 
-`vf_beatmap_plan(project_id, style_id, instructions="")` writes a
+`vf_decupage(project_id, style_id, instructions="")` writes a
 non-destructive `beat_map.json` draft from the transcript and style. It never
 applies cuts by itself.
 

@@ -71,6 +71,7 @@ def artifact_id(output: Path, path: Path) -> str:
 
 def list_artifacts(output: Path, *, include_hash: bool = False) -> list[dict[str, Any]]:
     output = Path(output).expanduser()
+    output_resolved = output.resolve()
     seen: set[Path] = set()
     items: list[dict[str, Any]] = []
     for entry in _ARTIFACT_DIRS:
@@ -87,16 +88,21 @@ def list_artifacts(output: Path, *, include_hash: bool = False) -> list[dict[str
             if resolved in seen:
                 continue
             seen.add(resolved)
+            try:
+                relative = resolved.relative_to(output_resolved).as_posix()
+            except ValueError:
+                relative = path.name
+            stat_result = path.stat()
             metadata: dict[str, Any] = {
-                "artifact_id": artifact_id(output, path),
+                "artifact_id": hashlib.sha256(relative.encode("utf-8")).hexdigest()[:16],
                 "path": str(path),
-                "relative_path": _relative(output, path),
+                "relative_path": relative,
                 "kind": _kind(path),
                 "mime_type": mimetypes.guess_type(path.name)[0] or "application/octet-stream",
-                "size_bytes": path.stat().st_size,
+                "size_bytes": stat_result.st_size,
                 "name": path.name,
             }
-            if include_hash and path.stat().st_size <= 512 * 1024 * 1024:
+            if include_hash and stat_result.st_size <= 512 * 1024 * 1024:
                 metadata["sha256"] = _digest(path)
             items.append(metadata)
     return items

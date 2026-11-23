@@ -82,15 +82,14 @@ provider is configured separately (below).
 Use the videoflow MCP tools.
 1. Create the project with vf_project(action="init") for /media/interview-out.
 2. Read vf://docs/steps and choose the nodes you need.
-3. Run each node with vf_exec(action="step", step_id=..., params=...).
-4. Poll vf_job(action="wait") after each step, then read the timeline.
+3. Run the node chain with vf_run(project_id=..., steps=[...], params=...).
+4. Poll vf_jobs(action="wait") after each step, then read the timeline.
 5. Apply only validated vf_timeline edits.
 6. Run vf_export() and report the revision, bundle manifest and paths.
 ```
 
-Useful MCP tools: `vf_project`, `vf_capabilities`, `vf_catalog_search`,
-`vf_exec`, `vf_job`, `vf_timeline`, `vf_artifact`, `vf_export`,
-`vf_qa_final`. Recipes are intentionally UI/CLI/REST only.
+Useful MCP tools: `vf_project`, `vf_capabilities`, `vf://docs/steps`,
+`vf_run`, `vf_jobs`, `vf_timeline`, `vf_export`, and `vf_qa`. Recipes are intentionally UI/CLI/REST only.
 
 ## Paperclip
 

@@ -287,3 +287,18 @@ def test_database_errors_are_reported(
     database.upsert_job("job-1", _job())
 
     assert "disk is full" in database.last_error()
+
+
+def test_upsert_job_reads_the_nested_recipe_id(home: Path) -> None:
+    payload = _job("job-recipe")
+    payload["options"] = {"recipe": {"id": "podcast"}}
+    database.upsert_job("job-recipe", payload)
+    connection = database.connect()
+    try:
+        row = connection.execute(
+            "SELECT recipe FROM jobs WHERE job_id = ?", ("job-recipe",)
+        ).fetchone()
+    finally:
+        connection.close()
+    assert row is not None
+    assert row[0] == "podcast"

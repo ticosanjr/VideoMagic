@@ -19,7 +19,7 @@ live elsewhere. The folder can be overridden with `VF_OUTPUT_DIR` or
 When the user did not choose another destination, run it after the last export:
 
 ```text
-vf_exec(action="step", step_id="delivery.collect",
+vf_run(project_id="...", steps=["delivery.collect"],
         params={"mode": "copy"}, wait=True)
 ```
 

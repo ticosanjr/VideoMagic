@@ -50,8 +50,8 @@ fallback, or `--transcript` with `--cull-retakes` for retake removal.
 
 `videoflow serve` exposes the same run as `POST /api/v1/recipes/run`, with progress at
 `GET /api/v1/jobs/{id}` and `GET /api/v1/jobs/{id}/events`. The MCP surface is
-tools-only: agents discover nodes with `vf_catalog_search`/`vf://docs/steps` and
-run them with `vf_exec(action="step")`, then poll `vf_job`. Recipes stay in the
+tools-only: agents discover nodes with `vf://docs/steps` and
+run them with `vf_run`, then poll `vf_jobs`. Recipes stay in the
 UI, CLI, and REST API.
 
 ### Rack UI (portable run)

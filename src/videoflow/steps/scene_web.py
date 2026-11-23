@@ -11,6 +11,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.export_names import unique_path
+from videoflow.application.files import read_json_or
 from videoflow.application.motion import build_scenes
 from videoflow.application.scene_web import (
     concatenate,
@@ -27,15 +28,8 @@ from videoflow.steps.common import digest_payload
 from videoflow.steps.registry import register_step
 
 
-def _read_json(path: Path, default: Any) -> Any:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return default
-
-
 def _assignments(context: PipelineContext, path: str) -> dict[str, list[dict[str, Any]]]:
-    payload = _read_json(context.output / path, {})
+    payload = read_json_or(context.output / path, {})
     items = payload.get("assignments", []) if isinstance(payload, dict) else payload
     assets: dict[str, list[dict[str, Any]]] = {}
     for item in items if isinstance(items, list) else []:
@@ -83,8 +77,8 @@ class SceneCodegenStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = SceneCodegenParams.model_validate(params)
-        units_payload = _read_json(context.output / options.units_path, {})
-        style_payload = _read_json(context.output / options.style_path, {})
+        units_payload = read_json_or(context.output / options.units_path, {})
+        style_payload = read_json_or(context.output / options.style_path, {})
         units = units_payload.get("units", []) if isinstance(units_payload, dict) else units_payload
         style = style_payload if isinstance(style_payload, dict) else {}
         assets = _assignments(context, options.assignments_path)
@@ -167,7 +161,7 @@ class SceneRenderStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = SceneRenderParams.model_validate(params)
-        payload = _read_json(context.output / "motion" / "scenes.json", {})
+        payload = read_json_or(context.output / "motion" / "scenes.json", {})
         scenes = payload.get("scenes", []) if isinstance(payload, dict) else []
         if not isinstance(scenes, list) or not scenes:
             raise ExportError("Scene render requires generated scenes.")
@@ -276,7 +270,7 @@ class SceneAssembleStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = SceneAssembleParams.model_validate(params)
-        payload = _read_json(context.output / "motion" / "render-manifest.json", {})
+        payload = read_json_or(context.output / "motion" / "render-manifest.json", {})
         scenes = payload.get("scenes", []) if isinstance(payload, dict) else []
         paths = [
             Path(str(item.get("path")))

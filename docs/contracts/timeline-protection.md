@@ -12,7 +12,7 @@ If the project revision changed:
 
 ## Read-only steps
 
-`vf_qa_final`, `vf_export`, `vf_job`, and any `qa.*` step never write the
+`vf_qa`, `vf_export`, `vf_jobs`, and any `qa.*` step never write the
 timeline.
 
 ## Revisions and checkpoints

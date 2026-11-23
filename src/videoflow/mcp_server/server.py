@@ -37,10 +37,9 @@ class VideoFlowServer(MCPServer):
         arguments: dict[str, Any],
         context: Any = None,
     ) -> Any:
-        tools = {tool.name: tool for tool in await self.list_tools()}
-        tool = tools.get(name)
+        tool = self._tool_manager.get_tool(name)
         if tool is not None and isinstance(arguments, dict):
-            schema = tool.input_schema or {}
+            schema = tool.parameters or {}
             valid = set((schema.get("properties") or {}).keys())
             unknown = sorted(key for key in arguments if key not in valid)
             if unknown:

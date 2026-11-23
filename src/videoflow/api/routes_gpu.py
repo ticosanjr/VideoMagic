@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from vf_shared.compute.config import clear_gpu_config, save_gpu_config
 
+from videoflow.application.capabilities import clear_capability_cache
 from videoflow.application.compute import compute_status, router_from_settings
 from videoflow.application.secrets import get_secret, set_secret
 from videoflow.application.settings import AppSettings, GpuSettings, load_settings, save_settings
@@ -255,6 +256,7 @@ def register_gpu_routes(app: FastAPI) -> None:
             worker_id=gpu.worker_id,
             transport=gpu.transport,
         )
+        clear_capability_cache()
         router = router_from_settings(updated)
         health = router.health(force=True)
         return {
@@ -319,6 +321,7 @@ def register_gpu_routes(app: FastAPI) -> None:
             ),
         )
         clear_gpu_config()
+        clear_capability_cache()
         return {
             "ok": True,
             "status": compute_status(settings=updated),
@@ -352,6 +355,7 @@ def register_gpu_routes(app: FastAPI) -> None:
                 worker_id=updated.gpu.worker_id,
                 transport=updated.gpu.transport,
             )
+        clear_capability_cache()
         return {
             "ok": True,
             "gpu": updated.gpu.model_dump(mode="json"),

@@ -274,7 +274,7 @@ class JobManager:
         self._pending: list[str] = []
         self._local_ids: set[str] = set()
         self._worker_id = f"videoflow-{uuid4().hex[:8]}"
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._retry_thread: threading.Thread | None = None
         self._executor = JobExecutor(
             self,
@@ -1209,10 +1209,17 @@ class JobManager:
             return
         finished.sort(key=lambda item: item.finished_at or "")
         for job in finished[: len(finished) - self._history]:
+            job.deleted = True
             self._jobs.pop(str(job.job_id), None)
             if self._store_dir is not None:
                 with contextlib.suppress(OSError):
                     (self._store_dir / f"{job.job_id}.json").unlink(missing_ok=True)
+            try:
+                from videoflow.application.database import delete_job
+
+                delete_job(str(job.job_id))
+            except Exception:
+                pass
 
 
 def _job_from_dict(payload: dict[str, Any]) -> Job:

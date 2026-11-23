@@ -10,7 +10,7 @@ import pytest
 
 from tests.recipe_jobs import manager_with_runner, start_recipe
 from videoflow.application import jobs as jobs_module
-from videoflow.domain.errors import JobQueueFullError, ProjectStateError
+from videoflow.domain.errors import JobNotFoundError, JobQueueFullError, ProjectStateError
 from videoflow.domain.state import MediaInfo, ProjectState
 
 
@@ -85,8 +85,10 @@ def test_get_loads_from_the_store_and_prunes_history(tmp_path: Path) -> None:
     assert not (store / f"{first.job_id}.json").exists()
 
     loaded = manager_with_runner(runner=runner, store_dir=store)
-    restored = loaded.get(str(second.job_id))
-    assert restored.job_id == second.job_id
+    restored = loaded.get(str(third.job_id))
+    assert restored.job_id == third.job_id
+    with pytest.raises(JobNotFoundError):
+        loaded.get(str(second.job_id))
 
 
 def test_retry_with_backoff_reaches_success(tmp_path: Path) -> None:

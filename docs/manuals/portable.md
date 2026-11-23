@@ -277,8 +277,8 @@ Speaks MCP over stdin/stdout. Register it in the host:
 ```
 
 Thirteen core tools and thirteen resources are registered. The MCP surface is
-tools-only: use `vf_catalog_search`/`vf://docs/steps` to discover nodes and
-`vf_exec(action="step")` to run them. Recipes are available in the UI, CLI, and
+tools-only: use `vf://docs/steps` to discover nodes and
+`vf_run` to run them. Recipes are available in the UI, CLI, and
 REST API, but are intentionally not exposed through MCP. See
 [the MCP manual](../mcp.md) for the full contract.
 

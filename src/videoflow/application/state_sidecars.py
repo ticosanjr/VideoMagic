@@ -40,14 +40,15 @@ def sidecar_dir(output: Path | str) -> Path:
     return path
 
 
-def _write_json(path: Path, payload: object) -> None:
+def _write_json(path: Path, payload: object) -> dict[str, Any]:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    temporary.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-        encoding="utf-8",
+    raw = (json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode(
+        "utf-8"
     )
+    temporary.write_bytes(raw)
     os.replace(temporary, path)
+    return {"sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)}
 
 
 def _pointer(path: Path, *, output: Path) -> dict[str, Any]:
@@ -57,6 +58,10 @@ def _pointer(path: Path, *, output: Path) -> dict[str, Any]:
         "sha256": hashlib.sha256(raw).hexdigest(),
         "bytes": len(raw),
     }
+
+
+def _written_pointer(path: Path, info: dict[str, Any], *, output: Path) -> dict[str, Any]:
+    return {"path": path.relative_to(output).as_posix(), **info}
 
 
 def _sentences_payload(state: ProjectState, name: str) -> dict[str, Any]:
@@ -114,34 +119,40 @@ def write_state_index(output: Path | str, state: ProjectState) -> dict[str, Any]
     sidecars: dict[str, dict[str, Any]] = {}
 
     core = folder / "core.json"
-    _write_json(core, _core_payload(state))
-    sidecars["core"] = _pointer(core, output=root)
+    sidecars["core"] = _written_pointer(
+        core, _write_json(core, _core_payload(state)), output=root
+    )
 
     for name in ("transcript_raw", "transcript_clean"):
         path = folder / f"{name}.json"
-        _write_json(path, _sentences_payload(state, name))
         sidecars[name] = {
-            **_pointer(path, output=root),
+            **_written_pointer(
+                path, _write_json(path, _sentences_payload(state, name)), output=root
+            ),
             "sentences": len(state.transcript),
         }
 
     timeline = folder / "timeline.json"
-    _write_json(timeline, _timeline_payload(state))
     sidecars["timeline"] = {
-        **_pointer(timeline, output=root),
+        **_written_pointer(
+            timeline, _write_json(timeline, _timeline_payload(state)), output=root
+        ),
         "segments": len(state.video_segments),
     }
 
     pipeline = folder / "pipeline.json"
-    _write_json(
+    sidecars["pipeline"] = _written_pointer(
         pipeline,
-        {
-            "schema_version": SIDECAR_SCHEMA_VERSION,
-            "pipeline_schema_version": PIPELINE_SCHEMA_VERSION,
-            "pipeline": state.pipeline.model_dump(mode="json"),
-        },
+        _write_json(
+            pipeline,
+            {
+                "schema_version": SIDECAR_SCHEMA_VERSION,
+                "pipeline_schema_version": PIPELINE_SCHEMA_VERSION,
+                "pipeline": state.pipeline.model_dump(mode="json"),
+            },
+        ),
+        output=root,
     )
-    sidecars["pipeline"] = _pointer(pipeline, output=root)
 
     scenes = root / "scenes" / "scenes.json"
     if not scenes.is_file():

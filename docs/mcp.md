@@ -53,57 +53,42 @@ metadata, time map, and step checkpoints; `projects/{id}/state.json` mirrors it.
 parallel. Writes to the same project are serialized by a project lock and
 `vf_edit_timeline` supports `expected_revision` for conflict detection.
 
-## Core tools (35)
+## Official tools (17 core / 22 full)
 
-### Project, catalog, and execution
-
-| Tool | Purpose |
-| --- | --- |
-| `vf_style` | `list`, `get`, `save`, `sync`, `analyze`, `delete`, or `learn_rule` for Markdown styles. |
-| `vf_style_validate` | Validate presets, layouts, engines, and fonts. |
-| `vf_style_apply` | Compile style params, a beat-map draft, and a revision diff. |
-| `vf_project` | Init/open/status, list, clone, archive, delete, and revision undo/history/restore. |
-| `vf_capabilities` | Backends, models, GPU worker, and external policy. |
-| `vf_catalog_search` | List or search node/tool types with pagination. |
-| `vf_exec` | Run one catalog step or edit a Short. Recipes are not exposed. |
-| `vf_run` | Run an ordered, linear chain of steps with persisted checkpoints. |
-
-### Jobs, timeline, artifacts
+### Core profile (17)
 
 | Tool | Purpose |
 | --- | --- |
-| `vf_job` | `list`, `status`, `get`, `wait`, `cancel`, `logs`, or `qa` for a job. |
-| `vf_timeline` | Read, edit, or `apply_beatmap` the canonical timeline. |
-| `vf_beatmap_plan` | Generate a structured beat-map draft from transcript + style. |
-| `vf_overlay` | Insert an image/video overlay by source or timeline time. |
-| `vf_overlay_preview` | Render overlay boxes or `action="crop"` with the normalized crop box and thirds grid. |
-| `vf_layout` | Auto-pack overlay margins and write `layout.json`. |
-| `vf_caption_preview` | Render before/during/after frames for the active caption. |
-| `vf_qa_autofix` | Resolve overlay/caption collisions, persist the layout, and optionally re-render from the segment cache. |
-| `vf_depth_composite` | Cut one range, matte the presenter, and stack a graphic at `z=10` behind it at `z=20`. |
-| `vf_pip` | Add a rounded-window picture-in-picture overlay with a cached alpha mask. |
-| `vf_parallax` | Split a still into background and subject layers and animate 2.5D parallax. |
-| `vf_style_preview` | Render a short style card with palette, font, layout, and caption. |
-| `vf_artifact` | List or read artifacts, including image content. |
-| `vf_transcript_query` | Search or page the cleaned transcript without dumping it. |
-| `vf_glossary` | List, update, or apply channel glossary terms. |
-| `vf_storyboard_strip` | Render one contact-sheet PNG for a timeline or source range. |
-| `vf_qa_compare` | Compare two immutable QA reports for regressions. |
+| `vf_project` | Create, open, list, clone, archive, or inspect a project and its revisions. |
+| `vf_session_brief` | Summarize project stage, sources, GPU, QA, and next moves. |
+| `vf_capabilities` | Backends, models, worker health, and external-provider policy. |
+| `vf_ingest` | Session ingest, multicam synchronization, and audio diagnosis. |
+| `vf_run` | Run an ordered chain of catalog steps, or one step, with checkpoints. |
+| `vf_transcript` | Search or page the cleaned transcript without dumping it. |
+| `vf_decupage` | Plan the beat map and assemble the canonical cut. |
+| `vf_scenes` | Analyze scenes, write a manifest, pick keyframes, or query the scene cache. |
+| `vf_preview` | Build the browser preview, frames, and caption/overlay previews. |
+| `vf_curation` | Publish, read, or auto-select a two-turn visual curation board. |
+| `vf_timeline` | Read, edit, discard sentences, or apply a beat map to the timeline. |
+| `vf_shorts` | Render Shorts in one batch with per-clip settings. |
+| `vf_audio` | TTS, cleanup, stems, music, Foley, and mastering. |
+| `vf_media` | Stock media, still-image motion, fonts, and license audits. |
+| `vf_export` | Render the master and export `mp4`, `resolve`, `premiere`, and `kdenlive`. |
+| `vf_qa` | Audit the deliverable, safe zones, loudness, captions, and frames. |
+| `vf_jobs` | List, get, wait, cancel, read logs, or read QA for jobs. |
 
-### Delivery and operations
+### Full-only additions (5)
 
 | Tool | Purpose |
 | --- | --- |
-| `vf_export` | `bundle`, `render`, `validate`, or `roundtrip`; canonical master plus `resolve`, `premiere`, and `kdenlive`. |
-| `vf_shorts_batch` | Render multiple Shorts with per-clip style, crop, intro, and music. |
-| `vf_format` | `list`, `get`, `save`, `delete`, or `duplicate` output format presets. |
-| `vf_scenes` | `analyze`, `manifest`, `keyframe`, `supercontext`, or `cache` for the scene-intelligence layer. |
-| `vf_qa_final` | Audit the delivered MP4, loudness, silence, safe zones, captions, word fidelity, contact sheet, and waveform. |
-| `vf_assets` | List assets, licenses, or fonts; approve, quarantine, or register fonts. |
-| `vf_interaction` | List/read/answer HITL requests, including curation previews. |
-| `vf_ingest` | Session ingest or multicam synchronization. |
-| `vf_preflight_plan` | Validate schema, dependencies, licenses, disk, GPU, and cost. |
-| `vf_gpu_preflight` | Validate the Windows GPU worker before a long job. |
+| `vf_fx_depth` | Composite a graphic behind a matted presenter. |
+| `vf_fx_parallax` | Animate a still as background plus 2.5D subject. |
+| `vf_fx_motion` | Render HTML, HyperFrames, Remotion, Manim, or FFmpeg motion. |
+| `vf_fx_capture` | Capture a URL or screen as a still or scrollable clip. |
+| `vf_style` | List, save, analyze, sync, or learn rules for Markdown styles. |
+
+The internal `all` profile keeps the older granular tools for the HTTP API and
+backward-compatible integrations. It is not part of the `core`/`full` contract.
 
 ### Hybrid compute
 
@@ -122,12 +107,12 @@ checkpoint after every step, and supports `through`, `resume`, and `wait`.
 vf_run(project_id="p1", steps=["ingest", "transcribe", "edit.timeline"], wait=True)
 ```
 
-`vf_job(action="list")` reads the shared SQLite queue used by MCP, REST, and the
+`vf_jobs(action="list")` reads the shared SQLite queue used by MCP, REST, and the
 tray. Cancels are written as a `cancel_requested` flag and picked up by the
 worker heartbeat.
 
 Optionally, when the user did not choose another destination, run
-`vf_exec(action="step", step_id="delivery.collect", params={"mode":"copy"})`
+`vf_run(project_id=..., steps=["delivery.collect"], params={"mode":"copy"})`
 to consolidate final videos and exports under
 `VideoFlow_Output/{videos,exports,shorts,scenes}` at the workspace root. This is
 a delivery convenience only: the MCP accepts any output path and never blocks or
@@ -153,7 +138,7 @@ without WER or contact sheets; `qa_mode="full"` dispatches a background QA job;
 Stock acquisition, audio studio and vision tools now live in
 `videoflow.domains.media`, `videoflow.domains.audio` and
 `videoflow.domains.vision` and are reached through the single server
-(`vf_media`, `vf_fx` and `vf_exec`). The historical profiles still exist for
+(`vf_media`, `vf_fx_*` and `vf_run`). The historical profiles still exist for
 configuration compatibility, but every one of them resolves to the same core
 server:
 
@@ -253,11 +238,11 @@ license-blocked assets reject the whole edit.
 
 ```text
 vf_export(action="render") -> job_id
-vf_job(action="wait")      -> final result, duration, resolution, LUFS, QA status
-vf_artifact(action="get")  -> path, checksum, resource link, image content
+vf_jobs(action="wait")      -> final result, duration, resolution, LUFS, QA status
+vf_jobs(action="get")  -> path, checksum, resource link, image content
 ```
 
-Rendering never blocks a tool call. `vf_job(action="wait")` reports progress
+Rendering never blocks a tool call. `vf_jobs(action="wait")` reports progress
 through the MCP context and returns a typed `timeout` result when the deadline
 expires.
 
@@ -327,14 +312,14 @@ writers emit one asset per source. Kdenlive/MLT remains a static export.
 
 ## Observability
 
-`vf_job(action="logs")` returns:
+`vf_jobs(action="logs")` returns:
 
 - stage timings and status;
 - bounded logs and FFmpeg command lines;
 - peak process RSS;
 - a `log_resource` for the persisted job log.
 
-`vf_job(action="qa")` returns defects with frame paths and artifact ids. With
+`vf_jobs(action="qa")` returns defects with frame paths and artifact ids. With
 `include_images=true`, frames are also returned as MCP image content so a VLM
 can inspect the failed frame.
 
@@ -354,14 +339,14 @@ Resolve or external scripting is unavailable.
 
 ```text
 1. vf_project(action="init")
-2. vf_capabilities / vf_catalog_search
+2. vf_capabilities + vf://docs/steps
 3. vf_ingest(action="session") (optional)
-4. vf_catalog_search / vf://docs/steps -> choose nodes
-5. vf_exec(action="step", step_id=..., params=...) for each node
-6. vf_job(action="wait")
-7. vf_job(action="logs") / vf_job(action="qa")
+4. vf://docs/steps -> choose nodes
+5. vf_run(project_id=..., steps=[...], params=...) for the node chain
+6. vf_jobs(action="wait")
+7. vf_jobs(action="logs") / vf_jobs(action="qa")
 8. vf_timeline(action="get|edit")
-9. vf_export(action="render") -> vf_job(action="wait")
-10. vf_artifact(action="get")
+9. vf_export(action="render") -> vf_jobs(action="wait")
+10. vf_jobs(action="get")
 11. vf_export(action="bundle|roundtrip|validate")
 ```

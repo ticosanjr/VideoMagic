@@ -19,7 +19,7 @@ fail in the middle of a long render.
 12. `edit.timeline` (requires `audio.vad`)
 8. `audio.finalize` (requires `edit.timeline`, optional music/Foley)
 9. `vf_export` (requires `audio.finalize`)
-10. `vf_qa_final` (requires the exported artifact)
+10. `vf_qa` (requires the exported artifact)
 11. `delivery.collect` is optional after the final export; it consolidates
     `VideoFlow_Output/` but is never required for validation.
 12. `scene.analyze` (after `ingest`; optionally after `decupage.snap` to fuse
@@ -42,8 +42,8 @@ fail in the middle of a long render.
 - `audio.mix`/`audio.master` are legacy and must not run after
   `audio.finalize`.
 - `vf_export` never starts if the timeline is missing.
-- `vf_qa_final` never mutates the timeline.
-- `vf_shorts_batch` requires a transcript and a non-empty clips list.
+- `vf_qa` never mutates the timeline.
+- `vf_shorts` requires a transcript and a non-empty clips list.
 - `vf_depth_composite` requires a timeline and a source.
 - `speech.asu` must run after alignment when alignment is enabled; it never
   changes the transcript or the timeline.

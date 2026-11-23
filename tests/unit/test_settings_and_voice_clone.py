@@ -170,3 +170,16 @@ def test_elevenlabs_clone_profile_and_synthesis(
 
     delete_profile(profile.id)
     assert list_profiles() == []
+
+
+def test_settings_cache_invalidates_when_the_file_changes(tmp_path: Path) -> None:
+    save_settings(AppSettings())
+    first = load_settings()
+    path = settings_module.settings_path()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["paths"]["ffmpeg"] = "/tmp/other-ffmpeg"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    second = load_settings()
+    assert first is not second
+    assert second.paths.ffmpeg == "/tmp/other-ffmpeg"

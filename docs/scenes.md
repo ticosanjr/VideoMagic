@@ -22,7 +22,7 @@ source
 Run it after `ingest` and, when available, after `decupage.snap`:
 
 ```text
-vf_exec(action="step", step_id="scene.analyze",
+vf_run(project_id="...", steps=["scene.analyze"],
         params={"source_topology": "auto", "force": False})
 ```
 

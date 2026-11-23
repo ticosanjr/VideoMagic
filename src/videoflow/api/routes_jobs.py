@@ -33,7 +33,16 @@ async def _job_event_stream(job: Job) -> AsyncIterator[str]:
     last: tuple[object, ...] | None = None
     while True:
         payload = job.to_dict()
-        marker = (payload["status"], payload["progress"], payload["stage"])
+        marker = (
+            payload["status"],
+            payload["progress"],
+            payload["stage"],
+            payload.get("message", ""),
+            payload.get("current_step", ""),
+            payload.get("step_progress"),
+            payload.get("eta_sec"),
+            payload.get("log_count"),
+        )
         if marker != last:
             last = marker
             yield f"data: {json.dumps(payload)}\n\n"

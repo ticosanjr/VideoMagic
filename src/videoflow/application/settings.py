@@ -18,6 +18,8 @@ SETTINGS_FILE = "settings.json"
 logger = logging.getLogger(__name__)
 _error_lock = threading.Lock()
 _last_error = ""
+_settings_lock = threading.RLock()
+_settings_cache: tuple[str, list[int] | None, AppSettings] | None = None
 
 
 def settings_error() -> str:
@@ -436,27 +438,50 @@ def settings_path() -> Path:
     return portable_home() / SETTINGS_FILE
 
 
+def _settings_signature(path: Path) -> list[int] | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return [stat.st_mtime_ns, stat.st_size]
+
+
 def load_settings() -> AppSettings:
+    global _settings_cache
     path = settings_path()
+    key = str(path.resolve())
+    signature = _settings_signature(path)
+    with _settings_lock:
+        cached = _settings_cache
+        if cached is not None and cached[0] == key and cached[1] == signature:
+            return cached[2]
     if not path.is_file():
         _set_error("")
-        return AppSettings()
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        settings = AppSettings.model_validate(migrate_settings(payload))
-    except (OSError, ValueError, TypeError) as exc:
-        _set_error(f"settings.json is invalid; using defaults: {exc}")
-        return AppSettings()
-    _set_error("")
+        settings = AppSettings()
+    else:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            settings = AppSettings.model_validate(migrate_settings(payload))
+        except (OSError, ValueError, TypeError) as exc:
+            _set_error(f"settings.json is invalid; using defaults: {exc}")
+            settings = AppSettings()
+        else:
+            _set_error("")
+    with _settings_lock:
+        _settings_cache = (key, signature, settings)
     return settings
 
 
 def save_settings(settings: AppSettings) -> AppSettings:
+    global _settings_cache
     path = settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix(".json.tmp")
     temp.write_text(settings.model_dump_json(indent=2) + "\n", encoding="utf-8")
     temp.replace(path)
+    with _settings_lock:
+        _settings_cache = (str(path.resolve()), _settings_signature(path), settings)
+    _set_error("")
     return settings
 
 

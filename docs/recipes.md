@@ -190,10 +190,10 @@ job.
 The MCP surface is **tools-only**. It does not list, read, validate, or run
 recipes, and it does not accept a recipe DAG.
 
-- `vf_catalog_search` / `vf://docs/steps` — discover node types
+- `vf://docs/steps` — discover node types
 - `vf://docs/steps/{step_type}` — read one node schema
-- `vf_exec(action="step", ...)` — run one node
-- `vf_job`, `vf_timeline`, `vf_artifact`, `vf_export` — operate on the project
+- `vf_run(project_id=..., steps=[...])` — run one node
+- `vf_jobs`, `vf_timeline`, `vf_export` — inspect and finish the project
 
 Recipes remain available through the UI, CLI (`videoflow recipe`), REST
 (`/api/v1/recipes/*`), the scheduler, and batch manager. The MCP server and the

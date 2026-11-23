@@ -82,11 +82,11 @@ result carries a `warning`, run the pipeline again before exporting.
 ```
 vf_project(action="init", output="/projects/interview-edit",
            sources=["/media/interview.mp4"], channel_id="youtube-talking-head")
-vf_catalog_search() or read vf://docs/steps
-vf_exec(action="step", step_id="ingest", params={...})
-vf_exec(action="step", step_id="transcribe", params={...})
-vf_exec(action="step", step_id="edit.timeline", params={...})
-vf_job(action="wait") after each step
+read the vf://docs/steps resource
+vf_run(project_id="...", steps=["ingest"], params={...})
+vf_run(project_id="...", steps=["transcribe"], params={...})
+vf_run(project_id="...", steps=["edit.timeline"], params={...})
+vf_jobs(action="wait") after each step
 vf_timeline(action="get")
 vf_export()
 ```

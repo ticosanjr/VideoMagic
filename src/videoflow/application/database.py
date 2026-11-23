@@ -125,6 +125,9 @@ def connect() -> sqlite3.Connection:
 def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
     try:
         with contextlib.closing(connect()) as connection:
+            options = payload.get("options") or {}
+            recipe = options.get("recipe") if isinstance(options.get("recipe"), dict) else {}
+            recipe_id = str(options.get("recipe_id") or recipe.get("id") or "")
             connection.execute(
                 "INSERT OR REPLACE INTO jobs ("
                 "job_id, payload, updated_at, status, priority, attempts, next_run, "
@@ -144,8 +147,8 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
                     int(payload.get("progress") or 0),
                     str(payload.get("source") or ""),
                     str(payload.get("output") or ""),
-                    str((payload.get("options") or {}).get("recipe_id") or ""),
-                    json.dumps(payload.get("options") or {}, sort_keys=True),
+                    recipe_id,
+                    json.dumps(options, sort_keys=True),
                     str(payload.get("project_id") or ""),
                     str(payload.get("created_at") or ""),
                     str(payload.get("started_at") or ""),
@@ -552,6 +555,7 @@ def restore(source: Path) -> dict[str, object]:
                 Path(str(db_path()) + suffix).unlink(missing_ok=True)
             shutil.copy2(temp_db, db_path())
             temp_db.unlink(missing_ok=True)
+            _initialized.discard(str(db_path().resolve()))
             restored.append("videoflow.db")
         for name in allowed - {"videoflow.db"}:
             if name not in names:

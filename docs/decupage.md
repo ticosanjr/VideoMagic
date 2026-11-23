@@ -2,7 +2,7 @@
 
 As fases 1–3 entregam a base acústica, ASR/alinhamento/ASUs e a revisão
 determinística + LLM. Tudo é executado por steps do catálogo MCP, portanto
-`vf_catalog_search` e `vf://docs/steps/{type}` expõem os parâmetros ao modelo
+`vf://docs/steps/{type}` expõem os parâmetros ao modelo
 chamador.
 
 ## Pipeline
@@ -75,9 +75,9 @@ seguintes.
 ## Chamada via MCP
 
 ```text
-vf_exec(action="step", project_id="...", step_id="audio.events",
+vf_run(project_id="...", steps=["audio.events"],
         params={"threshold": 0.45}, wait=True)
-vf_exec(action="step", project_id="...", step_id="audio.vad",
+vf_run(project_id="...", steps=["audio.vad"],
         params={"engine": "auto", "neg_threshold": 0.35}, wait=True)
 ```
 
@@ -131,11 +131,11 @@ submeter as decisões com `decupage.apply`. O resultado do job inclui o campo
 Exemplo:
 
 ```text
-vf_exec(action="step", step_id="decupage.prefilter", wait=True)
-vf_exec(action="step", step_id="decupage.llm",
+vf_run(project_id="...", steps=["decupage.prefilter"], wait=True)
+vf_run(project_id="...", steps=["decupage.llm"],
         params={"llm_policy": "caller", "mode": "pass1"}, wait=True)
 # ler work/decupage/llm_request_pass1.json
-vf_exec(action="step", step_id="decupage.apply",
+vf_run(project_id="...", steps=["decupage.apply"],
         params={"decisions": [...]}, wait=True)
 ```
 
@@ -176,8 +176,8 @@ Saídas:
 - deixa a timeline pronta para `vf_export`/`export.nle`.
 
 ```text
-vf_exec(action="step", step_id="decupage.snap", wait=True)
-vf_exec(action="step", step_id="decupage.timeline",
+vf_run(project_id="...", steps=["decupage.snap"], wait=True)
+vf_run(project_id="...", steps=["decupage.timeline"],
         params={"expected_revision": 7}, wait=True)
 ```
 

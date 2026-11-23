@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from tests.recipe_jobs import manager_with_runner, start_recipe
+from videoflow.application import database
 from videoflow.application.jobs import JobManager
 from videoflow.domain.errors import (
     JobAlreadyRunningError,
@@ -211,6 +212,11 @@ def test_history_is_pruned(tmp_path: Path) -> None:
     manager = manager_with_runner(fake_runner, history=0)
     first = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "a")
     wait_for(first, manager)
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if any(row["job_id"] == str(first.job_id) for row in database.list_jobs()):
+            break
+        time.sleep(0.01)
     second = start_recipe(manager, tmp_path / "b.mp4", tmp_path / "b")
     wait_for(second, manager)
     assert len(manager.list()) == 1
@@ -334,3 +340,37 @@ def test_failed_job_retries_with_backoff(tmp_path: Path) -> None:
     assert calls["count"] == 2
     assert manager.get(str(job.job_id)).status == "succeeded"
     assert manager.get(str(job.job_id)).attempts == 1
+
+
+def test_heartbeat_loads_persisted_job_without_deadlock(tmp_path: Path) -> None:
+    store = tmp_path / "jobs"
+    manager = manager_with_runner(fake_runner, store_dir=store)
+    job = start_recipe(manager, tmp_path / "in.mp4", tmp_path / "out")
+    wait_for(job, manager)
+
+    fresh = manager_with_runner(store_dir=store, load_store=False)
+    loaded: list[object] = []
+    thread = threading.Thread(
+        target=lambda: loaded.append(fresh.heartbeat(str(job.job_id)))
+    )
+    thread.start()
+    thread.join(2.0)
+    assert not thread.is_alive()
+    assert loaded and loaded[0].job_id == job.job_id  # type: ignore[attr-defined]
+
+
+def test_pruned_jobs_are_deleted_from_the_database(tmp_path: Path) -> None:
+    store = tmp_path / "jobs"
+    manager = manager_with_runner(fake_runner, history=0, store_dir=store)
+    first = start_recipe(manager, tmp_path / "a.mp4", tmp_path / "a")
+    wait_for(first, manager)
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if any(row["job_id"] == str(first.job_id) for row in database.list_jobs()):
+            break
+        time.sleep(0.01)
+    second = start_recipe(manager, tmp_path / "b.mp4", tmp_path / "b")
+    wait_for(second, manager)
+
+    assert [job.job_id for job in manager.list()] == [second.job_id]
+    assert [row["job_id"] for row in database.list_jobs()] == [str(second.job_id)]

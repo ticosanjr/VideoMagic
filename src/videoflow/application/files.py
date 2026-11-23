@@ -15,6 +15,15 @@ def stat_signature(path: Path) -> list[int] | None:
     return [stat.st_mtime_ns, stat.st_size]
 
 
+def read_json_or(path: Path, default: Any) -> Any:
+    """Read any JSON value, returning ``default`` when the file is unusable."""
+
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+
+
 def read_json_dict(path: Path) -> dict[str, Any]:
     """Read a JSON object, returning an empty dict for missing or invalid files."""
 

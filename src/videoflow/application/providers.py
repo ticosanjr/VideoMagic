@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.schema_migrations import migrate_providers
+from videoflow.application.storage import atomic_write_text
 from videoflow.domain.errors import InvalidConfigError, StateNotReadyError
 from videoflow.runtime import portable_home
 
@@ -87,7 +88,7 @@ def save_providers(providers: list[ProviderConfig]) -> list[ProviderConfig]:
         "schema_version": 1,
         "providers": [item.model_dump(mode="json") for item in providers],
     }
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(path, json.dumps(payload, indent=2) + "\n")
     return providers
 
 

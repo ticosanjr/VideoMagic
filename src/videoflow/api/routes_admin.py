@@ -7,6 +7,7 @@ import os
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from videoflow.application.capabilities import clear_capability_cache
 from videoflow.application.model_downloads import downloads as model_downloads
 from videoflow.application.models import (
     install_model,
@@ -260,11 +261,13 @@ def register_admin_routes(app: FastAPI) -> None:
     @app.put("/api/v1/settings")
     def settings_put(request: AppSettings) -> dict[str, object]:
         saved = save_settings(request)
+        clear_capability_cache()
         return {"ok": True, "settings": saved.model_dump(mode="json")}
 
     @app.post("/api/v1/settings/reset")
     def settings_reset() -> dict[str, object]:
         saved = save_settings(AppSettings())
+        clear_capability_cache()
         return {"ok": True, "settings": saved.model_dump(mode="json")}
 
     @app.get("/api/v1/settings/export")
@@ -278,4 +281,5 @@ def register_admin_routes(app: FastAPI) -> None:
     @app.post("/api/v1/settings/import")
     def settings_import(request: AppSettings) -> dict[str, object]:
         saved = save_settings(request)
+        clear_capability_cache()
         return {"ok": True, "settings": saved.model_dump(mode="json")}

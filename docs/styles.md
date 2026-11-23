@@ -21,7 +21,7 @@ A user file overrides a seed with the same `style_id`. The legacy
 
 ## Compiler
 
-`vf_style_validate(style_id)` checks every referenced caption preset, layout
+`vf_style(action="validate", style_id=style_id)` checks every referenced caption preset, layout
 mode, motion engine, and font. Unknown presets no longer fall back silently.
 Fonts resolve through `fc-match` first, then through metric-compatible aliases
 (`Arial`/`Helvetica` → `Liberation Sans`, `Times New Roman` → `Liberation

@@ -8,6 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.files import read_json_or
 from videoflow.application.motion import (
     build_scenes,
     render_scene,
@@ -32,13 +33,6 @@ class MotionCodegenParams(BaseModel):
     max_scenes: int = Field(default=400, ge=1, le=1000)
 
 
-def _read_json(path: Path, default: object) -> object:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return default
-
-
 @register_step
 class MotionCodegenStep(BaseStep):
     type = "motion.codegen"
@@ -54,9 +48,9 @@ class MotionCodegenStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = MotionCodegenParams.model_validate(params)
-        units_payload = _read_json(context.output / options.units_path, {})
-        style_payload = _read_json(context.output / options.style_path, {})
-        assignments_payload = _read_json(context.output / options.assignments_path, {})
+        units_payload = read_json_or(context.output / options.units_path, {})
+        style_payload = read_json_or(context.output / options.style_path, {})
+        assignments_payload = read_json_or(context.output / options.assignments_path, {})
         units = units_payload.get("units", []) if isinstance(units_payload, dict) else units_payload
         style = style_payload if isinstance(style_payload, dict) else {}
         assignments = (
@@ -150,7 +144,7 @@ class MotionRenderStep(BaseStep):
                 f"Motion backend {options.engine} is not bundled; using the FFmpeg renderer."
             )
         target = context.output / "motion" / "scenes.json"
-        payload = _read_json(target, {})
+        payload = read_json_or(target, {})
         scenes = payload.get("scenes") if isinstance(payload, dict) else []
         if not isinstance(scenes, list) or not scenes:
             context.warnings.append("Motion render skipped: no scenes generated.")

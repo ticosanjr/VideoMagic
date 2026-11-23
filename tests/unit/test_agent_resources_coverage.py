@@ -136,8 +136,8 @@ def test_project_resources_and_prompts(tmp_path: Path, monkeypatch) -> None:
     assert any(item["type"] == "decupage.snap" for item in catalog["steps"])
     assert any(item["type"] == "decupage.timeline" for item in catalog["steps"])
 
-    assert "vf_exec" in mcp.prompts["videoflow_produce"]("p", "session.ingest")
-    assert "vf_job" in mcp.prompts["videoflow_review"]("p", "j")
+    assert "vf_run" in mcp.prompts["videoflow_produce"]("p", "session.ingest")
+    assert "vf_jobs" in mcp.prompts["videoflow_review"]("p", "j")
     assert "bundle" in mcp.prompts["videoflow_deliver"]("p").lower()
 
 

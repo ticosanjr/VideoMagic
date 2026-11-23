@@ -1,5 +1,82 @@
 # Changelog
 
+## [4.3.0] - 2026-11-23
+
+Release MCP-First: curadoria visual em dois turnos, offload total para o Worker
+Windows e remoção dos subsistemas fora do escopo de edição.
+
+### Added — curadoria visual
+
+- Board persistente em `curation/board.json` e `curation/decisions.json`, com
+  validação de itens, rejeição de duplicatas e auto-seleção determinística por
+  categoria e cena.
+- Tool `vf_curation` (`publish`, `read`, `auto_select`) no perfil MCP `core`,
+  com retorno imediato de `board_url` e `_next_step`.
+- API REST `/api/v1/curation/*`, incluindo mídia com validação por
+  `resolve_allowed` e suporte a `Range`.
+- Tela **Curation** com player, seleção de estilo, música, SFX e B-roll, botão
+  **IA escolhe** e o modal local **Needs you**.
+
+### Added — offload total
+
+- `HEAD /artifacts/{sha256}` no Worker Windows e cache de upload por conteúdo;
+  o mesmo arquivo não trafega duas vezes.
+- Handlers remotos `ingest_pcm`, `audio_finalize` e `shorts_render` com NVENC e
+  fallback FFmpeg no Windows.
+- Capabilities pesadas são forçadas no Worker saudável, ignorando fila, VRAM e
+  utilização. `compute_policy="remote"` segue fail-closed; fallback local só com
+  `allow_slow_cpu_fallback=True` e `degraded=true` explícito.
+- Probe de `/health` em 1.5 s e `worker_source` (`settings`, `mdns`, `env`).
+
+### Changed — MCP e OpenCode
+
+- Perfis estritos: `core` com 17 tools (`vf_jobs` + `vf_curation`) e `full` com
+  22.
+- Toda resposta MCP bem-sucedida inclui `_next_step`; listas acima de 30 itens
+  são truncadas com `total_count` e `next_offset`, exceto `capabilities`.
+- Quatro alvos de exportação explícitos: `mp4`, `resolve`, `premiere` e
+  `kdenlive`; FX avançados ficam opt-in no perfil `full`.
+- Template `AGENTS.md` com 80 linhas e workflows com modos `curation` e
+  `autonomous`.
+
+### Changed — UI
+
+- Navegação reduzida a três telas: **Curation**, **Jobs** e **Setup**.
+- Painéis obsoletos removidos; configuração, GPU, estilos e bootstrap do
+  OpenCode consolidados em Setup.
+- HITL local preservado em Jobs, incluindo aprovações, perguntas, arquivos e
+  respostas.
+
+### Removed
+
+- Publishing/webhooks, plugins e sandbox, live source, pesquisa web, canais
+  externos de HITL (Slack, e-mail IMAP e Signal) e receitas legadas lâmera,
+  OpusClip, Full AI Editor e Synthetic.
+- Rotas, telas, scripts e documentação histórica correspondentes.
+- `assert_public_url` foi preservado em `application/url_safety.py`; analytics
+  e avaliação de experimentos continuam disponíveis.
+
+### Fixed
+
+- Favoritos padrão apontam para receitas existentes (`deepseek_full_edit`,
+  `autonomous_studio_master`, `footage_intelligence_edit`).
+- Cliente da UI não chama mais rotas removidas de canais HITL.
+- Links e referências a módulos, receitas e docs removidos foram eliminados.
+
+### Performance
+
+- Manifesto de capabilities com cache curto e invalidação em mudanças de GPU,
+  evitando um probe de descoberta a cada chamada.
+- Leitura de JSON compartilhada em steps de motion, storyboard, cenas e
+  entidades, reduzindo helpers duplicados.
+
+### Validation
+
+- `ruff check src packages tests scripts` limpo.
+- `pytest -q`: 2.905 testes verdes, 1 skipped, 1 xfailed; cobertura 96,8%.
+- `pytest -m media`: 29 passed, 2 skipped.
+- Svelte check sem erros; Vitest 53 passed; Playwright E2E 2 passed; build OK.
+
 ## [4.2.0] - 2026-11-23
 
 Release de hardening estrutural sobre a v4.1.0. Sem mudança de contrato de

@@ -54,9 +54,9 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
         )
         def produce_prompt(project_id: str, step_ids: str = "") -> str:
             return (
-                f"Use vf_catalog_search (or vf://docs/steps) to choose the nodes for project "
-                f"{project_id}. Run each node with vf_exec(action='step', step_id=..., "
-                "params=...), poll with vf_job(action='wait'), then summarize artifacts and QA. "
+                f"Use the vf://docs/steps resource to choose the nodes for project "
+                f"{project_id}. Run them with vf_run(project_id=..., steps=[...], "
+                "params=...), poll with vf_jobs(action='wait'), then summarize artifacts and QA. "
                 f"Suggested order: {step_ids or 'choose from the catalog'}."
             )
 
@@ -66,7 +66,7 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
         )
         def review_prompt(project_id: str, job_id: str) -> str:
             return (
-                f"Read vf_job(action='qa') and vf_job(action='logs') for project {project_id} "
+                f"Read vf_jobs(action='qa') and vf_jobs(action='logs') for project {project_id} "
                 f"job {job_id}. Explain each defect, inspect the frames, and apply only "
                 "validated timeline edits."
             )
@@ -78,8 +78,8 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
         def deliver_prompt(project_id: str) -> str:
             return (
                 f"Run vf_export(project_id='{project_id}', targets='all'), "
-                "then optionally run vf_exec(action='step', "
-                "step_id='delivery.collect', params={'mode':'copy'}) to group "
+                "then optionally run vf_run(project_id=..., "
+                "steps=['delivery.collect'], params={'mode':'copy'}) to group "
                 "final videos and exports under VideoFlow_Output when the user "
                 "did not choose another destination. Never treat that folder as "
                 "a validation requirement; the MCP accepts any output path. "
