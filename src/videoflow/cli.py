@@ -362,6 +362,11 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip the videoflow_* MCP prompts.",
     )
+    mcp.add_argument(
+        "--list-tools",
+        action="store_true",
+        help="Print the tool names for the selected profile and exit.",
+    )
     models = sub.add_parser("models", help="List, install, or ensure local models.")
     models_sub = models.add_subparsers(dest="models_command")
     models_sub.add_parser("list", help="List local model availability.")
@@ -588,6 +593,30 @@ def _doctor(*, install_models: bool = False) -> int:
     except Exception as exc:  # pragma: no cover - optional runtime
         cuda["error"] = str(exc)
     checks["cuda"] = cuda
+    checks["local_gpu"] = {"available": bool(cuda.get("devices"))}
+    try:
+        from videoflow.application.fonts import system_font_dirs
+
+        font_dirs = [str(path) for path in system_font_dirs()]
+        checks["fonts"] = {"dirs": font_dirs, "count": len(font_dirs)}
+    except Exception as exc:  # noqa: BLE001 - diagnostics must not break doctor
+        checks["fonts"] = {"dirs": [], "count": 0, "error": str(exc)}
+    ffmpeg_binary = find_binary("ffmpeg")
+    if ffmpeg_binary:
+        from videoflow.core.nvenc import probe_nvenc
+
+        nvenc_probe = probe_nvenc(ffmpeg_binary)
+        checks["nvenc"] = {
+            "available": nvenc_probe.available,
+            "reason": nvenc_probe.reason,
+            "advice": nvenc_probe.advice,
+        }
+    else:
+        checks["nvenc"] = {
+            "available": False,
+            "reason": "FFmpeg is missing",
+            "advice": "Install FFmpeg or use --fetch-ffmpeg.",
+        }
     silero_model = find_silero_model()
     try:
         import onnxruntime
@@ -1377,9 +1406,14 @@ def _init_opencode(args: argparse.Namespace) -> int:
 
 def _mcp(args: argparse.Namespace | None = None) -> int:
     from videoflow.mcp_server.cli import prompts_enabled
+    from videoflow.mcp_server.registry import profile_tool_names
     from videoflow.mcp_server.server import build_server
 
     profile = str(getattr(args, "profile", "core") or "core")
+    if getattr(args, "list_tools", False):
+        for name in profile_tool_names(profile):
+            print(name)
+        return 0
     if prompts_enabled(flag=bool(getattr(args, "no_prompts", False))):
         build_server(profile=profile).run("stdio")
     else:

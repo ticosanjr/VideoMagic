@@ -26,8 +26,12 @@ binaries = []
 hiddenimports = [
     "videoflow.api",
     "videoflow.api.app",
+    "videoflow.api.routes_curation",
+    "videoflow.application.curation_board",
     "videoflow.mcp_server",
     "videoflow.mcp_server.server",
+    "vf_shared",
+    "vf_shared.contracts.locking",
     "scene_rules",
     "uvicorn.logging",
     "uvicorn.loops.auto",
@@ -174,7 +178,10 @@ for distribution in (
 
 analysis = Analysis(
     [str(ROOT / "src" / "videoflow" / "__main__.py")],
-    pathex=[str(ROOT / "src")],
+    pathex=[
+        str(ROOT / "src"),
+        str(ROOT / "packages" / "vf-shared" / "src"),
+    ],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

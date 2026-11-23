@@ -160,6 +160,16 @@ def main() -> int:
         help="Build a directory bundle instead of a onefile executable.",
     )
     parser.add_argument(
+        "--zip",
+        action="store_true",
+        help="Zip the onedir bundle after a successful build (stored, fast).",
+    )
+    parser.add_argument(
+        "--zip-name",
+        default="",
+        help="Zip file name under dist/ (default: VideoFlow-<version>-<platform>.zip).",
+    )
+    parser.add_argument(
         "--clean",
         dest="clean",
         action="store_true",
@@ -184,6 +194,10 @@ def main() -> int:
         help="Do not rebuild the Svelte UI before packaging (not recommended).",
     )
     args = parser.parse_args()
+    if args.zip and not args.onedir:
+        parser.error("--zip requires --onedir")
+    if args.zip_name and not args.zip:
+        parser.error("--zip-name requires --zip")
     if not args.skip_ui_build and not ensure_ui_build():
         return 1
 
@@ -379,13 +393,52 @@ def main() -> int:
             shutil.copytree(output, args.runtime_base, copy_function=os.link)
             print(f"runtime base: {args.runtime_base}")
         print(f"built: {output} (onedir)")
+        if args.zip:
+            archive = ROOT / "dist" / (
+                args.zip_name or f"VideoFlow-{_package_version()}-{_platform_tag()}.zip"
+            )
+            zip_directory(output, archive)
+            print(
+                f"built: {archive} "
+                f"({archive.stat().st_size / 1_000_000:.1f} MB, stored)"
+            )
     else:
         if not output.is_file():
             print(f"expected artifact is missing: {output}", file=sys.stderr)
             return 1
         print(f"built: {output} ({output.stat().st_size / 1_000_000:.1f} MB)")
-    print("smoke: run the binary with `version`, `doctor`, and `demo`.")
+    print("smoke: run scripts/smoke_windows.py --exe <artifact>.")
     return 0
+
+
+def _package_version() -> str:
+    try:
+        from videoflow import __version__
+
+        return __version__
+    except Exception:  # noqa: BLE001 - the archive name is cosmetic
+        return "dev"
+
+
+def _platform_tag() -> str:
+    import platform
+
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    if machine in {"amd64", "x86_64"}:
+        machine = "x64"
+    return f"{system}-{machine}"
+
+
+def zip_directory(source: Path, archive: Path) -> None:
+    """Write a stored zip so a portable onedir folder ships without recompression."""
+
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    archive.unlink(missing_ok=True)
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as bundle:
+        for path in sorted(source.rglob("*")):
+            if path.is_file():
+                bundle.write(path, path.relative_to(source).as_posix())
 
 
 def _resolve_binary(name: str) -> str | None:

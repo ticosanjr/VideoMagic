@@ -21,6 +21,11 @@ jobs:
         run: npm ci; npm run build
       - name: Python dependencies
         run: uv sync --extra dev --group dev --extra tray --extra asr-cuda
+      - name: Read version
+        shell: pwsh
+        run: |
+          $version = uv run python -c "from videoflow import __version__; print(__version__)"
+          "VIDEOFLOW_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Build Windows CUDA portable
         run: >
           uv run python scripts/build_portable.py
@@ -38,8 +43,6 @@ jobs:
             'set "ROOT=%~dp0"',
             'set "VIDEOWFLOW_HOME=%ROOT%videoflow-data"',
             'set "VIDEOWFLOW_MODELS_DIR=%ROOT%videoflow-data\models"',
-            'set "VIDEOWFLOW_ASR_DEVICE=cuda"',
-            'set "VIDEOWFLOW_ASR_COMPUTE_TYPE=int8_float16"',
             'set "VIDEOWFLOW_ASR_AUTO_DOWNLOAD=1"',
             'set "VIDEOWFLOW_ASR_MODEL_ID=faster-whisper-large-v3-turbo"',
             'if "%~1"=="" (',
@@ -51,41 +54,16 @@ jobs:
           Set-Content -Path "$root/VideoFlow.cmd" -Value $lines -Encoding ASCII
       - name: Smoke test Windows CUDA portable
         shell: pwsh
-        run: |
-          $exe = ".\dist\videoflow\videoflow.exe"
-          & $exe version
-          & $exe doctor
-          & $exe models list
-          & $exe mcp --help
-
-          $port = 18765
-          $proc = Start-Process -FilePath $exe `
-            -ArgumentList @("serve", "--mcp-only", "--port", $port) -PassThru
-          try {
-            $ready = $false
-            for ($i = 0; $i -lt 60; $i++) {
-              try {
-                $health = Invoke-RestMethod "http://127.0.0.1:$port/health" -TimeoutSec 2
-                $ready = $true
-                break
-              } catch {
-                Start-Sleep -Milliseconds 500
-              }
-            }
-            if (-not $ready) { throw "serve did not become ready on port $port" }
-            if ($health.service -ne "videoflow") { throw "unexpected health payload" }
-            & $exe status
-            & $exe stop
-          } finally {
-            if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
-          }
+        run: >
+          uv run python scripts/smoke_windows.py
+          --exe ".\dist\videoflow\videoflow.exe"
+          --timeout 180
       - name: Package Windows CUDA portable
         shell: pwsh
         run: |
           Remove-Item -Recurse -Force .\dist\videoflow\videoflow-data -ErrorAction SilentlyContinue
-          $version = ((.\dist\videoflow\videoflow.exe version) -split ' ')[1]
-          $zip = "dist\VideoFlow-$version-windows-x64-cuda.zip"
-          Compress-Archive -Path dist\videoflow\* -DestinationPath $zip -Force
+          $zip = "dist\VideoFlow-$env:VIDEOFLOW_VERSION-windows-x64-cuda.zip"
+          uv run python -c "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from build_portable import zip_directory; zip_directory(Path('dist/videoflow'), Path(sys.argv[1]))" $zip
           Get-Item $zip | Format-List Name,Length
       - name: Build tokenless Windows GPU worker kit
         run: |
