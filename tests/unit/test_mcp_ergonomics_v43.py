@@ -117,3 +117,63 @@ def test_validation_error_exposes_expected_fields() -> None:
 def test_style_is_exposed_in_core() -> None:
     assert "vf_style" in CORE_TOOL_NAMES
     assert len(CORE_TOOL_NAMES) == 18
+
+
+def test_canonical_project_id_resolves_slug_uuid_and_name(monkeypatch, tmp_path: Path) -> None:
+    from videoflow.application.projects import (
+        canonical_project_id,
+        init_project,
+        project_uuid,
+    )
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    init_project(
+        name="Episode",
+        output=tmp_path / "episode",
+        project_id="paula-ep-10",
+    )
+    uuid = str(project_uuid("paula-ep-10"))
+    assert canonical_project_id(uuid) == "paula-ep-10"
+    assert canonical_project_id("paula-ep-10") == "paula-ep-10"
+    assert canonical_project_id("Episode") == "paula-ep-10"
+    assert canonical_project_id("unknown-project") == "unknown-project"
+
+
+def test_guard_canonicalizes_uuid_before_the_tool_body(monkeypatch, tmp_path: Path) -> None:
+    from videoflow.application.projects import init_project, project_uuid
+    from videoflow.mcp_server.guard import mcp_tool_guard
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    init_project(
+        name="Episode",
+        output=tmp_path / "episode",
+        project_id="paula-ep-10",
+    )
+    seen: list[str] = []
+
+    def demo_tool(project_id: str) -> dict[str, object]:
+        seen.append(project_id)
+        return {"ok": True, "project_id": project_id}
+
+    guarded = mcp_tool_guard(demo_tool)
+    result = guarded(project_id=str(project_uuid("paula-ep-10")))
+    assert result["ok"] is True
+    assert seen == ["paula-ep-10"]
+
+
+def test_server_resolves_uuid_for_session_brief(monkeypatch, tmp_path: Path) -> None:
+    from tests.unit.test_agent_mcp import call
+    from videoflow.mcp_server.server import build_server
+
+    monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("VIDEOWFLOW_ALLOWED_ROOTS", str(tmp_path))
+    server = build_server()
+    created = call(
+        server,
+        "vf_project",
+        {"action": "create", "project_id": "paula-ep-10"},
+    )
+    assert created["ok"] is True
+    brief = call(server, "vf_session_brief", {"project_id": created["uuid"]})
+    assert brief["ok"] is True
+    assert brief["project_id"] == "paula-ep-10"

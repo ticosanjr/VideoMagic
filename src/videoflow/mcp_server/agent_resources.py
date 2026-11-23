@@ -152,7 +152,7 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
         jobs = [
             job.to_dict(summary=True)
             for job in manager.list()
-            if getattr(job, "project_id", "") == project_id
+            if getattr(job, "project_id", "") == record.project_id
             or Path(job.output).expanduser().resolve() == Path(record.output).expanduser().resolve()
         ]
         return json.dumps({"ok": True, "jobs": jobs}, indent=2)

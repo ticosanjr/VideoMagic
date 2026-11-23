@@ -154,6 +154,23 @@ def get_project(project_id: str) -> ProjectRecord:
     return resolve_project_ref(project_id)
 
 
+def canonical_project_id(project_id: str) -> str:
+    """Return the registry slug for ``project_id`` when it exists.
+
+    Unknown references are returned unchanged so ``create``/``init`` can still
+    register a new slug. Every MCP tool runs through this helper, which keeps
+    slugs and UUIDs interchangeable at the boundary.
+    """
+
+    text = str(project_id or "").strip()
+    if not text:
+        return text
+    try:
+        return resolve_project_ref(text).project_id
+    except ProjectStateError:
+        return text
+
+
 def list_projects() -> list[ProjectRecord]:
     return [ProjectRecord.model_validate(item) for item in database.list_projects()]
 
@@ -467,6 +484,7 @@ def clone_project(
 __all__ = [
     "ProjectRecord",
     "archive_project",
+    "canonical_project_id",
     "clone_project",
     "delete_project",
     "get_project",
@@ -477,6 +495,7 @@ __all__ = [
     "project_for_output",
     "project_lock",
     "project_uuid",
+    "resolve_project_ref",
     "save_project_state",
     "state_path",
 ]

@@ -49,6 +49,39 @@ def _parameter_names(func: Any) -> list[str]:
     ]
 
 
+@functools.lru_cache(maxsize=512)
+def _accepts_project_id(func: Any) -> bool:
+    try:
+        return "project_id" in inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def _canonical_project_call(
+    func: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
+    """Resolve slug/UUID before the tool body so every tool shares one identity."""
+
+    if not _accepts_project_id(func):
+        return args, kwargs
+    try:
+        bound = inspect.signature(func).bind_partial(*args, **kwargs)
+    except (TypeError, ValueError):
+        return args, kwargs
+    raw = bound.arguments.get("project_id")
+    if not isinstance(raw, str) or not raw.strip():
+        return args, kwargs
+    try:
+        from videoflow.application.projects import canonical_project_id
+    except Exception:  # noqa: BLE001 - the tool reports its own import failure
+        return args, kwargs
+    canonical = canonical_project_id(raw)
+    if canonical == raw:
+        return args, kwargs
+    bound.arguments["project_id"] = canonical
+    return bound.args, bound.kwargs
+
+
 def _suggest(keys: list[str], candidates: list[str]) -> dict[str, str]:
     """Map each unknown key to its closest valid parameter, if any."""
 
@@ -279,7 +312,8 @@ def mcp_tool_guard(func: Any) -> Any:
         @functools.wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
-                result = await func(*args, **kwargs)
+                call_args, call_kwargs = _canonical_project_call(func, args, kwargs)
+                result = await func(*call_args, **call_kwargs)
             except Exception as exc:  # noqa: BLE001 - MCP boundary
                 return error_envelope(exc, func=func)
             return normalize_execution(normalize_success(result, func.__name__))
@@ -290,7 +324,8 @@ def mcp_tool_guard(func: Any) -> Any:
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         try:
-            result = func(*args, **kwargs)
+            call_args, call_kwargs = _canonical_project_call(func, args, kwargs)
+            result = func(*call_args, **call_kwargs)
         except Exception as exc:  # noqa: BLE001 - MCP boundary
             return error_envelope(exc, func=func)
         return normalize_execution(normalize_success(result, func.__name__))
