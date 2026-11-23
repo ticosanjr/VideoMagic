@@ -26,6 +26,8 @@ jobs:
         run: |
           $version = uv run python -c "from videoflow import __version__; print(__version__)"
           "VIDEOFLOW_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Build worker wheels
+        run: uv run python scripts/build_worker_wheels.py --version $env:VIDEOFLOW_VERSION
       - name: Build Windows CUDA portable
         run: >
           uv run python scripts/build_portable.py

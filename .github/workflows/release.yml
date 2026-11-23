@@ -48,6 +48,8 @@ jobs:
         run: npm ci && npm run build
       - name: Python dependencies
         run: uv sync --extra dev --group dev --extra faster-whisper --extra tray
+      - name: Build worker wheels
+        run: uv run python scripts/build_worker_wheels.py
       - name: Build Linux executable
         run: uv run python scripts/build_portable.py --with-ffmpeg --with-whisper --with-silero --with-faster-whisper --with-tray
       - name: Build AppImage
@@ -86,6 +88,8 @@ jobs:
         run: npm ci; npm run build
       - name: Python dependencies
         run: uv sync --extra dev --group dev --extra tray
+      - name: Build worker wheels
+        run: uv run python scripts/build_worker_wheels.py
       - name: Build Windows executable
         run: uv run python scripts/build_portable.py --fetch-ffmpeg --with-silero --with-tray
       - name: Smoke test Windows executable
