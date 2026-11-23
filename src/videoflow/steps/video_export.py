@@ -87,8 +87,40 @@ class VideoExportStep(BaseStep):
                 context.warnings.append(f"LUT not found: {lut}")
         ass_path = resolve_subtitle_track(context.output)
         if options.audio_source == "mix":
-            mix = Path(context.artifacts.get("audio_mix") or context.output / "audio" / "final.wav")
-            if not mix.is_file():
+            candidates = [
+                context.artifacts.get("audio_mix"),
+                str(context.output / "audio" / "final_mix.wav"),
+                str(context.output / "audio" / "final.wav"),
+            ]
+            mix = next(
+                (Path(str(item)) for item in candidates if item and Path(str(item)).is_file()),
+                None,
+            )
+            dialogue = (
+                context.artifacts.get("audio_master")
+                or str(context.output / "audio" / "master.wav")
+            )
+            if mix is None and Path(str(dialogue)).is_file():
+                from videoflow.steps.audio_finalize import (
+                    AudioFinalizeParams,
+                    AudioFinalizeStep,
+                )
+
+                io.report(5, "Finalizing audio before video export")
+                AudioFinalizeStep().run(context, AudioFinalizeParams(), io)
+                mix = next(
+                    (
+                        Path(str(item))
+                        for item in (
+                            context.artifacts.get("audio_final_mix"),
+                            context.artifacts.get("audio_mix"),
+                            str(context.output / "audio" / "final_mix.wav"),
+                        )
+                        if item and Path(str(item)).is_file()
+                    ),
+                    None,
+                )
+            if mix is None or not mix.is_file():
                 raise ExportError("Video export requested the mix, but no mixed audio exists.")
         look = MasterLook(
             lut_path=options.lut_path,

@@ -12,9 +12,11 @@ MediaKind = Literal[
     "deliverable",
 ]
 PIPELINE_SCHEMA_VERSION = "4.0"
-TARGET_LUFS = -15.5
+TARGET_LUFS = -16.0
 TOLERANCE_LUFS = 1.5
-TRUE_PEAK_MAX = -1.5
+LOUDNORM_TARGET_TP_DB = -2.0
+QA_MAX_TRUE_PEAK_DBTP = -1.0
+TRUE_PEAK_MAX = LOUDNORM_TARGET_TP_DB
 TARGET_LRA = 9
 ALPHA_PIX_FMTS = frozenset({"yuva420p", "yuva444p10le", "rgba", "bgra", "argb", "abgr"})
 SDR_PIX_FMTS = frozenset({"yuv420p", "yuvj420p", "yuv422p", "yuv444p"})

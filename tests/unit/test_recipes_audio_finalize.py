@@ -89,7 +89,7 @@ def test_audio_finalize_step_does_not_remix_an_already_mixed_track(
     assert captured["voice"] == mix
     assert captured["music_path"] is None
     assert captured["sfx_path"] is None
-    assert captured["target_lufs"] == -15.5
+    assert captured["target_lufs"] == -16.0
     assert (context.output / "audio" / "master.wav").read_bytes() == b"final"
     assert context.artifacts["audio_master"] == str(
         context.output / "audio" / "master.wav"

@@ -19,6 +19,8 @@ from videoflow.application.disk import ensure_free_space_for_export
 from videoflow.application.fonts import fonts_dir
 from videoflow.application.media_integrity import validate_integrity
 from videoflow.core.media_contract import (
+    LOUDNORM_TARGET_TP_DB,
+    TARGET_LUFS,
     MediaContractError,
     assert_audio_duration,
     channel_rms,
@@ -194,8 +196,8 @@ DEFAULT_EXPORT_FPS = 30
 YOUTUBE_PROFILE = "youtube_h264"
 DEFAULT_AUDIO_BITRATE = "192k"
 YOUTUBE_AUDIO_BITRATE = "320k"
-YOUTUBE_LUFS = -15.5
-YOUTUBE_TRUE_PEAK_DB = -1.5
+YOUTUBE_LUFS = TARGET_LUFS
+YOUTUBE_TRUE_PEAK_DB = LOUDNORM_TARGET_TP_DB
 
 
 @functools.lru_cache(maxsize=1)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from fractions import Fraction
 from pathlib import Path
 
@@ -92,13 +93,15 @@ class ShortsSelectStep(BaseStep):
             except IngestError as exc:
                 warnings.append(f"Audio energy analysis skipped: {exc.message}")
 
+        scene_layouts = _scene_layouts(context)
+        selection_count = options.count or options.max_clips_to_generate
         io.report(20, "Selecting social clips")
         selected = select_shorts(
             kept,
             min_samples=minimum,
             max_samples=maximum,
-            count=max(1, options.max_clips_to_generate),
-            min_clips=options.min_clips,
+            count=max(1, selection_count),
+            min_clips=min(options.min_clips, max(1, selection_count)),
             selection_mode=options.selection_mode,
             sample_rate=media.audio_sample_rate,
             cuts=cuts,
@@ -113,6 +116,7 @@ class ShortsSelectStep(BaseStep):
             filler_words=options.filler_words,
             energy_intervals=energy,
             scene_intervals=scenes,
+            scene_layouts=scene_layouts,
             weights=profile_weights(options.profile),
             thought_boundary=options.thought_boundary,
             thought_boundary_max_adjust_sec=options.thought_boundary_max_adjust_sec,
@@ -195,3 +199,47 @@ class ShortsSelectStep(BaseStep):
         )
         io.emit("info", message, module="shorts")
         io.report(100, message)
+
+
+def _scene_layouts(context: PipelineContext) -> tuple[tuple[int, int, str], ...]:
+    """Read the scene manifest when available, without failing the selection."""
+
+    raw = context.metadata.get("scenes_manifest")
+    payload: object = raw
+    if not isinstance(payload, (dict, list)):
+        candidates = [
+            context.artifacts.get("scenes_manifest"),
+            context.output / "scenes_manifest.json",
+            context.output / "scenes" / "scenes.json",
+            context.work / "scenes" / "scenes.json",
+        ]
+        for candidate in candidates:
+            if not candidate:
+                continue
+            path = Path(str(candidate))
+            if not path.is_file():
+                continue
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                break
+            except (OSError, ValueError):
+                continue
+    if isinstance(payload, dict):
+        items = payload.get("scenes") or payload.get("items") or []
+    elif isinstance(payload, list):
+        items = payload
+    else:
+        items = []
+    layouts: list[tuple[int, int, str]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        try:
+            start = int(item.get("start_sample", 0))
+            end = int(item.get("end_sample", 0))
+        except (TypeError, ValueError):
+            continue
+        layout = str(item.get("layout_type") or item.get("layout") or "")
+        if end > start and layout:
+            layouts.append((start, end, layout))
+    return tuple(layouts)

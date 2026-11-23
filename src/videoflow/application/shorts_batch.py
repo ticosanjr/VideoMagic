@@ -33,6 +33,8 @@ LAYOUTS = {
     "pip_bottom_right",
     "split_screen_50_50",
 }
+MIN_SHORT_DURATION_SEC = 3.0
+
 LAYOUT_ALIASES = {
     "full_face": "fullscreen_punchin",
     "fullscreen": "full_screen",
@@ -62,7 +64,8 @@ class ShortsClipSpec(BaseModel):
 
     start_sec: float = Field(default=0.0, ge=0.0)
     end_sec: float = Field(default=0.0, ge=0.0)
-    time_basis: Literal["timeline", "source"] = "timeline"
+    time_basis: Literal["edited", "timeline", "source"] = "edited"
+    burn_subtitles: bool = True
     source_id: str = ""
     title: str = ""
     style_id: str = ""
@@ -103,6 +106,12 @@ class ShortsClipSpec(BaseModel):
     def _normalize_layout(cls, value: str) -> str:
         text = str(value or "").strip().lower()
         return LAYOUT_ALIASES.get(text, text)
+
+    @field_validator("time_basis")
+    @classmethod
+    def _normalize_time_basis(cls, value: str) -> str:
+        text = str(value or "").strip().lower()
+        return "edited" if text == "timeline" else text
 
     def resolved_layout(self, fallback: str = "auto") -> str:
         return self.layout_mode or self.layout or fallback
@@ -320,6 +329,29 @@ def run_shorts_batch(
         headline = ""
         if layout == "headline_card":
             headline = str(entry.get("headline_text") or entry.get("title") or "")
+        clip_seconds = sum(
+            round((end - start) / rate * 30) / 30 for start, end in pieces
+        )
+        expected_duration = clip_seconds
+        if intro_path is not None:
+            expected_duration += float(entry.get("intro_duration_sec") or 2.0)
+        if outro_path is not None:
+            expected_duration += float(entry.get("outro_duration_sec") or 2.0)
+        if clip_seconds < MIN_SHORT_DURATION_SEC:
+            raise ExportError(
+                f"Shorts batch clip {index} has invalid_short_duration: "
+                f"{clip_seconds:.3f}s is below {MIN_SHORT_DURATION_SEC:.1f}s"
+            )
+        if spec.min_sec and expected_duration < spec.min_sec:
+            raise ExportError(
+                f"Shorts batch clip {index} is {expected_duration:.3f}s, "
+                f"below min_sec={spec.min_sec:.3f}"
+            )
+        if spec.max_sec and expected_duration > spec.max_sec:
+            raise ExportError(
+                f"Shorts batch clip {index} is {expected_duration:.3f}s, "
+                f"above max_sec={spec.max_sec:.3f}"
+            )
         context_source = _source_path(state, record, spec.source_id)
         renderer.render_short(
             Path(context_source),
@@ -328,7 +360,7 @@ def run_shorts_batch(
             sample_rate=rate,
             width=width,
             height=height,
-            ass_path=ass_path,
+            ass_path=ass_path if spec.burn_subtitles else None,
             fontsdir=str(fonts_dir()),
             crop_focus_x=focus,
             crop_focus_y=0.5,
@@ -361,24 +393,6 @@ def run_shorts_batch(
             ),
             fps=30,
         )
-        clip_seconds = sum(
-            round((end - start) / rate * 30) / 30 for start, end in pieces
-        )
-        expected_duration = clip_seconds
-        if intro_path is not None:
-            expected_duration += float(entry.get("intro_duration_sec") or 2.0)
-        if outro_path is not None:
-            expected_duration += float(entry.get("outro_duration_sec") or 2.0)
-        if spec.min_sec and expected_duration < spec.min_sec:
-            raise ExportError(
-                f"Shorts batch clip {index} is {expected_duration:.3f}s, "
-                f"below min_sec={spec.min_sec:.3f}"
-            )
-        if spec.max_sec and expected_duration > spec.max_sec:
-            raise ExportError(
-                f"Shorts batch clip {index} is {expected_duration:.3f}s, "
-                f"above max_sec={spec.max_sec:.3f}"
-            )
         warnings: list[str] = []
         render_impl = getattr(renderer, "render_short", None)
         real_renderer = bool(
@@ -431,6 +445,8 @@ def run_shorts_batch(
                 "title": title,
                 "path": str(target),
                 "subtitles": str(ass_path) if ass_path else "",
+                "burn_subtitles": spec.burn_subtitles,
+                "time_basis": spec.time_basis,
                 "aspect_ratio": aspect,
                 "layout": layout,
                 "style_id": getattr(style, "style_id", ""),
@@ -463,4 +479,4 @@ def _source_path(state: Any, record: Any, source_id: str = "") -> str:
     return str(media.source_path if media is not None else record.primary_source)
 
 
-__all__ = ["run_shorts_batch"]
+__all__ = ["MIN_SHORT_DURATION_SEC", "run_shorts_batch"]

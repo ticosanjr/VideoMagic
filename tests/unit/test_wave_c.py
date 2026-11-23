@@ -37,7 +37,7 @@ def _media(tmp_path: Path) -> MediaInfo:
     source.write_bytes(b"x")
     return MediaInfo(
         source_path=str(source),
-        duration_frames=60,
+        duration_frames=120,
         fps_num=30,
         fps_den=1,
         width=320,
@@ -67,9 +67,9 @@ def _state(tmp_path: Path, *, transcript: bool = False) -> ProjectState:
                 clip_id="v1",
                 source_id="primary",
                 source_in_frame=0,
-                source_out_frame=60,
+                source_out_frame=120,
                 timeline_in_frame=0,
-                timeline_out_frame=60,
+                timeline_out_frame=120,
             )
         ],
         audio_segments=[
@@ -77,9 +77,9 @@ def _state(tmp_path: Path, *, transcript: bool = False) -> ProjectState:
                 clip_id="v1",
                 source_id="primary",
                 source_in_sample=0,
-                source_out_sample=96000,
+                source_out_sample=192000,
                 timeline_in_sample=0,
-                timeline_out_sample=96000,
+                timeline_out_sample=192000,
             )
         ],
     )
@@ -208,7 +208,7 @@ def test_shorts_batch_with_fake_renderer(tmp_path: Path) -> None:
         [
             {
                 "start_sec": 0,
-                "end_sec": 1,
+                "end_sec": 4,
                 "title": "One",
                 "caption_preset": "tiktok_bold",
                 "layout_mode": "full_screen",

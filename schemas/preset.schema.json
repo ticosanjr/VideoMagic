@@ -771,6 +771,20 @@
         "caption_style": {
           "$ref": "#/$defs/CaptionStyle"
         },
+        "count": {
+          "anyOf": [
+            {
+              "maximum": 20,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Count"
+        },
         "export_format": {
           "default": "both",
           "enum": [

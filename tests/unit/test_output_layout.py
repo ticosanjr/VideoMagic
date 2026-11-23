@@ -21,10 +21,10 @@ def test_collect_copies_videos_and_exports_to_root(tmp_path: Path, monkeypatch) 
     result = collect_outputs(source, project_id="demo")
     root = tmp_path / "VideoFlow_Output"
     assert result["count"] == 4
-    assert (root / "exports" / "demo" / "master.mp4").is_file()
-    assert (root / "exports" / "demo" / "timeline.fcpxml").is_file()
-    assert (root / "shorts" / "demo" / "clip.mp4").is_file()
-    assert (root / "videos" / "demo" / "top.mp4").is_file()
+    assert (root / "demo" / "exports" / "master.mp4").is_file()
+    assert (root / "demo" / "exports" / "timeline.fcpxml").is_file()
+    assert (root / "demo" / "shorts" / "clip.mp4").is_file()
+    assert (root / "demo" / "videos" / "top.mp4").is_file()
     assert Path(result["manifest_path"]).is_file()
 
     again = collect_outputs(source, project_id="demo")
@@ -57,4 +57,4 @@ def test_collect_can_move_generated_files(tmp_path: Path, monkeypatch) -> None:
     result = collect_outputs(source, project_id="demo", mode="move")
     assert result["moved"]
     assert not artifact.exists()
-    assert (tmp_path / "delivery" / "exports" / "demo" / "master.mp4").is_file()
+    assert (tmp_path / "delivery" / "demo" / "exports" / "master.mp4").is_file()

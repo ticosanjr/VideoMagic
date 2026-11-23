@@ -26,7 +26,9 @@
     { id: "style", label: "Styles", categories: ["style"] },
     { id: "music", label: "Music", categories: ["music"] },
     { id: "sfx", label: "SFX", categories: ["sfx"] },
-    { id: "visual", label: "B-roll & Images", categories: ["broll", "image"] }
+    { id: "visual", label: "B-roll & Images", categories: ["broll", "image"] },
+    { id: "short", label: "Shorts", categories: ["short"] },
+    { id: "cut_review", label: "Cut review", categories: ["cut_review"] }
   ];
 
   let boards = $state<CurationBoardSummary[]>([]);

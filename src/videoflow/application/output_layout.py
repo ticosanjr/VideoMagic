@@ -87,7 +87,7 @@ def collect_outputs(
             inner = relative.relative_to(category)
         except ValueError:
             inner = Path(relative.name)
-        destination = root / category / (project_id or "shared") / inner
+        destination = root / (project_id or "shared") / category / inner
         if destination.exists() and destination.stat().st_size == source_path.stat().st_size:
             skipped.append(str(destination))
             continue

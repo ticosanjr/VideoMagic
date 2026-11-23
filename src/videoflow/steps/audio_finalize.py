@@ -112,7 +112,14 @@ class AudioFinalizeStep(BaseStep):
 
             canonical.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(result.path, canonical)
+        final_mix = context.output / "audio" / "final_mix.wav"
+        if Path(result.path) != final_mix:
+            import shutil
+
+            final_mix.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(result.path, final_mix)
         context.artifacts["audio_final"] = result.path
+        context.artifacts["audio_final_mix"] = str(final_mix)
         context.artifacts["audio_mix"] = result.path
         context.artifacts["audio_master"] = str(canonical)
         context.metadata["audio_finalize"] = payload

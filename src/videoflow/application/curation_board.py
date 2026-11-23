@@ -12,7 +12,7 @@ from videoflow.application.clock import now_iso
 from videoflow.application.files import read_json_dict, write_json_atomic
 from videoflow.domain.errors import VideoFlowError
 
-CurationCategory = Literal["style", "music", "sfx", "broll", "image"]
+CurationCategory = Literal["style", "music", "sfx", "broll", "image", "short", "cut_review"]
 CurationMediaType = Literal["audio", "video", "image", "style"]
 CurationStatus = Literal["waiting_human", "decided", "delegated_to_ai"]
 

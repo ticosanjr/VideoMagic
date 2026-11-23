@@ -1041,7 +1041,7 @@ export interface StyleSummary {
 
 export interface CurationItem {
   item_id: string;
-  category: "style" | "music" | "sfx" | "broll" | "image";
+  category: "style" | "music" | "sfx" | "broll" | "image" | "short" | "cut_review";
   scene_id: string;
   title: string;
   local_path: string;

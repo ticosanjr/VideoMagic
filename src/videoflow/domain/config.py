@@ -202,6 +202,7 @@ class ShortsConfig(StrictModel):
     target_duration_max_sec: int = Field(default=60, ge=1)
     min_clips: int = Field(default=3, ge=1, le=20)
     max_clips_to_generate: int = Field(default=3, ge=1, le=20)
+    count: int | None = Field(default=None, ge=1, le=20)
     selection_mode: ShortsSelectionMode = "auto"
     prompt: str = Field(default="", max_length=2000)
     reprompt: str = Field(default="", max_length=2000)

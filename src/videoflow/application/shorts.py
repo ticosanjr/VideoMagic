@@ -270,6 +270,7 @@ def select_shorts(
     filler_words: Sequence[str] = (),
     energy_intervals: Sequence[tuple[int, int]] = (),
     scene_intervals: Sequence[tuple[int, int]] = (),
+    scene_layouts: Sequence[tuple[int, int, str]] = (),
     weights: dict[str, float] | None = None,
     thought_boundary: bool = True,
     thought_boundary_max_adjust_sec: float = 4.0,
@@ -310,6 +311,7 @@ def select_shorts(
             previous=previous,
             energy_intervals=energy_intervals,
             scene_intervals=scene_intervals,
+            scene_layouts=scene_layouts,
         )
         if not llm_clips:
             notes.append("LLM returned no usable shorts; using heuristic selection")
@@ -328,6 +330,7 @@ def select_shorts(
         previous_ids=previous_ids if prompt_mode == "refine" else set(),
         energy_intervals=energy_intervals,
         scene_intervals=scene_intervals,
+        scene_layouts=scene_layouts,
         weights=weights,
     )
     selected = _merge_clips(llm_clips, heuristic, count) if llm_clips else heuristic
@@ -493,6 +496,7 @@ def _heuristic(
     previous_ids: set[int] | None = None,
     energy_intervals: Sequence[tuple[int, int]] = (),
     scene_intervals: Sequence[tuple[int, int]] = (),
+    scene_layouts: Sequence[tuple[int, int, str]] = (),
     weights: dict[str, float] | None = None,
 ) -> list[ShortClip]:
     candidates: list[ShortClip] = []
@@ -534,6 +538,10 @@ def _heuristic(
             bonus = min(4.0, 1.0 * scene_count)
             score += bonus
             breakdown.append(("scene_change", bonus))
+        layout_bonus = _scene_layout_bonus(start, end, scene_layouts)
+        if layout_bonus:
+            score += layout_bonus
+            breakdown.append(("scene_layout", layout_bonus))
         for name, bonus in _quality_bonus(
             chosen_sentences, duration, min_samples, max_samples
         ):
@@ -578,6 +586,27 @@ def _heuristic(
         if len(selected) >= count:
             break
     return selected
+
+
+def _scene_layout_bonus(
+    start: int,
+    end: int,
+    layouts: Sequence[tuple[int, int, str]],
+) -> float:
+    bonus = 0.0
+    for scene_start, scene_end, layout in layouts:
+        if scene_end <= start or scene_start >= end:
+            continue
+        name = str(layout or "").casefold()
+        if name == "talking_head":
+            bonus += 2.0
+        elif name == "screen_share_pip":
+            bonus += 0.5
+        elif name == "screen_share_full":
+            bonus -= 2.5
+        elif name == "dual_canvas_obs":
+            bonus -= 0.5
+    return max(-3.0, min(3.0, bonus))
 
 
 def _quality_bonus(
@@ -859,6 +888,7 @@ def _from_llm(
     filler_words: Sequence[str] = (),
     energy_intervals: Sequence[tuple[int, int]] = (),
     scene_intervals: Sequence[tuple[int, int]] = (),
+    scene_layouts: Sequence[tuple[int, int, str]] = (),
     weights: dict[str, float] | None = None,
 ) -> list[ShortClip]:
     by_id = {item.id: item for item in sentences}
@@ -916,6 +946,10 @@ def _from_llm(
             bonus = min(4.0, 1.0 * scene_count)
             score += bonus
             breakdown.append(("scene_change", bonus))
+        layout_bonus = _scene_layout_bonus(start, end, scene_layouts)
+        if layout_bonus:
+            score += layout_bonus
+            breakdown.append(("scene_layout", layout_bonus))
         hook_id = proposal.hook_sentence_id
         if hook_id not in {item.id for item in chosen}:
             hook = _best_hook(chosen, min_samples, max_samples, focus)

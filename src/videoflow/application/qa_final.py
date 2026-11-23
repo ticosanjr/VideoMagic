@@ -18,6 +18,11 @@ from videoflow.application.qa_media import (
     render_waveform,
 )
 from videoflow.application.qa_word_fidelity import verify_word_fidelity
+from videoflow.core.media_contract import (
+    QA_MAX_TRUE_PEAK_DBTP,
+    TARGET_LUFS,
+    TOLERANCE_LUFS,
+)
 from videoflow.exporters.common import timeline_duration_frames, timeline_duration_samples
 from videoflow.runtime import find_binary
 
@@ -336,7 +341,10 @@ def audit_final(
             peak = float(
                 loudness.get("true_peak_dbfs", loudness.get("true_peak_db", 99.0)) or 99.0
             )
-            loudness["passed"] = abs(integrated + 15.5) <= 1.5 and peak <= -1.5
+            loudness["passed"] = (
+                abs(integrated - TARGET_LUFS) <= TOLERANCE_LUFS
+                and peak <= QA_MAX_TRUE_PEAK_DBTP
+            )
             loudness["skipped"] = False
             if strict and not loudness["passed"]:
                 issues.append(
@@ -345,7 +353,8 @@ def audit_final(
                         "severity": "critical",
                         "message": (
                             f"loudness {integrated:.1f} LUFS / true peak {peak:.1f} dBTP "
-                            "is outside -15.5 ± 1.5 LUFS and <= -1.5 dBTP"
+                            f"is outside {TARGET_LUFS:g} ± {TOLERANCE_LUFS:g} LUFS "
+                            f"and <= {QA_MAX_TRUE_PEAK_DBTP:g} dBTP"
                         ),
                     }
                 )

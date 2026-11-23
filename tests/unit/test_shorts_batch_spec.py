@@ -65,10 +65,10 @@ def _project(tmp_path: Path, monkeypatch) -> object:
             VideoSegment(
                 clip_id="v2",
                 source_id="primary",
-                source_in_frame=240,
+                source_in_frame=210,
                 source_out_frame=300,
                 timeline_in_frame=150,
-                timeline_out_frame=210,
+                timeline_out_frame=240,
             ),
         ],
         audio_segments=[
@@ -83,14 +83,14 @@ def _project(tmp_path: Path, monkeypatch) -> object:
             AudioSegment(
                 clip_id="a2",
                 source_id="primary",
-                source_in_sample=8 * RATE,
+                source_in_sample=7 * RATE,
                 source_out_sample=10 * RATE,
                 timeline_in_sample=5 * RATE,
-                timeline_out_sample=7 * RATE,
+                timeline_out_sample=8 * RATE,
             ),
         ],
     )
-    state.pipeline.speech_intervals = [(5 * RATE, 7 * RATE)]
+    state.pipeline.speech_intervals = [(5 * RATE, 10 * RATE)]
     save_project_state(record, state, bump_revision=False)
     return record
 
@@ -123,7 +123,7 @@ def test_batch_maps_source_time_to_timeline(tmp_path: Path, monkeypatch) -> None
         record.project_id,
         [
             {
-                "start_sec": 8,
+                "start_sec": 7,
                 "end_sec": 10,
                 "time_basis": "source",
                 "source_id": "primary",
@@ -134,7 +134,7 @@ def test_batch_maps_source_time_to_timeline(tmp_path: Path, monkeypatch) -> None
     )
     clip = result["clips"][0]
     assert clip["start_sec"] == pytest.approx(5.0, abs=0.1)
-    assert clip["end_sec"] == pytest.approx(7.0, abs=0.1)
+    assert clip["end_sec"] == pytest.approx(8.0, abs=0.1)
 
 
 def test_batch_passes_fps_to_renderer(tmp_path: Path, monkeypatch) -> None:
@@ -142,7 +142,7 @@ def test_batch_passes_fps_to_renderer(tmp_path: Path, monkeypatch) -> None:
     renderer = _Renderer()
     run_shorts_batch(
         record.project_id,
-        [{"start_sec": 5, "end_sec": 7, "title": "Sixty", "fps": 60}],
+        [{"start_sec": 4, "end_sec": 7, "title": "Sixty", "fps": 60}],
         adapter=renderer,
     )
     assert renderer.calls[0]["fps"] == 30
@@ -172,10 +172,10 @@ def test_batch_rejects_clip_below_min_sec(tmp_path: Path, monkeypatch) -> None:
             record.project_id,
             [
                 {
-                    "start_sec": 5,
+                    "start_sec": 4,
                     "end_sec": 7,
                     "title": "Too short",
-                    "min_sec": 10.0,
+                    "min_sec": 5.0,
                 }
             ],
             adapter=_Renderer(),
