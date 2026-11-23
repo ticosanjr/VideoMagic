@@ -119,7 +119,6 @@ values genuinely shared by multiple nodes or profiles.
 | `sfx.plan` | — | SFX cue plan |
 | `metadata.pack` | `shorts.select` | per-Short metadata |
 | `thumbnail.pack` | `shorts.render` | thumbnail variants |
-| `publish.queue` | `shorts.render` | queued publishing items |
 | `analytics.review` | — | selection weights/recommendations |
 | `experiment.evaluate` | — | A/B winner |
 | `chapters.plan` | `transcribe` | chapter markers |
@@ -385,68 +384,20 @@ The job stops as `waiting_approval`. `POST /api/v1/jobs/{id}/resume` writes
 after the Shorts render. It is skipped with a warning when no TTS provider is
 configured.
 
-The catalog includes 48 recipes: rough cut, captions, NLE export, clean audio,
+The catalog includes 47 recipes: rough cut, captions, NLE export, clean audio,
 chapters, Shorts select/render, best moments, hook first, trailer, review gate,
 reframe/caption/A-B variants, podcast, interview, webinar, lecture, product
 demo, testimonial, livestream, B-roll, music, SFX, metadata, thumbnails,
-publishing, analytics, localization, finishing, and the three OpusClip-style flows.
+analytics, localization, finishing, the long-form studio flows, and the
+OpenCode workspace recipes.
 
-`full_ai_editor` is the long-form, human-reviewed documentary recipe. It runs
-scoped research and a dual script before ingest, then pauses for the editorial
-brief, research corrections, master dossier, script lock, decoupage audit,
-entity corrections, style lock, asset license review, motion render, audio mix,
-fact-check, voice repair, sample homologation, and final approval. See
-[hilt.md](hilt.md), [research.md](research.md),
+`deepseek_full_edit` and `autonomous_studio_master` are the long-form,
+human-reviewed flows. They combine drift-corrected transcription, deterministic
+de-talking, narrative beats and entities, storyboard, licensed assets, motion,
+audio mix, QA, and NLE/video export with durable approval gates. See
 [vision-decoupage.md](vision-decoupage.md),
 [assets-licensing.md](assets-licensing.md), [motion-audio.md](motion-audio.md),
 and [factcheck-voice.md](factcheck-voice.md).
-
-### Lamera Video Edit
-
-`lamera_video_edit` is the favorite long-form recipe for the Lamera workflow.
-It keeps the same durable HILT checkpoints as `full_ai_editor`, but the canvas
-is grouped into six colored phases and the most overloaded responsibilities are
-split into separate nodes:
-
-- Four independent `research.multi_agent` nodes, one per temporal scope.
-- `transcript.blocks` for context chunking, separate from `entities.extract`.
-- `storyboard.preview` for four placeholder clips before asset harvesting.
-- Separate narration and edition approvals after the dual script.
-- Extra approvals for the presenter profile, entity manifest, unit placeholders,
-  intro, and repaired voice.
-
-The graph has 66 nodes and includes ingest, decoupage calibration, eye-contact
-labels, transcription, retakes, drift correction, entity extraction, art
-direction, licensed asset harvesting, motion/Foley, audio mix, fact-check,
-voice repair (including an optional cloned repair clip), and NLE/video export. The four research nodes share the same
-dependency set, so the runner executes them concurrently and merges their
-dossiers, hashes, ports, and warnings. Other DAG branches remain sequential.
-
-`storyboard.units` has a `target_units` option; Lamera uses it to merge the
-script sections into 225 unit groups. The Recipe config modal also edits the
-canvas groups: label, description, colour, membership from the current selection,
-and removal.
-
-### Synthetic Code Studio
-
-`synthetic_code_studio` is the source-less recipe: it starts from a human brief
-and research, locks the script and fact-check before spending time on audio,
-then synthesizes narration, aligns word timestamps, builds a timed storyboard,
-and renders HTML/CSS/3D scenes. The renderer prefers Playwright/Chromium when
-the optional `render` extra is installed and falls back to the built-in FFmpeg
-scene renderer. Audio uses procedural music and Foley with music ducking and
-EBU R128 normalization; captions are written as ASS and burned into the draft.
-The graph has 43 nodes and six phases: briefing/research/script, voice/timing,
-art/storyboard, media/scenes, audio, and QA/delivery. Human gates: brief,
-research master, script/facts, voice, style, units, licenses, rendered scenes,
-QA, and final master. When a `vision` provider with an OpenAI-compatible chat
-endpoint is configured, `qa.vision` sends sampled frames to it; otherwise it
-keeps the deterministic frame, transcript, and loudness checks.
-
-Optional: `uv sync --extra render` and `playwright install chromium` enable the
-headless HTML/CSS path. Set `scene.codegen.three_js_path` to a local
-`three.module.js` to add a WebGL camera and 3D plane; the renderer launches
-Chromium with local file access. OCR/stock providers are opt-in.
 
 ### Footage Intelligence Edit
 
@@ -465,19 +416,6 @@ or OpenCV GrabCut when installed; tracking uses OpenCV Lucas-Kanade. Without
 those backends the steps write explicit warnings and the human gate remains the
 fallback. Automatic behind-subject compositing is intentionally a reviewed NLE
 operation; `composite.matte` writes the plan from the masks.
-
-### OpusClip-style recipes
-
-Three recipes map the OpusClip workflow onto native VideoFlow steps:
-
-| Recipe | Pipeline | Notes |
-| --- | --- | --- |
-| `opusclip_auto_shorts` | ingest → vad → audio.master → audio.isolate → transcribe → diarize → retakes → narrative → shorts.select → score → reframe → captions → render → timeline → metadata → export | Cleanup, curation, dynamic reframe, kinetic captions, and NLE export. |
-| `opusclip_auto_broll` | ingest → vad → transcribe → retakes → narrative → shorts.select → score → broll.generate → broll.plan → reframe → captions → render → timeline → export | Synthetic or local B-roll with license records. |
-| `opusclip_nle_bridge` | ingest → vad → transcribe → retakes → narrative → chapters → timeline → shorts.select → score → render → metadata → thumbnails → export → nle.qa → delivery.package | Long-form timeline, chapters, NLE exports, Shorts metadata, and delivery package. |
-
-`audio.isolate`, `broll.generate`, and the image endpoint are optional. Each
-step degrades with a warning when its backend is not configured.
 
 ## CLI
 

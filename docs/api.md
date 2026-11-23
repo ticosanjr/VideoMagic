@@ -25,8 +25,6 @@ Implemented today:
 - `GET /api/v1/fs/roots`, `GET /api/v1/fs/list`, `POST /api/v1/fs/mkdir`
 - `GET /api/v1/media/probe`
 - `POST /api/v1/media/import`
-- `GET/PUT/DELETE /api/v1/publish/targets`, `GET /api/v1/publish/queue`,
-  `POST /api/v1/publish/dispatch`, `POST /api/v1/jobs/{id}/shorts/{index}/publish`
 - `GET /api/v1/assets/sfx`, `POST /api/v1/assets/sfx?name=`,
   `DELETE /api/v1/assets/sfx/{name}`
 - `GET /api/v1/assets/fonts`, `POST /api/v1/assets/fonts`
@@ -45,9 +43,7 @@ Implemented today:
   `POST /api/v1/jobs/{id}/interactions/{interaction_id}/respond`,
   `POST /api/v1/hilt/approve`,
   `POST /api/v1/jobs/{id}/interactions/{interaction_id}/files`,
-  `GET /api/v1/hilt/pending`, `GET /api/v1/hilt/channels`,
-  `POST /api/v1/hilt/test`, `POST /api/v1/hilt/slack/events`,
-  `POST /api/v1/hilt/email/inbound` ([hilt.md](hilt.md))
+  `GET /api/v1/hilt/pending`, `POST /api/v1/hilt/test`
 - `GET /api/v1/presets`, `GET /api/v1/presets/{name}`,
   `PUT /api/v1/presets/{name}`
 - `GET /mcp/` (MCP Streamable HTTP) and `GET /` (recipe studio UI when built)
@@ -132,17 +128,6 @@ POST /api/v1/jobs/{job_id}/shorts/{index}/analyze
 
 Returns audio features/label, visual motion, optional face statistics, and
 caveats. Results are stored under `short.analysis`.
-
-### Publishing
-
-```http
-PUT /api/v1/publish/targets/studio
-POST /api/v1/jobs/{job_id}/shorts/{index}/publish
-GET /api/v1/publish/queue
-```
-
-Targets are webhook URLs with a secret-name reference. Scheduled items are sent
-by the local daemon, or manually via `POST /api/v1/publish/dispatch`.
 
 ### URL import
 
@@ -590,9 +575,6 @@ Project state is created by recipe runs and edited through the job timeline API.
 - `POST /api/v1/recipes/run`, `POST /api/v1/recipes/run/{step_id}`,
   `POST /api/v1/recipes/dry-run`
 - `POST /api/v1/jobs/{job_id}/resume`
-- `GET /api/v1/plugins` (plugins plus registered panels),
-  `POST /api/v1/plugins/reload`,
-  `POST /api/v1/plugins/{id}/enable`
 - `GET /api/v1/system/metrics`, `GET /api/v1/system/backup`
 - `GET /api/v1/jobs/{job_id}/timeline`, `PATCH /api/v1/jobs/{job_id}/timeline`
 - `POST /api/v1/jobs/{job_id}/timeline/undo`,
@@ -786,12 +768,9 @@ the enabled default followed by its fallback chain.
 
 `GET /api/v1/jobs/{id}/timeline` returns `ETag: "timeline-<revision>"`, the
 active `video`/`audio` lanes, `source_duration_sec`, `inactive` source ranges,
-overlay records, structured `titles` cues, `live_eligible`/`live_reason`, and a
-`live_source` status. When the original codec is browser-safe,
-`GET /api/v1/jobs/{id}/source/file` serves it with HTTP Range. Otherwise
-`POST /api/v1/jobs/{id}/live-source` builds a cached H.264/AAC proxy;
-`GET /api/v1/jobs/{id}/live-source/status` reports `missing|preparing|ready|failed`
-and `GET /api/v1/jobs/{id}/live-source/file` serves the proxy with Range.
+overlay records, structured `titles` cues, and `live_eligible`/`live_reason`.
+When the original codec is browser-safe, `GET /api/v1/jobs/{id}/source/file`
+serves it with HTTP Range; otherwise the UI uses the rendered preview.
 `GET /api/v1/jobs/{id}/overlays/{overlay_id}/file` serves overlay assets.
 Crossfades, fade-to-black, overlays, structured titles, and track mute/solo
 compose in-browser; FFmpeg filters and clip transforms fall back to the

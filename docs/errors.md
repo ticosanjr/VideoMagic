@@ -30,7 +30,6 @@ human message, and the next action.
 | `waveform_failed` | 422 | Audio decode failed | Check source audio |
 | `overlay_failed` | 422 | Overlay path invalid | Pick a file inside allowed roots |
 | `backup_failed` | 500 | Backup could not be written | Check disk and home permissions |
-| `plugin_not_found` | 404 | Unknown plugin id | Reload Extensions |
 | `schema_too_new` | 409 | File written by a newer version | Upgrade VideoFlow |
 | `internal_error` | 500 | Unexpected failure | Open the crash report path from the response |
 

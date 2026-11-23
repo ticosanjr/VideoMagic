@@ -211,8 +211,6 @@ vertical-only output.
   enabled.
 - **Brand templates**: save the current caption/overlay/music/intro/outro
   settings under a name and apply them later in one click.
-- **Publishing**: add a webhook target, choose platform/tone, and schedule the
-  Short. The queue posts metadata and the local asset path when due.
 - **Multimodal analysis**: analyze one Short for audio-energy/emotion proxy,
   motion coverage, and optional face count/focus.
 - **Reframe mode**: center crop, motion tracking, or optional face tracking.
@@ -294,7 +292,7 @@ artifacts are not silently reused; re-run the export or recipe after editing.
 Captions can be edited in the right-hand list. The clip inspector edits
 transition type/length, scale, position, and audio fade in/out. Shorts expose
 the full Short editor: reframe, captions, metadata, thumbnail, voice-over,
-dubbing, analysis, and publishing. Deliverables show the review checklist,
+dubbing, and analysis. Deliverables show the review checklist,
 approval state, and thumbnail A/B variants.
 
 B-roll plans are listed per Short. Approve or reject entries, reorder them, and

@@ -4,16 +4,11 @@
 
 | Area | Purpose | Tabs |
 | --- | --- | --- |
-| Produce | Create and run recipes | Recipes, Assistant |
-| Edit | Edit and finish the cut | Timeline |
-| Runs | Track and schedule runs | Jobs, Schedules |
-| Library | Source and reusable assets | Media, Brand library |
-| Setup | Configure the local product | AI models, AI providers, Local services, Extensions, Connect, Settings |
+| Curation | Review and approve clips | Curation |
+| Jobs | Track runs and edit the cut | Jobs, Schedules |
+| Setup | Configure the local product | AI models, AI providers, Local services, Connect, Settings |
 
-The order is the workflow order. Routes keep flat hashes (`#recipes`,
-`#timeline`, …) and legacy hashes redirect: `#assets` → Media, `#automation` →
-Schedules, `#copilot` → Assistant, `#library` → Brand, `#plugins` → Extensions,
-`#integrations` → Connect.
+The order is the workflow order. Legacy hashes redirect to the closest screen.
 
 ## Vocabulary
 
@@ -24,11 +19,10 @@ Schedules, `#copilot` → Assistant, `#library` → Brand, `#plugins` → Extens
 | Source file | media | asset |
 | Reusable brand content | brand library | library (alone) |
 | LLM helper | assistant | copilot |
-| Add-on code | extension | plugin (in UI) |
 | External connection | connect | integration (in UI) |
 
-Keep API/MCP names stable (`jobs`, `plugins`, `integrations`); only the UI uses
-the friendlier terms.
+Keep API/MCP names stable (`jobs`, `integrations`); only the UI uses the
+friendlier terms.
 
 ## Buttons
 

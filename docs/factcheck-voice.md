@@ -2,7 +2,7 @@
 
 ## Fact-check audit
 
-`factcheck.audit` compares the dual script against `research/master.json`:
+`factcheck.audit` compares the supplied script against the source manifest:
 
 - with an LLM, it returns claims marked `supported`, `unsupported`, or
   `uncertain`, with citations restricted to the master manifest;

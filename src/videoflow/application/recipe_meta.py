@@ -16,9 +16,7 @@ DEFAULT_FAVORITES = frozenset(
         "recut_replacement",
         "recut_replacement_retakes",
         "deepseek_full_edit",
-        "full_ai_editor",
-        "lamera_video_edit",
-        "synthetic_code_studio",
+        "autonomous_studio_master",
         "footage_intelligence_edit",
     }
 )

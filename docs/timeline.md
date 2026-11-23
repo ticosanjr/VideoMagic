@@ -89,13 +89,9 @@ ranges, transform/transition data, and the reason (`manual`, `silence`,
   `titles.json` cues and are positioned over the picture in output time.
 - Complex timelines that still require FFmpeg filters fall back to the rendered
   preview instead of approximating the look.
-- `live_source` reports whether the browser can stream the original codec or
-  needs an H.264/AAC proxy. When needed, `POST /jobs/{id}/live-source` builds a
-  cached 1280px proxy under `work/live-source.mp4`; `GET
-  /jobs/{id}/live-source/status` reports progress and `GET
-  /jobs/{id}/live-source/file` serves it with Range support. The player shows a
-  fixed-height preparation state and falls back to the rendered preview if the
-  proxy fails.
+- The player streams the source when the browser can decode it and otherwise
+  falls back to the rendered preview. `GET /jobs/{id}/source/file` honours HTTP
+  Range.
 
 ## Timeline availability
 

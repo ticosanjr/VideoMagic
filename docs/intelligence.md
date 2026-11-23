@@ -72,7 +72,6 @@ High-value tasks:
 - `cleanup.context`, `retakes.semantic`
 - `narrative.beats`, `timeline.edit`, `timeline.zoom`, `timeline.style`
 - `style.guide`
-- `research.plan`, `research.consolidate`, `research.master`
 - `script.dual`
 - `metadata.social`
 - `factcheck.audit`

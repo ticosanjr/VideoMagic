@@ -70,7 +70,7 @@ increment `revision`.
   recipe JSON and timeline edit objects.
 - It does not call external services unless the provider and the normal
   external-service policy allow it.
-- Voice cloning and arbitrary plugin code remain outside the Copilot contract.
+- Voice cloning and arbitrary extension code remain outside the Copilot contract.
 
 ## Tests
 

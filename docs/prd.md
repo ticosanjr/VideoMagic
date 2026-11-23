@@ -44,8 +44,7 @@ cached intermediate artifacts, and export files.
 - Multi-camera sync.
 - Full colour grading, audio mixing, or VFX.
 - Generative video. Voice cloning and translation were later added as optional
-  providers; see [voice-clone.md](voice-clone.md) and
-  [localization.md](localization.md).
+  providers; see [voice-clone.md](voice-clone.md).
 - A native `.drp` or `.prproj` writer. Interchange formats only.
 - Face tracking for vertical reframing. The parameter exists; the engine does not.
 - Proxy-based analysis. Proxies are preview-only.

@@ -6,7 +6,8 @@ removes silence and retakes, adds J-cuts and punch-ins, proposes vertical
 Shorts, masters the dialogue bed, and exports timelines for DaVinci Resolve,
 Adobe Premiere Pro, and Kdenlive.
 
-> Status: 3.16.0 local stable. **35 MCP tools**, 22 styles, stateful step
+> Status: 4.2.0 local stable. **22 MCP tools** in the full profile (17 in
+> core), 22 styles, stateful step
 > chains, multi-NLE delivery, and opt-in Windows GPU offload with a
 > self-healing worker kit. GPU speed certification awaits Windows/NVIDIA
 > hardware. The local Linux binary and AppImage run ingest, Silero VAD with an
@@ -18,7 +19,7 @@ Adobe Premiere Pro, and Kdenlive.
 > observability: jobs, models, providers, services, extensions, connections,
 > GPU, and settings. Projects persist atomic, revisioned JSON state under
 > `.videoflow/`; SQLite indexes jobs and assets; settings, providers, secrets,
-> models, plugins, and diagnostics are configurable locally.
+> models, and diagnostics are configurable locally.
 
 ## Requirements
 
@@ -46,14 +47,15 @@ vf_exec(action="step", step_id="edit.timeline", params={})
 vf_export(project_id="...", targets="all")
 ```
 
-The local UI only configures models, providers, services, plugins, MCP
-connections, the GPU worker, and runtime settings. See [docs/mcp.md](docs/mcp.md).
+The local UI has three top-level screens: Curation, Jobs, and Setup. Setup
+configures models, providers, services, MCP connections, the GPU worker, and
+runtime settings. See [docs/mcp.md](docs/mcp.md).
 
 ## Quick start
 
 ```bash
 uv sync --extra dev --extra faster-whisper
-uv run pytest                       # 2,992 passing, 1 skipped, 1 xfailed
+uv run pytest                       # 2,899 passing, 1 skipped, 1 xfailed
 uv run pytest -q -m media --no-cov  # real FFmpeg ingest and silence detection
 uv run python scripts/build_portable.py --with-whisper  # optional whisper.cpp + GGML model
 uv run python scripts/fetch_silero.py          # pinned 2.3 MB VAD model
@@ -168,13 +170,12 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Native NLE finishing: titles, markers, chapters, colour filters, a B-roll
   lane, and the audio master in FCPXML, XMEML, and Kdenlive, plus
   `scripts/qa_nle.py` to fail an export that loses them.
-- Human-in-the-loop: durable approvals, questions, file handoffs, local/e-mail/
-  Slack/Signal notifications, and the favorited `full_ai_editor` recipe with
-  research, dual script, decoupage, asset license, motion, audio, fact-check,
-  voice-repair, and final approval checkpoints.
-- Research and assets: local/SearXNG/Wikipedia/Internet Archive research,
-  citation manifests, Pexels/Pixabay/Openverse/Wikimedia harvesting, short
-  fair-use YouTube excerpts, an explicit license ledger, and export gating.
+- Human-in-the-loop: durable approvals, questions, file handoffs, the local
+  **Needs you** inbox, and the favorited `deepseek_full_edit` recipe with
+  decoupage, asset license, motion, audio, fact-check, voice-repair, and final
+  approval checkpoints.
+- Assets: Pexels/Pixabay/Openverse/Wikimedia harvesting, short fair-use
+  YouTube excerpts, an explicit license ledger, and export gating.
 - Motion and audio: JSON scene codegen, FFmpeg motion rendering, procedural
   copyright-free music/Foley, final dialogue/music/SFX mix, and intro compiler.
 - Professional finishing: pause/resume and priority, slide, duplicate, per-clip
@@ -186,7 +187,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   anything is written.
 - Integrations: MCP (stdio and HTTP) plus REST for OpenCode and Paperclip,
   with DeepSeek provider/service setup and copy-ready prompts.
-- Intuitive shell: five workflow areas, legacy route aliases, searchable
+- Intuitive shell: three top-level screens (Curation, Jobs, Setup), searchable
   settings, HelpTip/FieldHint, status legends, empty states, and copy standards.
 - Silero VAD v5.1.2 through ONNX Runtime, with 16 kHz inference, exact
   sample-rate rescaling, configurable threshold, and pads. FFmpeg
@@ -206,7 +207,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
   overlays, intro/outro cards, music beds with ducking, external TTS voice-over,
   translation dubbing, brand templates, project templates/config import-export,
   motion/face-assisted reframing, audio-energy and scene-change curation,
-  platform metadata, URL import, webhook publishing/scheduling,
+  platform metadata, URL import,
   OpenAI-compatible multimodal vision analysis, LLM emoji captions, thumbnails,
   retake-aware conforming, 9:16/4:5/3:4/2:3/1:1/16:9 render at 1080/1440/2160 short edge,
   30 fps social masters with optional NVENC, fast export QA, and full QA in the background,

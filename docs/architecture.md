@@ -75,7 +75,7 @@ Rules:
 | `styles/` | Canonical 22 Markdown styles (single source; workspace `presets/` is a copy) |
 | `workflows/` | Canonical workflow Markdown files |
 | `ui/` | SvelteKit rack; renders state and never computes cuts |
-| `cli.py`, `runtime.py`, `plugin_api.py` | Unified CLI, portable home/binary discovery, plugin surface |
+| `cli.py`, `runtime.py` | Unified CLI and portable home/binary discovery |
 
 ## 3. Pipeline families
 

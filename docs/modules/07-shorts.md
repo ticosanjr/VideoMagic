@@ -159,13 +159,6 @@ heuristics (RMS, ZCR, variation, label), visual motion coverage/focus, and
 optional OpenCV face counts/focus. Labels are signal heuristics, not a trained
 emotion classifier; object classes are not recognized.
 
-## Webhook publishing
-
-Shorts can be scheduled to a configured webhook target. The API generates the
-platform metadata, appends a durable queue item, and a daemon scheduler posts
-the JSON payload when due. `VIDEOWFLOW_PUBLISH_TOKEN` supplies the bearer token.
-External policy and host allowlists still apply.
-
 ## Dubbing
 
 `POST /api/v1/jobs/{job_id}/shorts/{index}/dub` sends the Short transcript to an

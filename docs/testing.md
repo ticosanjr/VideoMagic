@@ -108,7 +108,6 @@ touch when you want the formatter's layout; `ruff check` is the blocking lint.
 | `test_audio_analysis.py` | Loud-region peaks and silence fallback |
 | `test_video_analysis.py` | Scene-time parsing, deduplication, and sample windows |
 | `test_url_import.py` | yt-dlp command, missing binary, non-http URL rejection |
-| `test_publishing.py` | Webhook dispatch and queue cancellation |
 | `test_multimodal.py` | Audio-feature labels and motion-region centroids |
 | `test_project_templates.py` | Template round-trip, sanitization, config import/export |
 | `test_portable.py` | End-to-end portable service with a fake engine and retakes |
