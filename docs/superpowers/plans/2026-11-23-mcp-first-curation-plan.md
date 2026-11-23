@@ -645,12 +645,12 @@ Comportamento:
   listas >30 são truncadas com truncated/truncated_fields/total_count/next_offset;
   `capabilities` é preservada por ser manifesto, não conteúdo paginável;
   AGENTS.md template = 73 linhas; gerado = 80 linhas;
-  workflows incluem curation.prepare e modo curation/autonomous;
+  workflows incluem curation.prepare interativo e modo curation/autonomous;
   vf_export mantém mp4_youtube, resolve, premiere e kdenlive.
 Comando de validação:
   uv run pytest tests/unit/test_core_tools.py tests/unit/test_mcp_server_guard.py tests/unit/test_bootstrap_opencode.py tests/contract/test_mcp.py -q
-Resultado: 67 passed
-Regressão: 3015 passed, 1 skipped, 1 xfailed; UI svelte-check 0 e Vitest verde.
+Resultado: 68 passed
+Regressão: 3016 passed, 1 skipped, 1 xfailed; UI svelte-check 0 e Vitest verde.
 Riscos residuais: o limite de 30 itens não mede tokens; a lista de capabilities é
 exceção explícita. O AGENTS gerado está exatamente no limite de 80 linhas;
 qualquer novo catálogo maior exige compactar o template.

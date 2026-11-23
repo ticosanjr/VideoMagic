@@ -37,6 +37,8 @@ steps:
     node: curation.prepare
     purpose: curation.prepare
     requires_approval: true
+    params:
+      interactive: true
   - id: render
     node: shorts.render
     purpose: shorts.render

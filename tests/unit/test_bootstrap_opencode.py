@@ -425,3 +425,12 @@ def test_mcp_health_and_cleanup_routes(tmp_path: Path) -> None:
     assert cleaned.json()["removed"] == ["core"]
     merged = json.loads(global_file.read_text(encoding="utf-8"))
     assert set(merged["mcp"]["servers"]) == {"other"}
+
+
+def test_full_profile_is_passed_to_the_single_videoflow_entry() -> None:
+    from videoflow.application.opencode_config import build_config
+
+    config = build_config("full", workspace_root="/w/projects")
+    servers = config["mcp"]["servers"]
+    assert set(servers) == {"videoflow"}
+    assert servers["videoflow"]["command"][-2:] == ["--profile", "full"]

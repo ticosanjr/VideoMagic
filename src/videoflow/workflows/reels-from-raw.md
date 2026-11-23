@@ -37,6 +37,8 @@ steps:
     node: curation.prepare
     purpose: curation.prepare
     requires_approval: true
+    params:
+      interactive: true
   - id: captions
     node: shorts.captions
     purpose: shorts.captions
