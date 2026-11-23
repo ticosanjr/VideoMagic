@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
 import json
 import os
 import platform
@@ -16,6 +15,8 @@ from collections.abc import Sequence
 from fractions import Fraction
 from pathlib import Path
 
+from vf_shared.contracts.locking import FileLock
+
 from videoflow import __version__
 from videoflow.adapters.ffmpeg import FFmpegAdapter
 from videoflow.application.fonts import fonts_dir
@@ -26,6 +27,7 @@ from videoflow.application.models import (
     model_roots,
     models_dir,
 )
+from videoflow.application.process_control import terminate_pid
 from videoflow.application.retakes import cull_intervals
 from videoflow.application.retakes import cull_retakes as cull_transcript_retakes
 from videoflow.application.services import (
@@ -494,8 +496,8 @@ def _ensure_portable_asr() -> bool:
     ).strip()
     if installed_path(model_id) is not None:
         return True
-    auto = os.environ.get("VIDEOWFLOW_ASR_AUTO_DOWNLOAD", "1").strip().lower()
-    if auto in {"0", "false", "no", "off"}:
+    auto = os.environ.get("VIDEOWFLOW_ASR_AUTO_DOWNLOAD", "").strip().lower()
+    if auto not in {"1", "true", "yes", "on"}:
         print(
             f"Whisper model {model_id} is not installed. Run "
             f"`videoflow models install {model_id}` or set "
@@ -1102,43 +1104,30 @@ class _InstanceLock:
         self.port = port
         self.handle = None
         self.acquired = True
+        self._lock: FileLock | None = None
 
     def acquire(self) -> bool:
-        try:
-            import fcntl
-        except ImportError:
-            return True
         path = portable_home() / f"server-{self.port}.lock"
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self.handle = path.open("a+", encoding="utf-8")
-            fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            if self.handle is not None:
-                self.handle.close()
-                self.handle = None
+        lock = FileLock(path, blocking=False)
+        if not lock.acquire():
             self.acquired = False
             return False
-        try:
-            self.handle.seek(0)
-            self.handle.truncate()
-            self.handle.write(str(os.getpid()))
-            self.handle.flush()
-        except OSError:
-            pass
+        self._lock = lock
+        self.handle = lock.handle
+        if self.handle is not None:
+            try:
+                self.handle.seek(0)
+                self.handle.truncate()
+                self.handle.write(str(os.getpid()).encode("ascii"))
+                self.handle.flush()
+            except OSError:
+                pass
         return True
 
     def release(self) -> None:
-        if self.handle is None:
-            return
-        try:
-            import fcntl
-
-            fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
-        except (ImportError, OSError):
-            pass
-        with contextlib.suppress(OSError):
-            self.handle.close()
+        if self._lock is not None:
+            self._lock.release()
+        self._lock = None
         self.handle = None
 
 
@@ -1191,13 +1180,18 @@ def _stop(args: argparse.Namespace) -> int:
         print("VideoFlow service is not running (stale PID file removed).")
         return 0
     try:
-        os.kill(pid, signal.SIGTERM)
+        if os.name == "nt":
+            terminate_pid(pid, force=False, timeout=max(0.1, float(args.timeout)))
+        else:
+            os.kill(pid, signal.SIGTERM)
     except OSError as exc:
         print(f"Could not stop VideoFlow (PID {pid}): {exc}", file=sys.stderr)
         return 1
     deadline = time.monotonic() + max(0.0, float(args.timeout))
     while time.monotonic() < deadline and _process_alive(pid):
         time.sleep(0.1)
+    if _process_alive(pid) and os.name == "nt":
+        terminate_pid(pid, force=True, timeout=1.0)
     if _process_alive(pid):
         print(f"VideoFlow did not stop within {args.timeout:.1f}s (PID {pid}).", file=sys.stderr)
         return 1
@@ -1226,7 +1220,11 @@ def _status() -> int:
     except (TypeError, ValueError):
         pid = 0
     running = pid > 0 and _process_alive(pid)
-    services = [item.to_dict() for item in discover_services() if item.kind != "launcher"]
+    discovered = [item for item in discover_services() if item.kind != "launcher"]
+    services = [item.to_dict() for item in discovered]
+    if not running and discovered:
+        running = True
+        pid = int(discovered[0].pid)
     print(
         json.dumps(
             {

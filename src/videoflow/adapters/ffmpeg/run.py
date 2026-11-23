@@ -39,6 +39,7 @@ from videoflow.adapters.ffmpeg.helpers import (
     parse_silence,
 )
 from videoflow.application.music import music_filter
+from videoflow.application.process_control import terminate_process
 from videoflow.domain.errors import IngestError, JobCancelledError
 from videoflow.domain.state import MediaInfo
 from videoflow.domain.timebase import Rounding, Timebase
@@ -74,6 +75,9 @@ class RunMixin:
         return stdout
 
     def _terminate(self, process: _pkg().subprocess.Popen[str]) -> None:
+        if os.name == "nt":
+            terminate_process(process, timeout=0.5)
+            return
         try:
             _pkg().os.killpg(_pkg().os.getpgid(process.pid), signal.SIGTERM)
         except (OSError, ProcessLookupError):

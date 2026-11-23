@@ -77,6 +77,7 @@ def test_doctor_reports_faster_whisper(monkeypatch, tmp_path, capsys) -> None:
 
 def test_status_without_a_pid_file(monkeypatch, tmp_path, capsys) -> None:
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path))
+    monkeypatch.setattr(cli, "discover_services", lambda: [])
     assert cli.main(["status"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["running"] is False

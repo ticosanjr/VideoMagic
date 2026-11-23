@@ -65,3 +65,25 @@ def test_current_appimage_launcher_is_protected(monkeypatch, tmp_path: Path) -> 
     assert len(found) == 1
     assert found[0].kind == "launcher"
     assert found[0].protected is True
+
+
+def test_windows_netstat_and_tasklist_parsers(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    def fake_run(command, **kwargs):
+        if command[0] == "netstat":
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "  TCP    127.0.0.1:8765      0.0.0.0:0      LISTENING       4321\n"
+                    "  TCP    127.0.0.1:9000      0.0.0.0:0      ESTABLISHED     9999\n"
+                ),
+            )
+        return SimpleNamespace(
+            returncode=0,
+            stdout='"videoflow.exe","4321","Console","1","10,000 K"\n',
+        )
+
+    monkeypatch.setattr(services.subprocess, "run", fake_run)
+    assert services._windows_listeners() == {4321: {8765}}
+    assert services._windows_image_name(4321) == "videoflow.exe"

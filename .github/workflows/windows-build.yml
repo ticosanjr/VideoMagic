@@ -40,6 +40,7 @@ jobs:
             'set "VIDEOWFLOW_MODELS_DIR=%ROOT%videoflow-data\models"',
             'set "VIDEOWFLOW_ASR_DEVICE=cuda"',
             'set "VIDEOWFLOW_ASR_COMPUTE_TYPE=int8_float16"',
+            'set "VIDEOWFLOW_ASR_AUTO_DOWNLOAD=1"',
             'set "VIDEOWFLOW_ASR_MODEL_ID=faster-whisper-large-v3-turbo"',
             'if "%~1"=="" (',
             '  "%ROOT%videoflow.exe" tray',
@@ -51,10 +52,33 @@ jobs:
       - name: Smoke test Windows CUDA portable
         shell: pwsh
         run: |
-          .\dist\videoflow\videoflow.exe version
-          .\dist\videoflow\videoflow.exe doctor
-          .\dist\videoflow\videoflow.exe models list
-          .\dist\videoflow\videoflow.exe mcp --help
+          $exe = ".\dist\videoflow\videoflow.exe"
+          & $exe version
+          & $exe doctor
+          & $exe models list
+          & $exe mcp --help
+
+          $port = 18765
+          $proc = Start-Process -FilePath $exe `
+            -ArgumentList @("serve", "--mcp-only", "--port", $port) -PassThru
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              try {
+                $health = Invoke-RestMethod "http://127.0.0.1:$port/health" -TimeoutSec 2
+                $ready = $true
+                break
+              } catch {
+                Start-Sleep -Milliseconds 500
+              }
+            }
+            if (-not $ready) { throw "serve did not become ready on port $port" }
+            if ($health.service -ne "videoflow") { throw "unexpected health payload" }
+            & $exe status
+            & $exe stop
+          } finally {
+            if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+          }
       - name: Package Windows CUDA portable
         shell: pwsh
         run: |

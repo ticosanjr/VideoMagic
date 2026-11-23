@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import contextlib
+import csv
 import json
 import os
 import signal
 import socket
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -15,6 +17,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from videoflow.application.process_control import process_alive as _platform_process_alive
+from videoflow.application.process_control import terminate_pid
 from videoflow.runtime import portable_home
 
 PROC_ROOT = Path("/proc")
@@ -151,6 +155,8 @@ def _process_state(pid: int, proc_root: Path = PROC_ROOT) -> str:
 def process_alive(pid: int) -> bool:
     if pid <= 0:
         return False
+    if os.name == "nt":
+        return _platform_process_alive(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -257,6 +263,75 @@ def _ancestors(pid: int | None = None, proc_root: Path = PROC_ROOT) -> set[int]:
     return seen
 
 
+def _windows_image_name(pid: int) -> str:
+    completed = subprocess.run(
+        ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return ""
+    line = next((item for item in completed.stdout.splitlines() if item.strip()), "")
+    if not line:
+        return ""
+    try:
+        return next(csv.reader([line]))[0]
+    except (StopIteration, IndexError):
+        return ""
+
+
+def _windows_listeners() -> dict[int, set[int]]:
+    completed = subprocess.run(
+        ["netstat", "-ano", "-p", "tcp"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return {}
+    listeners: dict[int, set[int]] = {}
+    for line in completed.stdout.splitlines():
+        fields = line.split()
+        if len(fields) < 5 or fields[0].upper() != "TCP":
+            continue
+        if fields[3].upper() != "LISTENING":
+            continue
+        try:
+            port = int(fields[1].rsplit(":", 1)[1])
+            pid = int(fields[4])
+        except (ValueError, IndexError):
+            continue
+        listeners.setdefault(pid, set()).add(port)
+    return listeners
+
+
+def _discover_windows_services(current_pid: int) -> list[ServiceProcess]:
+    services: list[ServiceProcess] = []
+    for pid, ports in _windows_listeners().items():
+        image = _windows_image_name(pid)
+        if not image or "videoflow" not in image.casefold():
+            continue
+        version = None
+        for port in ports:
+            health = probe_service("127.0.0.1", port)
+            if health is not None:
+                version = str(health.get("version") or "") or None
+                break
+        services.append(
+            ServiceProcess(
+                pid=pid,
+                cmdline=(image,),
+                ports=tuple(sorted(ports)),
+                version=version,
+                current=pid == current_pid,
+                protected=pid == os.getpid(),
+            )
+        )
+    services.sort(key=lambda item: (not item.current, item.port or 0, item.pid))
+    return services
+
+
 def discover_services(
     *,
     proc_root: Path = PROC_ROOT,
@@ -264,6 +339,8 @@ def discover_services(
 ) -> list[ServiceProcess]:
     """Return local VideoFlow serve processes, with their listening ports."""
 
+    if os.name == "nt":
+        return _discover_windows_services(current_pid or os.getpid())
     if not proc_root.is_dir():
         return []
     current = current_pid or os.getpid()
@@ -320,6 +397,13 @@ def stop_service_pid(
         return False
     if not allow_current and (pid == os.getpid() or pid in _ancestors(os.getpid(), proc_root)):
         return False
+    if os.name == "nt":
+        image = _windows_image_name(pid)
+        if not image or "videoflow" not in image.casefold():
+            return False
+        if terminate_pid(pid, force=False, timeout=timeout):
+            return True
+        return terminate_pid(pid, force=True, timeout=1.0)
     cmdline = _read_cmdline(pid, proc_root)
     if not cmdline or not _is_videoflow_command(cmdline):
         return False

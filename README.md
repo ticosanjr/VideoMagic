@@ -6,7 +6,7 @@ removes silence and retakes, adds J-cuts and punch-ins, proposes vertical
 Shorts, masters the dialogue bed, and exports timelines for DaVinci Resolve,
 Adobe Premiere Pro, and Kdenlive.
 
-> Status: 4.3.0 local stable. **22 MCP tools** in the full profile (17 in
+> Status: 4.3.1 local stable. **22 MCP tools** in the full profile (17 in
 > core), 22 styles, stateful step
 > chains, multi-NLE delivery, and opt-in Windows GPU offload with a
 > self-healing worker kit. GPU speed certification awaits Windows/NVIDIA

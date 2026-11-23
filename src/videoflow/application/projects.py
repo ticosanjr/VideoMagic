@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import json
 import os
 import shutil
@@ -16,6 +15,7 @@ from typing import Any, Literal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
+from vf_shared.contracts.locking import FileLock
 from vf_shared.contracts.workspace import ensure_project, project_dir, write_project
 
 from videoflow.application import database
@@ -77,12 +77,8 @@ def project_lock(output: Path) -> Iterator[None]:
 
     output = Path(output).expanduser()
     output.mkdir(parents=True, exist_ok=True)
-    with open(_lock_path(output), "a+", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    with FileLock(_lock_path(output)):
+        yield
 
 
 def state_path(record: ProjectRecord) -> Path:

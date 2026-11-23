@@ -13,6 +13,7 @@ from vf_shared.contracts.assets import (
     sidecar_path,
     write_asset,
 )
+from vf_shared.contracts.locking import FileLock
 from vf_shared.contracts.workspace import (
     ASSET_KINDS,
     RENDER_VARIANTS,
@@ -35,6 +36,7 @@ __all__ = [
     "RENDER_VARIANTS",
     "WORKSPACE_VERSION",
     "AssetRecord",
+    "FileLock",
     "License",
     "asset_dir",
     "asset_key",

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import signal
 import sqlite3
 import subprocess
 from dataclasses import dataclass, field
@@ -15,6 +14,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.clock import now_iso as _now
+from videoflow.application.process_control import terminate_process
 from videoflow.domain.errors import StateNotReadyError
 from videoflow.runtime import portable_home
 
@@ -171,18 +171,7 @@ def stop_service(definition_id: str) -> dict[str, object]:
         return {"id": definition_id, "status": "stopped", "pid": None}
     process = running.process
     if process.poll() is None:
-        try:
-            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-        except (OSError, ProcessLookupError):
-            process.terminate()
-        try:
-            process.wait(timeout=8)
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-            except (OSError, ProcessLookupError):
-                process.kill()
-            process.wait(timeout=5)
+        terminate_process(process, timeout=8.0)
     _RUNNING.pop(definition_id, None)
     return {"id": definition_id, "status": "stopped", "pid": None}
 

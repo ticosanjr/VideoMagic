@@ -1,5 +1,43 @@
 # Changelog
 
+## [4.3.1] - 2026-11-23
+
+Correção do portable Windows e publicação do build CUDA com Whisper.
+
+### Fixed — Windows
+
+- `fcntl` removido do caminho de inicialização; `project_lock` e o lock de
+  instância agora usam `fcntl` no POSIX e `msvcrt` no Windows.
+- `resource` deixou de ser importado obrigatoriamente; `peak_rss_mb` retorna
+  `null` quando não há `resource`.
+- Encerramento de processos usa `taskkill`/`Popen.terminate` no Windows e
+  `os.killpg` no POSIX, cobrindo `stop`, `cleanup`, tray, FFmpeg e serviços.
+- Descoberta de serviços no Windows via `netstat -ano` e `tasklist`, incluindo
+  PID dono da porta e `status` com serviço encontrado.
+- `stop` e `tray` conseguem encerrar uma instância antiga que esteja segurando a
+  porta 8765.
+- CI Windows agora inicia `serve --mcp-only`, consulta `/health`, executa
+  `status` e `stop`; o build falha se o servidor não subir.
+
+### Added — Windows CUDA ASR
+
+- Novo build `VideoFlow-<versao>-windows-x64-cuda.zip` com Faster-Whisper,
+  CTranslate2, cuBLAS, cuDNN, CUDA Runtime e NVRTC.
+- Modelo `faster-whisper-large-v3-turbo` fora do executável, baixado no primeiro
+  uso pelo `VideoFlow.cmd` em `videoflow-data/models`.
+- Modelo com revisão fixa do Hugging Face e SHA-256 do `model.bin`.
+- Default CUDA `int8_float16`, com override por
+  `VIDEOWFLOW_ASR_DEVICE`/`VIDEOWFLOW_ASR_COMPUTE_TYPE`.
+- `doctor` reporta `cuda.build`, `cuda.devices`, modelo ASR e runtime.
+
+### Validation
+
+- `ruff check src packages tests scripts` limpo.
+- `pytest -q`: 2.911 testes verdes, 1 skipped, 1 xfailed; cobertura 96,8%.
+- `pytest -m media`: 29 passed, 2 skipped.
+- Windows CI: `version`, `doctor`, `models list`, `mcp --help`, `serve`,
+  `/health`, `status` e `stop`.
+
 ## [4.3.0] - 2026-11-23
 
 Release MCP-First: curadoria visual em dois turnos, offload total para o Worker

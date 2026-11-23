@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import resource
 from pathlib import Path
 from typing import Any
 
 from videoflow.application import artifacts as artifact_service
 from videoflow.application.capabilities import capability_manifest
 from videoflow.application.hilt import public_payload, respond
+from videoflow.application.process_control import peak_rss_mb
 from videoflow.application.projects import (
     get_project,
     init_project,
@@ -186,7 +186,7 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
             "stages": job.telemetry.stages(),
             "logs": logs,
             "commands": commands[-50:],
-            "peak_rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1),
+            "peak_rss_mb": peak_rss_mb(),
             "log_resource": f"vf://projects/{project_id}/jobs/{job.job_id}/logs",
         }
 
