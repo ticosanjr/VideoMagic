@@ -45,6 +45,7 @@
   let locale = $state("en");
   let pendingHilt = $state<HiltPending[]>([]);
   let inboxOpen = $state(false);
+  let setupNonce = $state(0);
   let hitlTimer: ReturnType<typeof setInterval> | undefined;
 
   async function connectToService() {
@@ -74,6 +75,11 @@
     } catch {
       pendingHilt = [];
     }
+  }
+
+  function openGpuSetup() {
+    setupNonce += 1;
+    selectTab("setup");
   }
 
   function selectTab(tab: TabId) {
@@ -252,7 +258,7 @@
           <p class="mt-0.5 hidden max-w-2xl truncate text-[length:var(--vf-text-xs)] text-neutral-500 sm:block">{TAB_HINTS[activeTab]}</p>
         </div>
         <div class="flex flex-wrap items-center justify-end gap-1.5">
-          <GpuStatusPill onopen={() => selectTab("setup")} />
+          <GpuStatusPill onopen={openGpuSetup} />
           <button
             type="button"
             onclick={() => void cycleTheme()}
@@ -296,7 +302,9 @@
             onopen={() => void refreshHilt()}
           />
         {:else}
-          <SetupPanel />
+          {#key setupNonce}
+            <SetupPanel />
+          {/key}
         {/if}
       </div>
 

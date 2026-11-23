@@ -114,7 +114,7 @@
   async function refreshBoards() {
     error = "";
     try {
-      boards = await listCurationBoards(false);
+      boards = await listCurationBoards(true);
       const target =
         projectFromHash() ||
         projectId ||
@@ -159,10 +159,8 @@
         delegate_to_ai: delegate
       });
       if (payload.board) applySelection(payload.board, payload.decisions);
-      notice = delegate
-        ? "Saved! Return to OpenCode and type 'pronto'."
-        : "Saved! Return to OpenCode and type 'pronto'.";
       await refreshBoards();
+      notice = "Saved! Return to OpenCode and type 'pronto'.";
     } catch (reason) {
       error = errorMessage(reason);
     } finally {

@@ -619,6 +619,8 @@ Comandos de validação:
   cd ui && npm run check && npm test -- --run && npm run build
   npx playwright test e2e/gpu.spec.ts
 Resultado: svelte-check 0; Vitest 53 passed; build OK; Playwright 2 passed.
+Correções finais: sidebar mostra apenas boards pendentes; o aviso de sucesso
+permanece visível após o refresh; GpuStatusPill reabre Setup na aba Worker.
 Regressão Python: 24 passed no gate curation/MCP; ruff limpo.
 Riscos residuais: Formatos, Plugins e Serviços deixam de ter tela dedicada;
 seguem disponíveis por API/CLI quando ainda existirem no backend. Settings e

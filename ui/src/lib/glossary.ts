@@ -1121,4 +1121,12 @@ export const GLOSSARY: Record<string, string> = {
   "Recommended": "Recomendado",
   "Select": "Selecionar",
   "VideoFlow — curation, jobs, and setup": "VideoFlow — curadoria, tarefas e configuração",
+  "Waiting for human": "Aguardando humano",
+  "Decided": "Decidido",
+  "Delegated to AI": "Delegado à IA",
+  "No board selected.": "Nenhum board selecionado.",
+  "Saved! Return to OpenCode and type 'pronto'.": "Salvo! Volte ao OpenCode e digite 'pronto'.",
+  "Worker GPU": "Worker GPU",
+  "Styles & Workflows": "Estilos e Workflows",
+  "OpenCode & Workspace": "OpenCode e Workspace",
 };
