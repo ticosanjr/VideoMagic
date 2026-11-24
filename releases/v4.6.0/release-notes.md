@@ -55,7 +55,8 @@ inicialização 1-clique no Windows.
   headless.
 - Bootstrap daemon de Silero VAD e Faster-Whisper small com progresso em `jobs`.
 - `--no-auto-download` e `VIDEOWFLOW_NO_AUTO_DOWNLOAD=1`.
-- Porta livre automática (`span=100`) e `active_server.json` com a porta real.
+- Porta livre automática (`span=100`), com bind e conexão validados no Windows,
+  e `active_server.json` com a porta real.
 - `restart` destacado com timeout de 5 s no PID antigo e `/health` em até 15 s.
 
 ## Assets esperados

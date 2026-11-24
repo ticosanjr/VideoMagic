@@ -74,18 +74,32 @@ def active_server_path() -> Path:
 
 
 def pick_available_port(host: str, preferred_port: int, span: int = 100) -> int:
-    """Return the first TCP port that can really be bound on ``host``."""
+    """Return the first TCP port that can really be bound and connected."""
 
     preferred = max(1, int(preferred_port))
     limit = min(65535, preferred + max(1, int(span)))
     family = socket.AF_INET6 if ":" in host else socket.AF_INET
     for port in range(preferred, limit):
+        bound = True
         with socket.socket(family, socket.SOCK_STREAM) as probe:
+            if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                # Windows can otherwise let a second socket bind a port that is
+                # already listening, which made Uvicorn fail with WSAEADDRINUSE.
+                with contextlib.suppress(OSError):
+                    probe.setsockopt(
+                        socket.SOL_SOCKET,
+                        socket.SO_EXCLUSIVEADDRUSE,
+                        1,
+                    )
             try:
                 probe.bind((host, port))
             except OSError:
-                continue
-            return port
+                bound = False
+        if not bound:
+            continue
+        if port_is_busy(host, port):
+            continue
+        return port
     raise OSError(f"no free TCP port on {host} between {preferred} and {limit - 1}")
 
 
@@ -285,7 +299,7 @@ def probe_service(host: str, port: int, *, timeout: float = 0.6) -> dict[str, An
 
 
 def port_is_busy(host: str, port: int) -> bool:
-    visible = host if host not in {"0.0.0.0", "::"} else "127.0.0.1"
+    visible = "::1" if host == "::" else host if host != "0.0.0.0" else "127.0.0.1"
     try:
         with socket.create_connection((visible, port), timeout=0.35):
             return True

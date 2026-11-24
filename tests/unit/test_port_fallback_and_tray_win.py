@@ -37,6 +37,27 @@ def test_pick_available_port_skips_a_real_listener(monkeypatch, tmp_path: Path) 
         occupied.close()
 
 
+def test_pick_available_port_skips_a_port_that_accepts_connections(monkeypatch) -> None:
+    """Windows may allow a second bind on a listening port; trust connect too."""
+
+    class FakeSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def bind(self, address):
+            return None
+
+        def setsockopt(self, *args):
+            return None
+
+    monkeypatch.setattr(services.socket, "socket", lambda *args, **kwargs: FakeSocket())
+    monkeypatch.setattr(services, "port_is_busy", lambda host, port: port == 8765)
+    assert services.pick_available_port("127.0.0.1", 8765, span=5) == 8766
+
+
 def test_server_supervisor_falls_back_and_publishes_active_port(
     monkeypatch, tmp_path: Path
 ) -> None:
