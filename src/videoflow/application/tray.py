@@ -252,21 +252,26 @@ class ServerSupervisor:
 
     def _clear_port(self) -> None:
         health = probe_service(self.host, self.port)
-        if health is None and not port_is_busy(self.host, self.port):
-            return
+        busy = port_is_busy(self.host, self.port)
+        start = self.port
         if health is not None:
             result = stop_services_on_port(self.host, self.port)
             if bool(result.get("free")):
                 append_server_log(f"tray replaced service on port {self.port}")
-                return
+            else:
+                # A real listener is still holding the port; skip it explicitly.
+                start = self.port + 1
+        elif not busy:
+            append_server_log(f"tray checking port {self.port}")
         previous = self.port
         try:
-            self.port = pick_available_port(self.host, self.port + 1)
+            self.port = pick_available_port(self.host, start, span=100)
         except OSError as exc:
             raise TrayError(f"Port {previous} is busy and no fallback was found: {exc}") from exc
-        append_server_log(
-            f"tray port {previous} is owned by another process; using {self.port}"
-        )
+        if self.port != previous:
+            append_server_log(
+                f"tray port {previous} is owned by another process; using {self.port}"
+            )
 
     def _run_server(self, server: Any) -> None:
         try:
@@ -544,6 +549,9 @@ def _icon_image() -> Any:
         bundle_root() / "packaging" / "videoflow.png",
         Path(__file__).resolve().parents[2] / "packaging" / "videoflow.png",
     ]
+    meipass = getattr(sys, "_MEIPASS", "")
+    if meipass:
+        candidates.insert(0, Path(meipass) / "packaging" / "videoflow.png")
     for candidate in candidates:
         if candidate.is_file():
             with Image.open(candidate) as source:

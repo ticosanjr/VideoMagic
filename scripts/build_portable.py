@@ -61,6 +61,24 @@ def ensure_ui_build() -> bool:
     return True
 
 
+def _preflight_runtime_imports() -> bool:
+    """Fail before PyInstaller when a one-click runtime module is broken."""
+
+    required = (
+        "videoflow.application.bootstrap_runtime",
+        "videoflow.application.tray",
+        "videoflow.domains.audio.pcm_io",
+    )
+    missing: list[str] = []
+    for name in required:
+        try:
+            __import__(name)
+        except Exception as exc:  # noqa: BLE001 - report the exact import failure
+            print(f"runtime import failed: {name}: {exc}", file=sys.stderr)
+            missing.append(name)
+    return not missing
+
+
 def _preload_cuda_dlls() -> None:
     """Make NVIDIA pip DLL directories visible before importing CTranslate2."""
 
@@ -199,6 +217,8 @@ def main() -> int:
     if args.zip_name and not args.zip:
         parser.error("--zip-name requires --zip")
     if not args.skip_ui_build and not ensure_ui_build():
+        return 1
+    if not _preflight_runtime_imports():
         return 1
 
     vendor = ROOT / "vendor"

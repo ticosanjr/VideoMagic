@@ -2,9 +2,11 @@
 
 The check runs with a clean ``PATH`` so it proves the portable bundle is
 self-contained: ``version``, ``doctor`` (FFmpeg, Windows fonts, CUDA/NVENC),
-``mcp --profile core --list-tools``, and a temporary ``serve`` process that must
-answer ``/health`` and ``/api/v1/curation/boards``. The server is always stopped
-in a ``finally`` block.
+``mcp --profile core --list-tools``, and a temporary ``serve`` process started
+on an already-occupied port. The server must fall back to the next bindable
+port, publish ``active_server.json``, and answer ``/`` plus
+``/api/v1/curation/boards``. Automatic model downloads stay disabled for the
+whole smoke run. The server is always stopped in a ``finally`` block.
 """
 
 from __future__ import annotations
@@ -67,7 +69,9 @@ def clean_env(home: Path, *, keep_path: bool = False) -> dict[str, str]:
         env["PATH"] = os.pathsep.join(("/usr/bin", "/bin"))
     env["VIDEOWFLOW_HOME"] = str(home)
     env["VIDEOWFLOW_ALLOWED_ROOTS"] = str(home)
+    env["VIDEOWFLOW_NO_AUTO_DOWNLOAD"] = "1"
     env.pop("VIDEOWFLOW_ASR_AUTO_DOWNLOAD", None)
+    env.pop("VIDEOWFLOW_AUTO_DOWNLOAD", None)
     env.pop("VF_GPU_WORKER_URL", None)
     return env
 
@@ -364,6 +368,119 @@ def wait_for_server(
                 )
 
 
+def check_auto_download_disabled(home: Path) -> None:
+    """Assert the smoke home has no running bootstrap download job."""
+
+    import sqlite3
+
+    database = home / "videoflow.db"
+    if not database.is_file():
+        return
+    try:
+        with sqlite3.connect(database) as connection:
+            rows = connection.execute("SELECT payload FROM jobs").fetchall()
+    except sqlite3.Error:
+        return
+    for (raw,) in rows:
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if (
+            payload.get("origin") == "bootstrap"
+            and payload.get("status") in {"queued", "running"}
+        ):
+            raise SmokeError(
+                "VIDEOWFLOW_NO_AUTO_DOWNLOAD=1 was ignored: "
+                f"bootstrap job {payload.get('job_id')} is still running"
+            )
+    print("[ok] models: auto-download disabled")
+
+
+def check_port_fallback(
+    exe: Path,
+    *,
+    env: dict[str, str],
+    home: Path,
+    occupied_port: int,
+    timeout: float,
+) -> None:
+    """Occupy the requested port and prove serve picks the next one."""
+
+    occupied = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    occupied.bind(("127.0.0.1", int(occupied_port)))
+    occupied.listen(1)
+    log_path = home / "serve-fallback.log"
+    command = [
+        str(exe),
+        "serve",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(int(occupied_port)),
+    ]
+    process: subprocess.Popen[bytes] | None = None
+    try:
+        with log_path.open("wb") as log:
+            process = subprocess.Popen(
+                command,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                env=env,
+                cwd=str(exe.parent),
+            )
+        deadline = time.monotonic() + timeout
+        real_port = 0
+        base = ""
+        last_error = ""
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise SmokeError(
+                    f"serve exited with {process.returncode} before the fallback port"
+                )
+            try:
+                payload = json.loads(
+                    (home / "active_server.json").read_text(encoding="utf-8")
+                )
+            except (OSError, ValueError):
+                payload = {}
+            try:
+                candidate = int(payload.get("port") or 0)
+            except (TypeError, ValueError):
+                candidate = 0
+            if candidate and candidate != int(occupied_port):
+                candidate_base = f"http://127.0.0.1:{candidate}"
+                try:
+                    status, health = http_json(f"{candidate_base}/health")
+                except (OSError, ValueError, urllib.error.URLError) as exc:
+                    last_error = str(exc)
+                else:
+                    if status == 200 and health.get("service") == "videoflow":
+                        real_port = candidate
+                        base = candidate_base
+                        break
+            time.sleep(0.25)
+        if not real_port:
+            raise SmokeError(
+                f"serve did not fall back from port {occupied_port}: {last_error}"
+            )
+        status, boards = http_json(f"{base}/api/v1/curation/boards")
+        if status != 200 or boards.get("ok") is not True:
+            raise SmokeError(f"unexpected curation boards payload: {boards!r}")
+        check_ui_assets(base, timeout=timeout)
+        check_auto_download_disabled(home)
+        print(
+            f"[ok] serve: occupied {occupied_port}, started on {real_port}; "
+            f"/ and /api/v1/curation/boards returned 200"
+        )
+    finally:
+        if process is not None:
+            stop_process(process)
+        occupied.close()
+
+
 def stop_process(process: subprocess.Popen[bytes]) -> None:
     """Stop the serve process and its children, without leaving the runner stuck."""
 
@@ -446,18 +563,17 @@ def main(argv: list[str] | None = None) -> int:
     home_dir = tempfile.mkdtemp(prefix="videoflow-smoke-")
     home = Path(home_dir)
     env = clean_env(home, keep_path=args.keep_path)
-    log_path = home / "serve.log"
     try:
         print(f"smoke target: {exe}")
         check_version(exe, env, args.timeout)
         check_doctor(exe, env, args.timeout)
         check_mcp_tools(exe, env, args.timeout)
-        wait_for_server(
+        check_port_fallback(
             exe,
             env=env,
-            port=args.port or free_port(),
+            home=home,
+            occupied_port=args.port or free_port(),
             timeout=args.timeout,
-            log_path=log_path,
         )
         check_synthetic_job(exe, env, home, args.timeout)
     except SmokeError as exc:

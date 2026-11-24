@@ -282,12 +282,12 @@ def test_shorts_rejects_invalid_duration_range(monkeypatch, tmp_path, capsys) ->
     assert "--max-sec must be greater than --min-sec." in capsys.readouterr().err
 
 
-def test_version_and_unknown_commands(monkeypatch, capsys) -> None:
+def test_version_and_default_launch(monkeypatch, capsys) -> None:
     monkeypatch.setattr(cli, "__version__", "9.9.9")
     assert cli.main(["version"]) == 0
     assert "videoflow 9.9.9" in capsys.readouterr().out
-    assert cli.main([]) == 2
-    assert "usage" in capsys.readouterr().out.lower()
+    monkeypatch.setattr(cli, "_launch_default", lambda args: 0)
+    assert cli.main([]) == 0
 
 
 def test_shorts_reports_when_no_clips_survive(monkeypatch, tmp_path, capsys) -> None:
@@ -1115,15 +1115,21 @@ def test_serve_locked_replaces_an_older_service(monkeypatch, capsys) -> None:
     assert f"stopping it before starting {__version__}" in capsys.readouterr().out
 
 
-def test_serve_locked_fails_when_old_service_cannot_stop(monkeypatch, capsys) -> None:
+def test_serve_locked_falls_back_when_old_service_cannot_stop(monkeypatch, capsys) -> None:
     _settings(monkeypatch)
     monkeypatch.setattr(cli, "append_server_log", lambda message: None)
     monkeypatch.setattr(cli, "probe_service", lambda host, port: {"version": "0.0.1"})
     monkeypatch.setattr(
         cli, "stop_services_on_port", lambda host, port: {"free": False}
     )
+    monkeypatch.setattr(cli, "pick_available_port", lambda host, port, span=100: 8766)
+    monkeypatch.setattr(cli, "_write_pid", lambda path, host, port: None)
+    monkeypatch.setattr(cli, "_remove_pid", lambda path: None)
+    monkeypatch.setattr(cli, "_schedule_browser", lambda url: None)
     args = SimpleNamespace(host="127.0.0.1", port=8765, open=False)
-    assert cli._serve_locked(args, _fake_uvicorn(lambda app: None), lambda jobs=None: None) == 1
+    factory = lambda jobs=None: SimpleNamespace(state=SimpleNamespace())  # noqa: E731
+    assert cli._serve_locked(args, _fake_uvicorn(lambda app: None), factory) == 0
+    assert args.port == 8766
     assert "Could not stop the older VideoFlow service" in capsys.readouterr().err
 
 
@@ -1158,7 +1164,7 @@ def test_serve_locked_frees_a_foreign_port(monkeypatch) -> None:
     assert apps
 
 
-def test_serve_locked_rejects_a_busy_foreign_port(monkeypatch, capsys) -> None:
+def test_serve_locked_falls_back_from_a_busy_foreign_port(monkeypatch, capsys) -> None:
     _settings(monkeypatch)
     monkeypatch.setattr(cli, "append_server_log", lambda message: None)
     monkeypatch.setattr(cli, "probe_service", lambda host, port: None)
@@ -1166,8 +1172,14 @@ def test_serve_locked_rejects_a_busy_foreign_port(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         cli, "stop_services_on_port", lambda host, port: {"free": False}
     )
+    monkeypatch.setattr(cli, "pick_available_port", lambda host, port, span=100: 8766)
+    monkeypatch.setattr(cli, "_write_pid", lambda path, host, port: None)
+    monkeypatch.setattr(cli, "_remove_pid", lambda path: None)
+    monkeypatch.setattr(cli, "_schedule_browser", lambda url: None)
     args = SimpleNamespace(host="127.0.0.1", port=8765, open=False)
-    assert cli._serve_locked(args, _fake_uvicorn(lambda app: None), lambda jobs=None: None) == 1
+    factory = lambda jobs=None: SimpleNamespace(state=SimpleNamespace())  # noqa: E731
+    assert cli._serve_locked(args, _fake_uvicorn(lambda app: None), factory) == 0
+    assert args.port == 8766
     assert "is already in use by another process" in capsys.readouterr().err
 
 
@@ -1542,22 +1554,34 @@ def test_cleanup_reports_failures(monkeypatch, capsys) -> None:
     assert json.loads(capsys.readouterr().out)["failed"] == [2]
 
 
-def test_restart_delegates_to_stop_and_serve(monkeypatch) -> None:
+def test_restart_starts_a_detached_service_and_returns_when_healthy(monkeypatch) -> None:
     calls: dict[str, object] = {}
-    monkeypatch.setattr(cli, "_stop", lambda args: calls.setdefault("stop", args) or 0)
-    monkeypatch.setattr(cli.time, "sleep", lambda seconds: calls.setdefault("sleep", seconds))
+    monkeypatch.setattr(cli, "read_active_server", lambda: {})
+    monkeypatch.setattr(cli, "_read_pid", lambda path: {})
+    monkeypatch.setattr(cli, "_remove_pid", lambda path: None)
+    monkeypatch.setattr(cli, "remove_active_server", lambda **kwargs: None)
+    monkeypatch.setattr(cli, "pick_available_port", lambda host, port, span=100: 9999)
+    monkeypatch.setattr(cli.time, "sleep", lambda seconds: None)
 
-    def fake_serve(args):
-        calls["serve"] = args
-        return 3
+    class Process:
+        pid = 4321
 
-    monkeypatch.setattr(cli, "_serve", fake_serve)
-    assert cli.main(["restart", "--host", "0.0.0.0", "--port", "9999"]) == 3
-    assert calls["sleep"] == 0.4
-    assert calls["stop"].timeout == 5.0
-    assert calls["serve"].host == "0.0.0.0"
-    assert calls["serve"].port == 9999
-    assert calls["serve"].open is True
+        def poll(self):
+            return None
+
+    def fake_spawn(host, port, *, no_auto_download=False):
+        calls["spawn"] = (host, port, no_auto_download)
+        return Process()
+
+    monkeypatch.setattr(cli, "spawn_detached_server", fake_spawn)
+    monkeypatch.setattr(
+        cli,
+        "read_active_server",
+        lambda: {"host": "0.0.0.0", "port": 9999, "pid": 4321},
+    )
+    monkeypatch.setattr(cli, "probe_service", lambda host, port: {"service": "videoflow"})
+    assert cli.main(["restart", "--host", "0.0.0.0", "--port", "9999"]) == 0
+    assert calls["spawn"] == ("0.0.0.0", 9999, False)
 
 
 # ---------------------------------------------------------------- doctor/mcp/main

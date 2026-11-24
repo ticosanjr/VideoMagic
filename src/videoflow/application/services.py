@@ -9,6 +9,7 @@ import os
 import signal
 import socket
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -115,14 +116,14 @@ def read_active_server() -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def remove_active_server() -> None:
+def remove_active_server(*, force: bool = False) -> None:
     path = active_server_path()
     payload = read_active_server()
     try:
         owner = int(payload.get("pid") or 0)
     except (TypeError, ValueError):
         owner = 0
-    if owner in {0, os.getpid()}:
+    if force or owner in {0, os.getpid()}:
         with contextlib.suppress(OSError):
             path.unlink(missing_ok=True)
 
@@ -145,6 +146,50 @@ def rotate_log(path: Path, *, max_bytes: int = 4_000_000, keep: int = 3) -> bool
             source.replace(path.with_suffix(f".log.{index + 1}"))
     path.replace(path.with_suffix(".log.1"))
     return True
+
+
+def detached_server_command(host: str, port: int, *, no_auto_download: bool = False) -> list[str]:
+    """Command that re-launches the service as a detached process."""
+
+    command = [sys.executable]
+    if not getattr(sys, "frozen", False):
+        command.extend(["-m", "videoflow"])
+    command.extend(["serve", "--host", host, "--port", str(int(port))])
+    if no_auto_download:
+        command.append("--no-auto-download")
+    return command
+
+
+def spawn_detached_server(
+    host: str,
+    port: int,
+    *,
+    no_auto_download: bool = False,
+    home: Path | None = None,
+) -> subprocess.Popen[bytes]:
+    """Start ``serve`` in its own process group and return without waiting."""
+
+    environment = dict(os.environ)
+    environment["VIDEOWFLOW_HOME"] = str(home or portable_home())
+    if no_auto_download:
+        environment["VIDEOWFLOW_NO_AUTO_DOWNLOAD"] = "1"
+    kwargs: dict[str, Any] = {
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "env": environment,
+        "close_fds": True,
+    }
+    if os.name == "nt":
+        kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
+            subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+        )
+    else:
+        kwargs["start_new_session"] = True
+    return subprocess.Popen(  # noqa: S603 - fixed local argv, no shell
+        detached_server_command(host, port, no_auto_download=no_auto_download),
+        **kwargs,
+    )
 
 
 def append_server_log(message: str) -> None:

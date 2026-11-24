@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import platform
@@ -38,10 +39,12 @@ from videoflow.application.services import (
     port_is_busy,
     probe_service,
     process_alive,
+    read_active_server,
     read_pid_file,
     remove_active_server,
     remove_pid_file,
     server_log_path,
+    spawn_detached_server,
     stop_other_services,
     stop_services_on_port,
     write_active_server,
@@ -85,6 +88,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
     try:
+        if args.command is None:
+            return _launch_default(args)
         if args.command == "version":
             return _version()
         if args.command == "doctor":
@@ -317,9 +322,21 @@ def _parser() -> argparse.ArgumentParser:
     export_win.add_argument("--ffmpeg", default="")
     export_win.add_argument("--show-token", action="store_true")
 
+    parser.add_argument(
+        "--no-auto-download",
+        action="store_true",
+        help="Do not download essential models during this startup.",
+    )
+
     serve = sub.add_parser("serve", help="Serve the API, MCP HTTP, and rack UI.")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument(
+        "--no-auto-download",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Do not download essential models during this startup.",
+    )
     serve.add_argument(
         "--open",
         action="store_true",
@@ -346,6 +363,12 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print tray backend, display, and menu diagnostics without starting it.",
     )
+    tray.add_argument(
+        "--no-auto-download",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Do not download essential models during this startup.",
+    )
 
     sub.add_parser("cleanup", help="Stop every VideoFlow service except the current process.")
     stop = sub.add_parser("stop", help="Stop the local VideoFlow service.")
@@ -353,6 +376,12 @@ def _parser() -> argparse.ArgumentParser:
     restart = sub.add_parser("restart", help="Restart the local service and keep it running.")
     restart.add_argument("--host", default="127.0.0.1")
     restart.add_argument("--port", type=int, default=8765)
+    restart.add_argument(
+        "--no-auto-download",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Do not download essential models during this startup.",
+    )
     sub.add_parser("status", help="Show whether the local service is running.")
     mcp = sub.add_parser("mcp", help="Run the unified MCP server over stdio.")
     mcp.add_argument(
@@ -966,6 +995,55 @@ def _recipe(args: argparse.Namespace) -> int:
     return 2
 
 
+def _fallback_port(args: argparse.Namespace, reason: str) -> bool:
+    """Move to the next bindable port instead of aborting on a busy port."""
+
+    previous = int(args.port)
+    try:
+        args.port = pick_available_port(args.host, previous, span=100)
+    except OSError as exc:
+        print(
+            f"Port {previous} is busy and no fallback was found: {exc}",
+            file=sys.stderr,
+        )
+        return False
+    print(f"{reason} Using port {args.port}.", file=sys.stderr)
+    append_server_log(
+        f"serve port fallback from {previous} to {args.port} pid={os.getpid()}"
+    )
+    return True
+
+
+def _launch_default(args: argparse.Namespace) -> int:
+    """Start the desktop tray, or a headless service, when no command is given."""
+
+    from videoflow.application import tray as tray_module
+
+    no_auto = bool(getattr(args, "no_auto_download", False))
+    if no_auto:
+        os.environ["VIDEOWFLOW_NO_AUTO_DOWNLOAD"] = "1"
+    if tray_module.tray_available():
+        return _tray(
+            argparse.Namespace(
+                host="127.0.0.1",
+                port=8765,
+                no_open=False,
+                check=False,
+                no_auto_download=no_auto,
+            )
+        )
+    return _serve(
+        argparse.Namespace(
+            host="127.0.0.1",
+            port=8765,
+            open=False,
+            mcp_only=False,
+            ui=True,
+            no_auto_download=no_auto,
+        )
+    )
+
+
 def _tray(args: argparse.Namespace) -> int:
     from videoflow.application import tray as tray_module
 
@@ -981,6 +1059,14 @@ def _tray(args: argparse.Namespace) -> int:
         diagnostics = tray_module.tray_diagnostics()
         print(json.dumps(diagnostics, indent=2))
         return 0 if diagnostics.get("available") else 1
+    if getattr(args, "no_auto_download", False):
+        os.environ["VIDEOWFLOW_NO_AUTO_DOWNLOAD"] = "1"
+    else:
+        from videoflow.application.bootstrap_runtime import (
+            ensure_essential_models_async,
+        )
+
+        ensure_essential_models_async()
     _ensure_portable_asr()
     if not tray_module.tray_available():
         diagnostics = tray_module.tray_diagnostics()
@@ -1024,20 +1110,20 @@ def _serve(args: argparse.Namespace) -> int:
         args.open = True
     if settings.paths.temp_dir:
         os.environ["TMPDIR"] = settings.paths.temp_dir
+    if getattr(args, "no_auto_download", False):
+        os.environ["VIDEOWFLOW_NO_AUTO_DOWNLOAD"] = "1"
+    else:
+        from videoflow.application.bootstrap_runtime import (
+            ensure_essential_models_async,
+        )
+
+        ensure_essential_models_async()
     if probe_service(args.host, args.port) is None and port_is_busy(args.host, args.port):
         previous = args.port
-        try:
-            args.port = pick_available_port(args.host, args.port + 1)
-        except OSError as exc:
-            print(f"Port {previous} is busy and no fallback was found: {exc}", file=sys.stderr)
+        if not _fallback_port(
+            args, f"Port {previous} is owned by another process;"
+        ):
             return 1
-        print(
-            f"Port {previous} is owned by another process; using {args.port}.",
-            file=sys.stderr,
-        )
-        append_server_log(
-            f"serve port fallback from {previous} to {args.port} pid={os.getpid()}"
-        )
     append_server_log(f"serve requested host={args.host} port={args.port} pid={os.getpid()}")
     url = _ui_url(args.host, args.port)
     lock = _InstanceLock(args.port)
@@ -1101,19 +1187,20 @@ def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
         if not result["free"]:
             print(
                 "Could not stop the older VideoFlow service on port "
-                f"{args.port}. Stop it manually and try again.",
+                f"{args.port}.",
                 file=sys.stderr,
             )
-            return 1
+            if not _fallback_port(args, "Switching to another port;"):
+                return 1
     elif port_is_busy(args.host, args.port):
         result = stop_services_on_port(args.host, args.port)
         if not result["free"]:
             print(
-                f"Port {args.port} is already in use by another process. "
-                "Close it or choose --port.",
+                f"Port {args.port} is already in use by another process.",
                 file=sys.stderr,
             )
-            return 1
+            if not _fallback_port(args, "Switching to another port;"):
+                return 1
 
     print(
         f"VideoFlow {__version__} starting at {_ui_url(args.host, args.port)} "
@@ -1274,9 +1361,59 @@ def _cleanup() -> int:
 
 
 def _restart(args: argparse.Namespace) -> int:
-    _stop(argparse.Namespace(timeout=5.0))
-    time.sleep(0.4)
-    return _serve(argparse.Namespace(host=args.host, port=args.port, open=True))
+    """Restart in a detached process and return as soon as /health is ready."""
+
+    payload = read_active_server()
+    host = str(payload.get("host") or args.host)
+    try:
+        port = int(payload.get("port") or args.port)
+    except (TypeError, ValueError):
+        port = int(args.port)
+    pid_payload = _read_pid(_pid_file())
+    try:
+        old_pid = int(payload.get("pid") or pid_payload.get("pid") or 0)
+    except (TypeError, ValueError):
+        old_pid = 0
+    no_auto = bool(getattr(args, "no_auto_download", False))
+    if no_auto:
+        os.environ["VIDEOWFLOW_NO_AUTO_DOWNLOAD"] = "1"
+    if old_pid > 0 and old_pid != os.getpid():
+        terminate_pid(old_pid, force=False, timeout=5.0)
+        if _process_alive(old_pid):
+            terminate_pid(old_pid, force=True, timeout=1.0)
+    _remove_pid(_pid_file())
+    remove_active_server(force=True)
+    with contextlib.suppress(OSError):
+        port = pick_available_port(host, port, span=100)
+    try:
+        process = spawn_detached_server(
+            host,
+            port,
+            no_auto_download=no_auto,
+        )
+    except OSError as exc:
+        print(f"Could not restart VideoFlow: {exc}", file=sys.stderr)
+        return 1
+    deadline = time.monotonic() + 15.0
+    published_port = port
+    while time.monotonic() < deadline:
+        published = read_active_server()
+        try:
+            published_port = int(published.get("port") or published_port)
+        except (TypeError, ValueError):
+            published_port = port
+        if probe_service(host, published_port) is not None:
+            print(f"VideoFlow restarted at {_ui_url(host, published_port)}")
+            return 0
+        if process.poll() is not None:
+            break
+        time.sleep(0.2)
+    print(
+        f"VideoFlow restart did not become ready within 15s "
+        f"(PID {getattr(process, 'pid', '?')}). Check the server log.",
+        file=sys.stderr,
+    )
+    return 1
 
 
 def _status() -> int:

@@ -46,9 +46,9 @@ def test_serve_ui_url_handles_wildcard_bind() -> None:
     assert cli._ui_url("::", 9001) == "http://127.0.0.1:9001/"
 
 
-def test_unknown_command_returns_usage(capsys) -> None:
-    assert cli.main([]) == 2
-    assert "usage" in capsys.readouterr().out.lower()
+def test_no_command_starts_the_default_service(monkeypatch) -> None:
+    monkeypatch.setattr(cli, "_launch_default", lambda args: 0)
+    assert cli.main([]) == 0
 
 
 def test_doctor_reports_faster_whisper(monkeypatch, tmp_path, capsys) -> None:
