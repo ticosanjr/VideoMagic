@@ -38,7 +38,7 @@ class VideoExportParams(BaseModel):
     subdir: str = Field(default="exports", max_length=120)
     filename_mode: Literal["source_timestamp", "fixed"] = "source_timestamp"
     filename: str = Field(default="video.mp4", min_length=1, max_length=200)
-    audio_source: Literal["timeline", "mix"] = "timeline"
+    audio_source: Literal["timeline", "mix"] = "mix"
     compute_policy: Literal["auto", "local", "local_gpu", "remote", "remote_only"] = "auto"
     allow_slow_cpu_fallback: bool = False
     draft_scale: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -121,7 +121,18 @@ class VideoExportStep(BaseStep):
                     None,
                 )
             if mix is None or not mix.is_file():
-                raise ExportError("Video export requested the mix, but no mixed audio exists.")
+                explicit_mix = "audio_source" in getattr(
+                    options, "model_fields_set", set()
+                )
+                if not Path(str(dialogue)).is_file() and not explicit_mix:
+                    context.warnings.append(
+                        "No mixed audio or dialogue master exists; using timeline audio."
+                    )
+                    options = options.model_copy(update={"audio_source": "timeline"})
+                else:
+                    raise ExportError(
+                        "Video export requested the mix, but no mixed audio exists."
+                    )
         look = MasterLook(
             lut_path=options.lut_path,
             grain_amount=options.grain_amount,

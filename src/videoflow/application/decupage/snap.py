@@ -82,8 +82,8 @@ def build_plan(
     ends = [end for _start, end in base] + [end for _start, end in source_cuts]
     ordered_starts = sorted(set(starts))
     ordered_ends = sorted(set(ends))
-    pre_floor = _samples(rate, max(70.0, float(pre_roll_floor_ms)))
-    post_floor = _samples(rate, max(110.0, float(post_roll_floor_ms)))
+    pre_floor = _samples(rate, max(0.0, float(pre_roll_floor_ms)))
+    post_floor = _samples(rate, max(0.0, float(post_roll_floor_ms)))
     snapped: list[tuple[int, int, float | None, bool]] = []
     for start, end in base:
         original_start, original_end = start, end

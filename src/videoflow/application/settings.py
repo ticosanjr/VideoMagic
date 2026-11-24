@@ -81,8 +81,8 @@ class AutomationSettings(BaseModel):
 class QualitySettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target_lufs: float = Field(default=-15.5, ge=-30.0, le=-5.0)
-    true_peak_db: float = Field(default=-1.5, ge=-20.0, le=0.0)
+    target_lufs: float = Field(default=-16.0, ge=-30.0, le=-5.0)
+    true_peak_db: float = Field(default=-2.0, ge=-20.0, le=0.0)
     vmaf_threshold: float = Field(default=90.0, ge=0.0, le=100.0)
     proxy_height: int = Field(default=540, ge=144, le=1080)
 

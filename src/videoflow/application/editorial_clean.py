@@ -45,6 +45,23 @@ _PROTECTED = re.compile(
     r"\bclique\b|\binscreve\b|\bcanal\b|\blike\b|\bsininho\b|\bmembro\b",
     re.IGNORECASE,
 )
+_ORDINALS = {
+    "primeiro",
+    "primeira",
+    "segundo",
+    "segunda",
+    "terceiro",
+    "terceira",
+    "quarto",
+    "quarta",
+    "quinto",
+    "quinta",
+    "first",
+    "second",
+    "third",
+    "fourth",
+    "fifth",
+}
 _PUNCTUATION_PREFIX = ".,!?;:%)]}"
 _OPEN_ENDINGS = ("(", "[", "{", "-", "/", "—")
 _FRAME_MS = 10
@@ -84,6 +101,7 @@ def clean_editorial(
     pad_before_ms: int = 110,
     pad_after_ms: int = 190,
     crossfade_ms: int = 15,
+    second_pass: bool = False,
 ) -> EditorialCleanResult:
     """Run every editorial pass and return a clean transcript and cut report."""
 
@@ -127,6 +145,24 @@ def clean_editorial(
         prefix_similarity=prefix_similarity,
         max_discard_ratio=max_discard_ratio,
     )
+    if second_pass:
+        survivors = [item for item in working if item.id not in set(fuzzy_discards)]
+        if len(survivors) > 1:
+            extra, extra_groups = _fuzzy_sentence_discards(
+                survivors,
+                similarity=fuzzy_similarity,
+                prefix_similarity=prefix_similarity,
+                max_discard_ratio=max_discard_ratio,
+            )
+            combined = set(fuzzy_discards) | set(extra)
+            fuzzy_discards = sorted(
+                _limit_discards(working, combined, max_discard_ratio=max_discard_ratio)
+            )
+            fuzzy_groups.extend(
+                group
+                for group in extra_groups
+                if group["sentence_id"] in set(fuzzy_discards)
+            )
 
     semantic_discards: list[dict[str, Any]] = []
     semantic_candidates: list[dict[str, Any]] = []
@@ -382,9 +418,19 @@ def _fuzzy_sentence_discards(
             if not _complete_sentence(later):
                 continue
             ratio, overlap, prefix = _sentence_similarity(earlier, later)
-            if prefix < prefix_similarity and max(ratio, overlap) < similarity:
+            containment, prefix_match = _content_match(earlier, later)
+            more_complete = len(token_list(later.text)) >= len(token_list(earlier.text))
+            strong = prefix >= prefix_similarity or max(ratio, overlap) >= similarity
+            paraphrase = more_complete and (prefix_match or containment >= 0.55)
+            if not strong and not (paraphrase and similarity < 0.99):
                 continue
-            if not _safe_to_discard(earlier, later, max(ratio, overlap)):
+            if not _safe_to_discard(
+                earlier,
+                later,
+                max(ratio, overlap),
+                containment=containment,
+                prefix_match=prefix_match,
+            ):
                 continue
             discarded.add(earlier.id)
             groups.append(
@@ -577,7 +623,24 @@ def _sentence_similarity(left: Sentence, right: Sentence) -> tuple[float, float,
     return ratio, overlap, prefix
 
 
-def _safe_to_discard(earlier: Sentence, later: Sentence, similarity: float) -> bool:
+def _content_match(left: Sentence, right: Sentence) -> tuple[float, bool]:
+    left_tokens = [item for item in token_list(left.text) if item not in STOPWORDS]
+    right_tokens = [item for item in token_list(right.text) if item not in STOPWORDS]
+    if not left_tokens or not right_tokens:
+        return 0.0, False
+    containment = len(set(left_tokens) & set(right_tokens)) / len(set(left_tokens))
+    prefix_match = len(set(left_tokens[:6]) & set(right_tokens[:6])) >= 2
+    return containment, prefix_match
+
+
+def _safe_to_discard(
+    earlier: Sentence,
+    later: Sentence,
+    similarity: float,
+    *,
+    containment: float = 0.0,
+    prefix_match: bool = False,
+) -> bool:
     """Keep unique facts, numbers, prices, and protected commercial content."""
 
     if _PROTECTED.search(earlier.text):
@@ -586,10 +649,19 @@ def _safe_to_discard(earlier: Sentence, later: Sentence, similarity: float) -> b
     b_numbers = set(_NUMBER.findall(later.text))
     if a_numbers and a_numbers != b_numbers:
         return False
+    a_ordinals = set(token_list(earlier.text)) & _ORDINALS
+    b_ordinals = set(token_list(later.text)) & _ORDINALS
+    if a_ordinals and b_ordinals and a_ordinals != b_ordinals:
+        return False
     earlier_content = token_set(earlier.text, min_length=4) - STOPWORDS
     later_tokens = token_set(later.text, min_length=3)
     unique = earlier_content - later_tokens
-    return not (unique and similarity < 0.85)
+    return not (
+        unique
+        and similarity < 0.85
+        and containment < 0.6
+        and not prefix_match
+    )
 
 
 def _limit_discards(

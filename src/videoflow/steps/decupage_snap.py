@@ -38,8 +38,10 @@ class SnapParams(BaseModel):
     min_cut_gap_ms: float = Field(default=180.0, ge=0.0, le=1000.0)
     crossfade_ms: float = Field(default=18.0, ge=10.0, le=50.0)
     min_clip_ms: float = Field(default=120.0, ge=1.0, le=2000.0)
-    pre_roll_floor_ms: float = Field(default=90.0, ge=70.0, le=500.0)
-    post_roll_floor_ms: float = Field(default=150.0, ge=110.0, le=500.0)
+    pre_roll_floor_ms: float = Field(default=90.0, ge=0.0, le=500.0)
+    post_roll_floor_ms: float = Field(default=150.0, ge=0.0, le=500.0)
+    pacing_profile: str = "tight"
+    qa_dead_air_ms: int = Field(default=550, ge=0, le=5000)
 
 
 def _overlap_samples(
@@ -98,6 +100,8 @@ class DecupageSnapStep(BaseStep):
         )
         context.metadata["decupage_safe_spans"] = [list(item) for item in safe_spans]
         context.metadata["flagged_long_cuts"] = flagged_long_cuts
+        context.metadata["pacing_profile"] = options.pacing_profile
+        context.metadata["qa_dead_air_ms"] = options.qa_dead_air_ms
         plan = build_plan(
             media,
             asus,

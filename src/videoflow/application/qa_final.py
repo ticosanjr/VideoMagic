@@ -110,6 +110,19 @@ def filter_kept_to_timeline(
     return result
 
 
+def _dead_air_limit_ms(state: Any) -> int:
+    metadata = getattr(getattr(state, "pipeline", None), "metadata", None)
+    if isinstance(metadata, dict):
+        for key in ("qa_dead_air_ms", "qa_dead_air_limit_ms"):
+            try:
+                value = int(metadata.get(key))
+            except (TypeError, ValueError):
+                continue
+            if value > 0:
+                return value
+    return 700
+
+
 def cut_leak_seconds(metadata: Any) -> float:
     """Largest measured leak of removed audio, in seconds."""
 
@@ -294,9 +307,13 @@ def audit_final(
         elif expected > 0 and expected - end <= 0.05 and duration > 0.4:
             item["severity"] = "critical"
             item["message"] = "Final edge silence longer than 400 ms."
-        elif duration > 0.7:
-            item["severity"] = "critical"
-            item["message"] = "Internal dead air longer than 700 ms."
+        else:
+            dead_air_limit_ms = _dead_air_limit_ms(state)
+            if duration > dead_air_limit_ms / 1000:
+                item["severity"] = "critical"
+                item["message"] = (
+                    f"Internal dead air longer than {dead_air_limit_ms} ms."
+                )
         issues.append(item)
     media_contract: dict[str, Any] = {"ok": True, "skipped": False}
     try:

@@ -14,7 +14,6 @@ from videoflow.domains.audio.finalize import (
     DEFAULT_SFX_GAIN,
     DEFAULT_TARGET_LUFS,
     DEFAULT_TRUE_PEAK_DB,
-    TARGET_LUFS,
     finalize_audio,
 )
 from videoflow.steps.base import BaseStep, StepIO
@@ -29,7 +28,7 @@ class AudioFinalizeParams(BaseModel):
     music_path: str = ""
     sfx_path: str = ""
     duration_sec: float = Field(default=0.0, ge=0.0, le=24 * 3600)
-    target_lufs: float = Field(default=DEFAULT_TARGET_LUFS, ge=-30.0, le=-5.0)
+    target_lufs: float | None = Field(default=None, ge=-30.0, le=-5.0)
     true_peak_db: float = Field(default=DEFAULT_TRUE_PEAK_DB, ge=-9.0, le=0.0)
     sample_rate: int = Field(default=48_000, ge=8_000, le=192_000)
     music_gain: float = Field(default=DEFAULT_MUSIC_GAIN, ge=0.0, le=1.0)
@@ -55,15 +54,35 @@ class AudioFinalizeStep(BaseStep):
         options = AudioFinalizeParams.model_validate(params)
         media = context.media
         mixed_input = bool(context.artifacts.get("audio_mix")) and not options.voice_path
-        voice_value = (
-            options.voice_path
-            or context.artifacts.get("audio_mix")
-            or context.artifacts.get("audio_master")
-            or str(context.output / "audio" / "master.wav")
-        )
-        voice = Path(voice_value).expanduser()
-        if not voice.is_file():
-            voice = Path(context.source)
+        timeline_voice = context.work / "audio" / "timeline.wav"
+        if (
+            not options.voice_path
+            and not context.artifacts.get("audio_mix")
+            and context.state is not None
+            and context.state.audio_segments
+            and context.media is not None
+        ):
+            from videoflow.exporters.mp4 import export_timeline_audio
+
+            timeline_voice.parent.mkdir(parents=True, exist_ok=True)
+            export_timeline_audio(
+                context.state,
+                timeline_voice,
+                adapter=io.adapter,
+            )
+            context.artifacts["audio_timeline"] = str(timeline_voice)
+            voice = timeline_voice
+            mixed_input = False
+        else:
+            voice_value = (
+                options.voice_path
+                or context.artifacts.get("audio_mix")
+                or context.artifacts.get("audio_master")
+                or str(context.output / "audio" / "master.wav")
+            )
+            voice = Path(voice_value).expanduser()
+            if not voice.is_file():
+                voice = Path(context.source)
         if not voice.is_file():
             raise ExportError("Audio finalization requires dialogue audio")
         music_value = (
@@ -86,12 +105,14 @@ class AudioFinalizeStep(BaseStep):
         if duration <= 0 and media is not None:
             rate = media.audio_sample_rate or 48000
             duration = context.duration_samples() / max(1, rate)
-        target_lufs = TARGET_LUFS
-        if abs(float(options.target_lufs) - TARGET_LUFS) > 0.01:
-            context.warnings.append(
-                f"audio.finalize enforced {TARGET_LUFS:g} LUFS instead of "
-                f"{options.target_lufs:g} LUFS"
-            )
+        target_lufs = float(options.target_lufs) if options.target_lufs is not None else None
+        if target_lufs is None:
+            try:
+                from videoflow.application.settings import load_settings
+
+                target_lufs = float(load_settings().quality.target_lufs)
+            except Exception:  # noqa: BLE001 - defaults are the contract
+                target_lufs = DEFAULT_TARGET_LUFS
         result = finalize_audio(
             voice,
             context.output,

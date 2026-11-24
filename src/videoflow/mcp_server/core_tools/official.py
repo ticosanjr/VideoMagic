@@ -21,7 +21,7 @@ from videoflow.application.curation_board import (
     load_decisions,
     publish_board,
 )
-from videoflow.application.projects import get_project
+from videoflow.application.projects import get_project, load_project_state
 from videoflow.application.session_brief import build_session_brief
 from videoflow.domain.errors import VideoFlowError
 from videoflow.mcp_server.context import error
@@ -126,6 +126,12 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
         project_id: str = "",
         style_id: str = "",
         instructions: str = "",
+        pacing_profile: Literal["tight", "balanced", "relaxed"] = "tight",
+        max_pause_ms: int | None = None,
+        min_silence_ms: int | None = None,
+        pad_before_ms: int | None = None,
+        pad_after_ms: int | None = None,
+        second_pass: bool = True,
         wait: bool = True,
         timeout_sec: float = 1800.0,
     ) -> dict[str, Any]:
@@ -144,6 +150,15 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
                 "invalid_decupage_action",
                 "action must be plan or run_full",
             )
+        from videoflow.application.silence import resolve_pacing_profile
+
+        pacing = resolve_pacing_profile(
+            pacing_profile,
+            max_pause_ms=max_pause_ms,
+            min_silence_ms=min_silence_ms,
+            pad_before_ms=pad_before_ms,
+            pad_after_ms=pad_after_ms,
+        )
         result = tools["vf_run"](
             project_id=project_id,
             steps=[
@@ -155,6 +170,26 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
                 "decupage.snap",
                 "decupage.timeline",
             ],
+            params={},
+            step_params={
+                "audio.vad": {
+                    "min_silence_ms": pacing["min_silence_ms"],
+                },
+                "speech.editorial_clean": {
+                    "pad_before_ms": pacing["pad_before_ms"],
+                    "pad_after_ms": pacing["pad_after_ms"],
+                    "second_pass": second_pass,
+                },
+                "decupage.snap": {
+                    "pre_roll_ms": pacing["pad_before_ms"],
+                    "post_roll_ms": pacing["pad_after_ms"],
+                    "pre_roll_floor_ms": pacing["pad_before_ms"],
+                    "post_roll_floor_ms": pacing["pad_after_ms"],
+                    "min_cut_gap_ms": pacing["max_pause_ms"],
+                    "pacing_profile": pacing_profile,
+                    "qa_dead_air_ms": pacing["qa_dead_air_ms"],
+                },
+            },
             wait=wait,
             timeout_sec=timeout_sec,
         )
@@ -176,6 +211,25 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
                 result["flagged_long_cuts"] = payload.get("flagged_long_cuts", [])
             except (OSError, ValueError, VideoFlowError):
                 result["flagged_long_cuts"] = []
+        try:
+            record = get_project(project_id)
+            state = load_project_state(record)
+            report = state.pipeline.metadata.get("editorial_clean")
+        except VideoFlowError:
+            report = None
+        if isinstance(report, dict):
+            candidates = report.get("semantic_candidates") or []
+            if report.get("semantic_status") == "delegated" and candidates:
+                result["pending_semantic_review"] = True
+                result["semantic_candidates"] = candidates
+                result["_next_step"] = (
+                    "Analise os pares em semantic_candidates e chame "
+                    "vf_decupage(action='discard_sentences', sentence_ids=[...]) "
+                    "antes de exportar"
+                )
+                return result
+        result["pacing_profile"] = pacing_profile
+        result["pacing"] = dict(pacing)
         result["_next_step"] = (
             "Revise flagged_long_cuts. If any requires_review is true, open the "
             "curation board or inspect decupage/report.json before exporting."

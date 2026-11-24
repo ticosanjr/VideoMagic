@@ -83,7 +83,7 @@ class DeliveryBundleRequest:
     mp4_preset: str = "veryfast"
     mp4_draft: bool = False
     mp4_fps: int | str = 30
-    audio_source: str = "master"
+    audio_source: str = "mix"
     look: dict[str, Any] | None = None
     burn_subtitles: bool = True
     require_licenses: bool = True
@@ -299,6 +299,35 @@ def build_delivery_bundle(
     mp4_report: dict[str, Any] = {"placement": "local", "encoder": "libx264"}
     subtitle_path = resolve_subtitle_track(output)
     ass_path = subtitle_path if options.burn_subtitles else None
+    final_mix = output / "audio" / "final_mix.wav"
+    if requested_mp4 and options.audio_source == "mix" and not final_mix.is_file():
+        from videoflow.core.context import PipelineContext
+        from videoflow.steps.audio_finalize import (
+            AudioFinalizeParams,
+            AudioFinalizeStep,
+        )
+        from videoflow.steps.base import StepIO
+
+        media = state.media_info
+        source = Path(media.source_path) if media is not None else output
+        context = PipelineContext(
+            source=source,
+            output=output,
+            work=output / "work",
+            exports=exports,
+            media=media,
+            state=state,
+        )
+        try:
+            AudioFinalizeStep().run(
+                context,
+                AudioFinalizeParams(target_lufs=options.mp4_loudness_lufs),
+                StepIO(stage="audio.finalize"),
+            )
+        except Exception as exc:  # noqa: BLE001 - keep the render fallback explicit
+            mp4_report.setdefault("warnings", []).append(
+                f"audio.finalize skipped: {exc}"
+            )
     if requested_mp4:
         mp4_path = exports / BUNDLE_FILENAMES["mp4"]
         if progress is not None:

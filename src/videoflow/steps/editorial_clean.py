@@ -36,6 +36,7 @@ class EditorialCleanParams(BaseModel):
     pad_before_ms: int = Field(default=110, ge=0, le=500)
     pad_after_ms: int = Field(default=190, ge=0, le=500)
     crossfade_ms: int = Field(default=15, ge=5, le=100)
+    second_pass: bool = False
 
 
 def apply_editorial_clean(
@@ -118,6 +119,7 @@ def apply_editorial_clean(
         pad_before_ms=options.pad_before_ms,
         pad_after_ms=options.pad_after_ms,
         crossfade_ms=options.crossfade_ms,
+        second_pass=options.second_pass,
     )
 
     context.transcript = result.working_transcript

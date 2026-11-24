@@ -14,6 +14,60 @@ from pathlib import Path
 
 from videoflow.domain.state import InactiveSpan
 
+PACING_PROFILES: dict[str, dict[str, int]] = {
+    "tight": {
+        "min_silence_ms": 220,
+        "max_pause_ms": 250,
+        "pad_before_ms": 60,
+        "pad_after_ms": 90,
+        "qa_dead_air_ms": 550,
+    },
+    "balanced": {
+        "min_silence_ms": 350,
+        "max_pause_ms": 420,
+        "pad_before_ms": 90,
+        "pad_after_ms": 130,
+        "qa_dead_air_ms": 800,
+    },
+    "relaxed": {
+        "min_silence_ms": 550,
+        "max_pause_ms": 700,
+        "pad_before_ms": 120,
+        "pad_after_ms": 170,
+        "qa_dead_air_ms": 1200,
+    },
+}
+
+
+def resolve_pacing_profile(
+    profile: str = "tight",
+    *,
+    min_silence_ms: int | None = None,
+    max_pause_ms: int | None = None,
+    pad_before_ms: int | None = None,
+    pad_after_ms: int | None = None,
+    qa_dead_air_ms: int | None = None,
+) -> dict[str, int]:
+    """Resolve one pacing profile with explicit per-run overrides."""
+
+    key = str(profile or "tight").strip().lower()
+    values = dict(PACING_PROFILES.get(key, PACING_PROFILES["tight"]))
+    for name, value in (
+        ("min_silence_ms", min_silence_ms),
+        ("max_pause_ms", max_pause_ms),
+        ("pad_before_ms", pad_before_ms),
+        ("pad_after_ms", pad_after_ms),
+        ("qa_dead_air_ms", qa_dead_air_ms),
+    ):
+        if value is not None:
+            values[name] = max(0, int(value))
+    values["qa_dead_air_ms"] = max(
+        int(values.get("qa_dead_air_ms") or 0),
+        int(round(values["max_pause_ms"] * 1.8)),
+        550,
+    )
+    return values
+
 
 def detect_silence_spans(
     path: Path | None,
