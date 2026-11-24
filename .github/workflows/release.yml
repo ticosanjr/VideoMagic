@@ -27,7 +27,7 @@ jobs:
           sudo install /tmp/ffmpeg-static/ffmpeg /usr/local/bin/ffmpeg
           sudo install /tmp/ffmpeg-static/ffprobe /usr/local/bin/ffprobe
       - name: Python dependencies
-        run: uv sync --extra dev --group dev
+        run: uv sync --extra dev --group dev --extra tray --extra faster-whisper
       - name: Python lint
         run: uv run ruff check src packages scripts tests
       - name: Python tests

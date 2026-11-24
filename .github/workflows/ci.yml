@@ -28,7 +28,7 @@ jobs:
           sudo install /tmp/ffmpeg-static/ffprobe /usr/local/bin/ffprobe
           ffmpeg -version | head -1
       - name: Python dependencies
-        run: uv sync --extra dev --group dev
+        run: uv sync --extra dev --group dev --extra tray --extra faster-whisper
       - name: Python lint
         run: uv run ruff check src tests scripts
       - name: Python tests
@@ -63,6 +63,6 @@ jobs:
       - name: Install FFmpeg
         run: choco install ffmpeg -y --no-progress
       - name: Python dependencies
-        run: uv sync --extra dev --group dev
+        run: uv sync --extra dev --group dev --extra tray
       - name: Python unit tests
         run: uv run pytest tests/unit -q
