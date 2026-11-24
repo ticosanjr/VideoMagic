@@ -7,12 +7,13 @@ history but never damages a project already written to disk.
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import json
 import logging
 import os
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -49,6 +50,24 @@ TERMINAL: frozenset[str] = frozenset(
     {"succeeded", "failed", "cancelled", "answered", "needs_review"}
 )
 logger = logging.getLogger(__name__)
+_JOB_ORIGIN: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "videoflow_job_origin", default="api"
+)
+
+
+@contextlib.contextmanager
+def job_origin(origin: str) -> Iterator[None]:
+    """Tag jobs started inside one MCP/API call with their origin."""
+
+    token = _JOB_ORIGIN.set(str(origin or "api"))
+    try:
+        yield
+    finally:
+        _JOB_ORIGIN.reset(token)
+
+
+def current_job_origin() -> str:
+    return _JOB_ORIGIN.get()
 
 
 @dataclass
@@ -97,9 +116,19 @@ class Job:
                 for key, value in options.items()
                 if key not in {"recipe", "transcript_sentences"}
             }
+        origin = ""
+        pid = 0
+        if isinstance(self.options, dict):
+            origin = str(self.options.get("origin") or "api")
+            try:
+                pid = int(self.options.get("pid") or 0)
+            except (TypeError, ValueError):
+                pid = 0
         return {
             "job_id": str(self.job_id),
             "project_id": self.project_id,
+            "origin": origin,
+            "pid": pid,
             "status": self.status,
             "priority": self.priority,
             "attempts": self.attempts,
@@ -270,6 +299,9 @@ class JobManager:
         self._max_active = max_active
         self._history = history
         self._store_dir = Path(store_dir).expanduser() if store_dir is not None else None
+        from videoflow.application import database
+
+        self._db_path = database.db_path()
         self._jobs: dict[str, Job] = {}
         self._pending: list[str] = []
         self._local_ids: set[str] = set()
@@ -319,14 +351,17 @@ class JobManager:
                 raise JobQueueFullError(
                     f"{self._max_active} jobs are already active. Wait or cancel one."
                 )
+            job_options = dict(options or {})
+            job_options.setdefault("pid", os.getpid())
+            job_options.setdefault("origin", current_job_origin())
             job = Job(
                 source=Path(source),
                 output=Path(output),
-                options=dict(options or {}),
+                options=job_options,
                 finalizer=finalizer,
                 priority=priority,
                 idempotency_key=key,
-                project_id=str(project_id or (options or {}).get("project_id") or ""),
+                project_id=str(project_id or job_options.get("project_id") or ""),
             )
             job.telemetry.job_id = str(job.job_id)
             self._jobs[str(job.job_id)] = job
@@ -460,6 +495,7 @@ class JobManager:
                         continue
                     claimed.status = "queued"
                     self._jobs[claim.job_id] = claimed
+                    self._local_ids.add(claim.job_id)
                     job = claimed
                     job_id = claim.job_id
                     job.lease_owner = claim.worker_id
@@ -535,7 +571,72 @@ class JobManager:
             )
             return job
 
+    def sync_from_db(self, job_id: str = "") -> None:
+        """Merge jobs written by another MCP/API process and reap dead workers."""
+
+        from videoflow.application.database import list_jobs, upsert_job
+
+        payloads = list_jobs(
+            job_id=job_id,
+            limit=1 if job_id else max(200, self._history * 4),
+            db_path_override=self._db_path,
+        )
+        if not payloads:
+            return
+        from videoflow.application.process_control import process_alive
+
+        with self._lock:
+            for payload in payloads:
+                identifier = str(payload.get("job_id") or "")
+                if not identifier or identifier in self._local_ids:
+                    continue
+                try:
+                    job = _job_from_dict(payload)
+                except (KeyError, TypeError, ValueError):
+                    continue
+                try:
+                    pid = int(job.options.get("pid") or payload.get("pid") or 0)
+                except (TypeError, ValueError):
+                    pid = 0
+                if job.status == "running" and pid and pid != os.getpid():
+                    if not process_alive(pid):
+                        job.status = "failed"
+                        job.stage = job.stage or "failed"
+                        job.message = "Execution process exited unexpectedly"
+                        job.error = {
+                            "ok": False,
+                            "code": "worker_interrupted",
+                            "message": "Execution process exited unexpectedly",
+                        }
+                        job.finished_at = job.finished_at or _now()
+                        upsert_job(
+                            identifier,
+                            job.to_dict(),
+                            db_path_override=self._db_path,
+                        )
+                elif (
+                    job.status == "running"
+                    and pid in {0, os.getpid()}
+                    and not job.options.get("live")
+                ):
+                    job.status = "queued"
+                    job.stage = "queued"
+                    job.message = "Requeued after service restart"
+                    job.error = None
+                    upsert_job(
+                        identifier,
+                        job.to_dict(),
+                        db_path_override=self._db_path,
+                    )
+                if (
+                    job.status == "queued"
+                    and identifier not in self._pending
+                ):
+                    self._pending.append(identifier)
+                self._jobs[identifier] = job
+
     def get(self, job_id: str) -> Job:
+        self.sync_from_db(job_id)
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None and self._store_dir is not None:
@@ -552,6 +653,7 @@ class JobManager:
             return job
 
     def list(self, *, limit: int | None = None, offset: int = 0) -> list[Job]:
+        self.sync_from_db()
         with self._lock:
             jobs = sorted(self._jobs.values(), key=lambda item: item.created_at, reverse=True)
         start = max(0, int(offset))
@@ -629,7 +731,7 @@ class JobManager:
         try:
             from videoflow.application.database import delete_job
 
-            delete_job(str(job.job_id))
+            delete_job(str(job.job_id), db_path_override=self._db_path)
         except Exception:
             pass
         if self._store_dir is not None:
@@ -1139,11 +1241,11 @@ class JobManager:
         return RunOutcome(result=result.to_dict(), variants=variant_summaries)
 
     def _persist_job(self, job: Job) -> None:
-        if job.deleted or self._store_dir is None:
+        if job.deleted:
             return
         # Serialize with _prune so a finalizer cannot resurrect a pruned job.
         with self._store_lock:
-            if job.deleted or self._store_dir is None:
+            if job.deleted:
                 return
             # A pruned terminal job can still be finishing its worker finalizer.
             # Do not resurrect it in the store after _prune removed it.
@@ -1153,9 +1255,15 @@ class JobManager:
             try:
                 from videoflow.application.database import upsert_job
 
-                upsert_job(str(job.job_id), payload)
-            except Exception:
-                pass
+                upsert_job(
+                    str(job.job_id),
+                    payload,
+                    db_path_override=self._db_path,
+                )
+            except Exception as exc:  # noqa: BLE001 - persistence is best effort
+                logger.warning("could not persist job %s to SQLite: %s", job.job_id, exc)
+            if self._store_dir is None:
+                return
             try:
                 self._store_dir.mkdir(parents=True, exist_ok=True)
                 path = self._store_dir / f"{job.job_id}.json"
@@ -1169,27 +1277,8 @@ class JobManager:
                 logger.warning("could not persist job state for %s: %s", job.job_id, exc)
 
     def _load_jobs(self) -> None:
+        self.sync_from_db()
         if self._store_dir is None:
-            return
-        try:
-            from videoflow.application.database import list_jobs
-
-            for payload in list_jobs():
-                job = _job_from_dict(payload)
-                job.telemetry.job_id = str(job.job_id)
-                self._jobs[str(job.job_id)] = job
-                if _lease_is_active(job):
-                    continue
-                if job.status in {"queued", "running"}:
-                    job.status = "queued"
-                    job.stage = "queued"
-                    job.message = "Requeued after service restart"
-                    job.error = None
-                    self._pending.append(str(job.job_id))
-                    self._persist_job(job)
-        except Exception as exc:
-            logger.warning("could not load persisted jobs: %s", exc)
-        if not self._store_dir.is_dir():
             self._drain_queue()
             return
         for path in sorted(self._store_dir.glob("*.json")):
@@ -1199,9 +1288,18 @@ class JobManager:
                 continue
             if str(job.job_id) in self._jobs:
                 continue
-            if _lease_is_active(job):
-                self._jobs[str(job.job_id)] = job
-                continue
+            pid = 0
+            try:
+                pid = int(job.options.get("pid") or 0)
+            except (TypeError, ValueError):
+                pid = 0
+            if job.status == "running" and pid and pid != os.getpid():
+                from videoflow.application.process_control import process_alive
+
+                if process_alive(pid):
+                    job.telemetry.job_id = str(job.job_id)
+                    self._jobs[str(job.job_id)] = job
+                    continue
             if job.status in {"queued", "running"}:
                 job.status = "queued"
                 job.stage = "queued"
@@ -1228,9 +1326,96 @@ class JobManager:
                 try:
                     from videoflow.application.database import delete_job
 
-                    delete_job(str(job.job_id))
+                    delete_job(str(job.job_id), db_path_override=self._db_path)
                 except Exception:
                     pass
+
+
+class McpJobTracker:
+    """Persist one MCP tool call as a live job without a worker thread."""
+
+    def __init__(
+        self,
+        tool_name: str,
+        *,
+        project_id: str = "",
+        source: str = "",
+        output: str = "",
+    ) -> None:
+        options: dict[str, Any] = {
+            "origin": "mcp",
+            "tool": tool_name,
+            "project_id": project_id,
+            "pid": os.getpid(),
+            "live": True,
+        }
+        self.job = Job(
+            source=Path(source or ""),
+            output=Path(output or ""),
+            options=options,
+            project_id=project_id,
+            status="running",
+            progress=5,
+            stage=tool_name,
+            message=f"Running {tool_name}",
+            started_at=_now(),
+        )
+        self.job.telemetry.job_id = str(self.job.job_id)
+        self._finished = False
+        self._persist()
+
+    @property
+    def job_id(self) -> str:
+        return str(self.job.job_id)
+
+    def _persist(self) -> None:
+        from videoflow.application.database import upsert_job
+
+        upsert_job(self.job_id, self.job.to_dict())
+
+    def finish(self, result: object) -> None:
+        if self._finished:
+            return
+        self._finished = True
+        job = self.job
+        if isinstance(result, dict) and result.get("ok") is False:
+            job.status = "failed"
+            job.message = str(result.get("message") or f"{job.stage} failed")
+            job.error = result
+        else:
+            job.status = "succeeded"
+            job.progress = 100
+            job.stage = "done"
+            job.message = "Finished"
+            job.result = result if isinstance(result, dict) else None
+        job.finished_at = _now()
+        self._persist()
+
+    def __enter__(self) -> McpJobTracker:
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        if exc is not None and not self._finished:
+            self._finished = True
+            self.job.status = "failed"
+            self.job.message = str(exc) or exc.__class__.__name__
+            self.job.error = {
+                "ok": False,
+                "code": "internal_error",
+                "message": str(exc) or exc.__class__.__name__,
+            }
+            self.job.finished_at = _now()
+            self._persist()
+
+
+def track_mcp_job(
+    tool_name: str,
+    *,
+    project_id: str = "",
+    source: str = "",
+    output: str = "",
+) -> McpJobTracker:
+    return McpJobTracker(tool_name, project_id=project_id, source=source, output=output)
 
 
 def _job_from_dict(payload: dict[str, Any]) -> Job:
@@ -1265,6 +1450,10 @@ def _job_from_dict(payload: dict[str, Any]) -> Job:
         payload.get("execution") if isinstance(payload.get("execution"), dict) else {}
     )
     job.pause_requested = bool(payload.get("pause_requested", False))
+    if payload.get("pid") is not None and not job.options.get("pid"):
+        job.options["pid"] = payload.get("pid")
+    if payload.get("origin") and not job.options.get("origin"):
+        job.options["origin"] = payload.get("origin")
     job.priority = int(payload.get("priority", 0))
     job.attempts = int(payload.get("attempts", 0) or 0)
     job.next_run = str(payload.get("next_run") or "")

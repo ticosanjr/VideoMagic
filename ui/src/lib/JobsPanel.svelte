@@ -24,6 +24,8 @@
     jobCounts,
     jobDisplayName,
     jobNextAction,
+    jobOrigin,
+    sortJobs,
     type JobFilter
   } from "$lib/jobsView";
   import { notifications } from "$lib/notifications.svelte";
@@ -62,7 +64,7 @@
   }
 
   const counts = $derived(jobCounts(jobs));
-  const visible = $derived(filterJobs(jobs, { filter, query }));
+  const visible = $derived(sortJobs(filterJobs(jobs, { filter, query })));
   const filters: { id: JobFilter; label: string; count: number }[] = $derived([
     { id: "all", label: i18n.t("all"), count: counts.total },
     { id: "active", label: i18n.t("running"), count: counts.active },
@@ -84,7 +86,7 @@
     window.addEventListener("videoflow:focus-jobs-search", focusSearch);
     timer = setInterval(() => {
       if (!document.hidden) void refresh();
-    }, 4000);
+    }, 2000);
     return () => {
       clearInterval(timer);
       window.removeEventListener("videoflow:focus-jobs-search", focusSearch);
@@ -309,7 +311,7 @@
               <div class="flex flex-wrap items-center gap-2">
                 <p class="truncate text-sm font-medium text-neutral-100">{jobDisplayName(job)}</p>
                 <StatusBadge status={job.status} />
-
+                <span class={`rounded-full border px-1.5 py-0.5 text-[9px] ${jobOrigin(job) === "MCP" ? "border-sky-400/25 text-sky-200" : "border-neutral-700 text-neutral-400"}`}>{jobOrigin(job)}</span>
               </div>
               <div class="mt-1 flex flex-wrap items-center gap-2">
                 <p class="truncate font-mono text-[10px] text-neutral-600">{job.job_id}</p>

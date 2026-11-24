@@ -8,6 +8,7 @@ module instead of two near-identical methods on ``JobManager``.
 from __future__ import annotations
 
 import contextlib
+import os
 import time
 import traceback
 from collections.abc import Callable
@@ -83,6 +84,8 @@ class JobExecutor:
             job.status = "running"
             job.started_at = _now()
             job.message = "Starting"
+            if isinstance(getattr(job, "options", None), dict):
+                job.options.setdefault("pid", os.getpid())
             job.lease_expires_at = (
                 datetime.now(UTC) + timedelta(seconds=300)
             ).isoformat(timespec="seconds")
@@ -97,7 +100,7 @@ class JobExecutor:
         def persist_progress(*, force: bool = False) -> None:
             now = time.monotonic()
             last = float(getattr(job, "_last_progress_persist", 0.0) or 0.0)
-            if not force and now - last < 30.0:
+            if not force and now - last < 2.0:
                 return
             job._last_progress_persist = now
             host._persist_job(job)

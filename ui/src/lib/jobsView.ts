@@ -63,6 +63,11 @@ export function matchesJobFilter(job: Job, filter: JobFilter): boolean {
   }
 }
 
+export function jobOrigin(job: Job): "MCP" | "API" {
+  const origin = job.origin ?? job.options?.origin;
+  return origin === "mcp" ? "MCP" : "API";
+}
+
 export function jobSearchText(job: Job): string {
   return [
     job.job_id,
@@ -70,6 +75,8 @@ export function jobSearchText(job: Job): string {
     job.stage,
     job.message,
     job.source,
+    job.origin,
+    job.options?.tool,
     job.result?.recipe_id
   ]
     .filter(Boolean)
@@ -108,6 +115,19 @@ export function jobNextAction(job: Job): string {
 }
 
 export function jobDisplayName(job: Job): string {
+  if (job.options?.tool) return job.options.tool;
   const source = job.source.split("/").filter(Boolean).at(-1);
-  return source || job.result?.recipe_id || job.job_id;
+  return source || job.stage || job.result?.recipe_id || job.job_id;
+}
+
+export function sortJobs(jobs: Job[]): Job[] {
+  const rank = (status: string): number =>
+    status === "running" ? 0 : status === "queued" ? 1 : 2;
+  return [...jobs].sort((left, right) => {
+    const byStatus = rank(left.status) - rank(right.status);
+    if (byStatus !== 0) return byStatus;
+    const leftAt = left.finished_at ?? left.created_at;
+    const rightAt = right.finished_at ?? right.created_at;
+    return rightAt.localeCompare(leftAt);
+  });
 }

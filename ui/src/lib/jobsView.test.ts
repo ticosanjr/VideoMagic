@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Job } from "./api";
-import { filterJobs, jobCounts, jobNextAction, matchesJobFilter } from "./jobsView";
+import {
+  filterJobs,
+  jobCounts,
+  jobNextAction,
+  jobOrigin,
+  matchesJobFilter,
+  sortJobs
+} from "./jobsView";
 
 function makeJob(overrides: Partial<Job>): Job {
   const base = {
@@ -87,5 +94,21 @@ describe("jobNextAction", () => {
     expect(jobNextAction(jobs[2])).toBe("Retry after fixing the error");
     expect(jobNextAction(jobs[4])).toBe("Waiting for a free slot");
     expect(jobNextAction(jobs[3])).toBe("Open the artifacts");
+  });
+});
+
+describe("jobOrigin", () => {
+  it("labels MCP jobs and defaults to API", () => {
+    expect(jobOrigin(makeJob({ origin: "mcp" }))).toBe("MCP");
+    expect(jobOrigin(makeJob({ options: { origin: "mcp" } }))).toBe("MCP");
+    expect(jobOrigin(makeJob({ origin: "api" }))).toBe("API");
+    expect(jobOrigin(makeJob({}))).toBe("API");
+  });
+});
+
+describe("sortJobs", () => {
+  it("keeps running and queued before finished jobs", () => {
+    const ordered = sortJobs(jobs).map((job) => job.status);
+    expect(ordered.slice(0, 2)).toEqual(["running", "queued"]);
   });
 });

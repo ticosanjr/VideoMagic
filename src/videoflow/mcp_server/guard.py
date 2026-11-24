@@ -7,6 +7,7 @@ execution telemetry with explicit defaults so ``job.execution`` is never ``{}``.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import inspect
 import subprocess
@@ -17,6 +18,28 @@ from typing import Any
 from pydantic import ValidationError
 
 from videoflow.domain.errors import VideoFlowError
+
+TRACKED_MCP_TOOLS: frozenset[str] = frozenset(
+    {
+        "vf_ingest",
+        "vf_run",
+        "vf_decupage",
+        "vf_scenes",
+        "vf_shorts",
+        "vf_export",
+        "vf_qa",
+        "vf_fx_depth",
+        "vf_fx_parallax",
+        "vf_fx_motion",
+        "vf_fx_capture",
+    }
+)
+
+# These tools already own a JobManager row. The guard must not create a second
+# one while the real job is running in SQLite.
+_JOB_OWNED_MCP_TOOLS: frozenset[str] = frozenset(
+    {"vf_ingest", "vf_run", "vf_decupage", "vf_shorts"}
+)
 
 _EXECUTION_DEFAULTS: dict[str, Any] = {
     "execution_node": "local",
@@ -55,6 +78,52 @@ def _accepts_project_id(func: Any) -> bool:
         return "project_id" in inspect.signature(func).parameters
     except (TypeError, ValueError):
         return False
+
+
+def _bound_arguments(
+    func: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> inspect.BoundArguments | None:
+    try:
+        return inspect.signature(func).bind_partial(*args, **kwargs)
+    except (TypeError, ValueError):
+        return None
+
+
+def _tracking_plan(
+    func: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> tuple[Any, Any]:
+    """Return the origin context and optional MCP job tracker for one tool."""
+
+    name = str(getattr(func, "__name__", ""))
+    if name not in TRACKED_MCP_TOOLS:
+        return contextlib.nullcontext(), None
+    bound = _bound_arguments(func, args, kwargs)
+    project_id = ""
+    source = ""
+    output = ""
+    if bound is not None:
+        project_id = str(bound.arguments.get("project_id") or "")
+        source = str(
+            bound.arguments.get("source")
+            or bound.arguments.get("input_path")
+            or ""
+        )
+        output = str(bound.arguments.get("output") or "")
+    from videoflow.application.jobs import job_origin, track_mcp_job
+
+    context = job_origin("mcp")
+    owned = name in _JOB_OWNED_MCP_TOOLS
+    if name == "vf_export" and bound is not None:
+        action = str(bound.arguments.get("action") or "bundle")
+        owned = action in {"render", "roundtrip"}
+    if owned:
+        return context, None
+    return context, track_mcp_job(
+        name,
+        project_id=project_id,
+        source=source,
+        output=output,
+    )
 
 
 def _canonical_project_call(
@@ -313,7 +382,14 @@ def mcp_tool_guard(func: Any) -> Any:
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 call_args, call_kwargs = _canonical_project_call(func, args, kwargs)
-                result = await func(*call_args, **call_kwargs)
+                context, tracker = _tracking_plan(func, call_args, call_kwargs)
+                with context:
+                    if tracker is None:
+                        result = await func(*call_args, **call_kwargs)
+                    else:
+                        with tracker:
+                            result = await func(*call_args, **call_kwargs)
+                            tracker.finish(result)
             except Exception as exc:  # noqa: BLE001 - MCP boundary
                 return error_envelope(exc, func=func)
             return normalize_execution(normalize_success(result, func.__name__))
@@ -325,7 +401,14 @@ def mcp_tool_guard(func: Any) -> Any:
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         try:
             call_args, call_kwargs = _canonical_project_call(func, args, kwargs)
-            result = func(*call_args, **call_kwargs)
+            context, tracker = _tracking_plan(func, call_args, call_kwargs)
+            with context:
+                if tracker is None:
+                    result = func(*call_args, **call_kwargs)
+                else:
+                    with tracker:
+                        result = func(*call_args, **call_kwargs)
+                        tracker.finish(result)
         except Exception as exc:  # noqa: BLE001 - MCP boundary
             return error_envelope(exc, func=func)
         return normalize_execution(normalize_success(result, func.__name__))

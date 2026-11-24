@@ -118,6 +118,9 @@ export interface ProbedMedia {
 }
 
 export interface JobOptions {
+  tool?: string;
+  origin?: string;
+  pid?: number;
   vad_engine: string;
   noise_db: number;
   min_silence_ms: number;
@@ -456,6 +459,8 @@ export interface HiltPending {
 export interface Job {
   job_id: string;
   status: JobStatus;
+  origin?: string;
+  pid?: number;
   priority?: number;
   progress: number;
   stage: string;

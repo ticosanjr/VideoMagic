@@ -119,8 +119,8 @@ def _create_schema(connection: sqlite3.Connection) -> None:
     connection.execute("INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '1')")
 
 
-def connect() -> sqlite3.Connection:
-    path = db_path()
+def connect(path: Path | None = None) -> sqlite3.Connection:
+    path = Path(path) if path is not None else db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     fresh = not path.is_file()
     key = str(path.resolve())
@@ -139,9 +139,13 @@ def connect() -> sqlite3.Connection:
     return connection
 
 
-def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
+def upsert_job(
+    job_id: str, payload: dict[str, Any], *, db_path_override: Path | None = None
+) -> None:
     try:
-        with contextlib.closing(connect()) as connection:
+        with contextlib.closing(
+            connect(db_path_override) if db_path_override is not None else connect()
+        ) as connection:
             options = payload.get("options") or {}
             recipe = options.get("recipe") if isinstance(options.get("recipe"), dict) else {}
             recipe_id = str(options.get("recipe_id") or recipe.get("id") or "")
@@ -317,8 +321,10 @@ def list_jobs(
     project_id: str = "",
     job_id: str = "",
     limit: int | None = None,
+    db_path_override: Path | None = None,
 ) -> list[dict[str, Any]]:
-    if not db_path().is_file():
+    path = Path(db_path_override) if db_path_override is not None else db_path()
+    if not path.is_file():
         return []
     clauses: list[str] = []
     values: list[Any] = []
@@ -337,7 +343,9 @@ def list_jobs(
         query += " LIMIT ?"
         values.append(max(0, int(limit)))
     try:
-        with contextlib.closing(connect()) as connection:
+        with contextlib.closing(
+            connect(path) if db_path_override is not None else connect()
+        ) as connection:
             rows = connection.execute(query, values).fetchall()
     except sqlite3.Error as exc:
         _set_error(f"could not read jobs: {exc}")
@@ -402,9 +410,11 @@ def job_cancel_requested(job_id: str) -> bool:
     return bool(row and row[0])
 
 
-def delete_job(job_id: str) -> None:
+def delete_job(job_id: str, *, db_path_override: Path | None = None) -> None:
     try:
-        with contextlib.closing(connect()) as connection:
+        with contextlib.closing(
+            connect(db_path_override) if db_path_override is not None else connect()
+        ) as connection:
             connection.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
             connection.commit()
     except sqlite3.Error as exc:
