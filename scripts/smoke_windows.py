@@ -306,7 +306,6 @@ def wait_for_server(
     command = [
         str(exe),
         "serve",
-        "--mcp-only",
         "--host",
         "127.0.0.1",
         "--port",
