@@ -39,6 +39,8 @@ from videoflow.exporters.mp4 import (
     YOUTUBE_LUFS,
     YOUTUBE_PROFILE,
     YOUTUBE_TRUE_PEAK_DB,
+    ExportMode,
+    video_encoder,
 )
 
 
@@ -82,6 +84,7 @@ class DeliveryBundleRequest:
     mp4_crf: int = 18
     mp4_preset: str = "veryfast"
     mp4_draft: bool = False
+    mp4_mode: ExportMode = "final"
     mp4_fps: int | str = 30
     audio_source: str = "mix"
     look: dict[str, Any] | None = None
@@ -297,6 +300,7 @@ def build_delivery_bundle(
 
     mp4_path: Path | None = None
     mp4_report: dict[str, Any] = {"placement": "local", "encoder": "libx264"}
+    render_report: dict[str, Any] = {}
     subtitle_path = resolve_subtitle_track(output)
     ass_path = subtitle_path if options.burn_subtitles else None
     final_mix = output / "audio" / "final_mix.wav"
@@ -329,14 +333,27 @@ def build_delivery_bundle(
                 f"audio.finalize skipped: {exc}"
             )
     if requested_mp4:
-        mp4_path = exports / BUNDLE_FILENAMES["mp4"]
+        preview = options.mp4_mode == "preview"
+        mp4_name = "preview_fast.mp4" if preview else BUNDLE_FILENAMES["mp4"]
+        mp4_path = exports / mp4_name
+        render_report: dict[str, Any] = {}
         if progress is not None:
             progress("mp4", 0)
-        crf = 30 if options.mp4_draft else options.mp4_crf
-        preset = "veryfast" if options.mp4_draft else options.mp4_preset
-        output_fps = _fps_value(options.mp4_fps)
+        crf = 30 if preview or options.mp4_draft else options.mp4_crf
+        preset = (
+            "ultrafast"
+            if preview
+            else ("veryfast" if options.mp4_draft else options.mp4_preset)
+        )
+        output_fps = 30 if preview else _fps_value(options.mp4_fps)
+        audio_bitrate = "128k" if preview else options.mp4_audio_bitrate
+        loudness = None if preview else options.mp4_loudness_lufs
         rendered_remote = False
-        if options.compute_policy not in {"local", "local_gpu"} and not options.mp4_draft:
+        if (
+            options.compute_policy not in {"local", "local_gpu"}
+            and not options.mp4_draft
+            and not preview
+        ):
             try:
                 from videoflow.application.compute import (
                     guard_remote_policy,
@@ -378,6 +395,7 @@ def build_delivery_bundle(
                     cfr=options.mp4_cfr,
                     fps=output_fps,
                     cache_dir=cache_dir,
+                    mode="final",
                 )
                 params: dict[str, Any] = {
                     "output_name": mp4_path.name,
@@ -437,20 +455,23 @@ def build_delivery_bundle(
                 crf=crf,
                 preset=preset,
                 profile=options.mp4_profile,
-                audio_bitrate=options.mp4_audio_bitrate,
-                loudness_lufs=options.mp4_loudness_lufs,
+                audio_bitrate=audio_bitrate,
+                loudness_lufs=loudness,
                 true_peak_db=options.mp4_true_peak_db,
                 cfr=options.mp4_cfr,
                 fps=output_fps,
                 progress=((lambda value: progress("mp4", value)) if progress is not None else None),
                 cache_dir=cache_dir,
+                mode=options.mp4_mode,
+                report=render_report,
             )
         artifacts["mp4"] = mp4_path
+        mp4_report.update(render_report)
         if progress is not None:
             progress("mp4", 100)
 
     frames = timeline_frames(state)
-    output_fps = _fps_value(options.mp4_fps)
+    output_fps = 30 if options.mp4_mode == "preview" else _fps_value(options.mp4_fps)
     mp4_frames = (
         round(
             frames
@@ -478,6 +499,10 @@ def build_delivery_bundle(
             "path": str(mp4_path),
             "errors": [] if mp4_ok else ["mp4 duration does not match the timeline"],
             "warnings": [],
+            "mode": options.mp4_mode,
+            "encoder": render_report.get("encoder") or video_encoder(),
+            "degraded": bool(render_report.get("degraded")),
+            "degraded_reason": str(render_report.get("degraded_reason") or ""),
             **mp4_dir,
             **mp4_report,
         }
@@ -493,6 +518,17 @@ def build_delivery_bundle(
             "sha256": _sha256(path) if exists else "",
             "bytes": path.stat().st_size if exists else 0,
         }
+    if "mp4" in files:
+        files["mp4"].update(
+            {
+                "mode": options.mp4_mode,
+                "encoder": render_report.get("encoder") or video_encoder(),
+                "degraded": bool(render_report.get("degraded")),
+                "degraded_reason": str(
+                    render_report.get("degraded_reason") or ""
+                ),
+            }
+        )
     manifest = {
         "schema_version": BUNDLE_SCHEMA_VERSION,
         "project_id": str(state.project_id),
@@ -504,11 +540,19 @@ def build_delivery_bundle(
         "mp4": {
             "fps": output_fps or "source",
             "profile": options.mp4_profile,
-            "audio_bitrate": options.mp4_audio_bitrate,
-            "loudness_lufs": options.mp4_loudness_lufs,
+            "mode": options.mp4_mode,
+            "audio_bitrate": (
+                "128k" if options.mp4_mode == "preview" else options.mp4_audio_bitrate
+            ),
+            "loudness_lufs": (
+                None if options.mp4_mode == "preview" else options.mp4_loudness_lufs
+            ),
             "true_peak_db": options.mp4_true_peak_db,
             "cfr": options.mp4_cfr,
             "audio_source": options.audio_source,
+            "encoder": render_report.get("encoder") or video_encoder(),
+            "degraded": bool(render_report.get("degraded")),
+            "degraded_reason": str(render_report.get("degraded_reason") or ""),
             "audio_master": (
                 str(output / "audio" / "master.wav")
                 if (output / "audio" / "master.wav").is_file()

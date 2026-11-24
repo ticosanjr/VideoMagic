@@ -9,8 +9,11 @@ from typing import Any
 
 from videoflow.exporters.mp4 import (
     DEFAULT_AUDIO_BITRATE,
+    PREVIEW_MAX_SCALE,
     YOUTUBE_LUFS,
+    ExportMode,
     export_mp4,
+    video_encoder,
 )
 
 
@@ -125,9 +128,23 @@ def render_master(
     cache_dir: Path | None = None,
     video_filters: Sequence[str] | None = None,
     fps: int | None = None,
+    mode: ExportMode = "final",
+    report: dict[str, Any] | None = None,
 ) -> Path:
     """Render one timeline to the same H.264/AAC master for every caller."""
 
+    outcome = report if report is not None else {}
+    outcome.setdefault("encoder", video_encoder())
+    outcome.setdefault("degraded", False)
+    scale_max = None
+    if mode == "preview":
+        scale_height = None
+        scale_max = PREVIEW_MAX_SCALE
+        audio_bitrate = "128k"
+        loudness_lufs = None
+        qa_mode = "off"
+        fps = 30
+        cfr = True
     chosen = look or project_look(output)
     filters = list(_look_filters(output, chosen))
     if video_filters:
@@ -151,8 +168,11 @@ def render_master(
         qa_mode=qa_mode,
         progress=progress,
         scale_height=scale_height,
+        scale_max=scale_max,
         cache_dir=cache_dir,
         fps=fps,
+        mode=mode,
+        report=outcome,
     )
 
 

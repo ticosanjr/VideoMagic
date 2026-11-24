@@ -528,6 +528,10 @@ _STEP_DESCRIPTIONS: dict[str, dict[str, str]] = {
             "VideoFlow_Edited_<yymmddhhmmss>; fixed uses the filename."
         ),
         "filename": "Filename used when filename_mode is fixed.",
+        "mode": (
+            "final renders the delivery master; preview renders a 540p "
+            "preview_fast.mp4 without overwriting youtube_master.mp4."
+        ),
     },
     "flow.conditional": {
         "source": "Input source for the conditional branch.",

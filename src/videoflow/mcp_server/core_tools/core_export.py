@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from videoflow.application.projects import get_project, load_project_state
 from videoflow.domain.errors import VideoFlowError
@@ -35,6 +36,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         mp4_preset: str = "veryfast",
         compute_policy: str = "auto",
         allow_slow_cpu_fallback: bool = True,
+        mode: Literal["final", "preview"] = "final",
     ) -> dict[str, Any]:
         from videoflow.application.delivery_bundle import (
             DEFAULT_BUNDLE_TARGETS,
@@ -84,10 +86,13 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 mp4_preset=mp4_preset,
                 compute_policy=compute_policy,
                 allow_slow_cpu_fallback=allow_slow_cpu_fallback,
+                mp4_mode=mode,
             ),
         )
         mp4 = (bundle.get("files") or {}).get("mp4") or {}
         path = Path(str(mp4.get("path") or ""))
+        if mode == "preview":
+            qa_mode = "off"
         if not draft and qa_mode != "off" and path.is_file():
             from videoflow.application.qa_final import audit_final
 
@@ -153,6 +158,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         burn_subtitles: bool | None = None,
         compute_policy: str = "auto",
         allow_slow_cpu_fallback: bool = True,
+        mode: Literal["final", "preview"] = "final",
     ) -> dict[str, Any]:
         """Render a bundle, start a draft render, validate exports, or run an NLE roundtrip."""
 
@@ -192,6 +198,9 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             return error("invalid_audio_source", "audio_source must be mix, master, or timeline")
         if qa_mode not in {"fast", "full", "off"}:
             return error("invalid_qa_mode", "qa_mode must be fast, full, or off")
+        if mode not in {"final", "preview"}:
+            return error("invalid_mode", "mode must be final or preview")
+        started = time.monotonic()
         try:
             bundle = _run_bundle(
                 project_id,
@@ -208,6 +217,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 mp4_preset=preset,
                 compute_policy=compute_policy,
                 allow_slow_cpu_fallback=allow_slow_cpu_fallback,
+                mode=mode,
             )
         except VideoFlowError as exc:
             return exc.to_dict()
@@ -217,10 +227,16 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 str(exc) or exc.__class__.__name__,
                 fix_hint="Inspect the job log and retry after fixing the export inputs.",
             )
+        mp4 = (bundle.get("files") or {}).get("mp4") or {}
         response = {
             "ok": bool(bundle.get("ok")),
             "project_id": project_id,
             "targets": list(bundle.get("targets") or []),
+            "mode": mode,
+            "elapsed_sec": round(time.monotonic() - started, 3),
+            "encoder": str(mp4.get("encoder") or ""),
+            "degraded": bool(mp4.get("degraded")),
+            "degraded_reason": str(mp4.get("degraded_reason") or ""),
             "bundle": bundle,
         }
         if release_kit:

@@ -9,8 +9,9 @@ import os
 import shutil
 import tempfile
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
@@ -221,8 +222,10 @@ def build_filter_graph(state: ProjectState) -> tuple[str, str, str]:
 
 SEGMENT_THRESHOLD = 16
 PRE_ROLL_SECONDS = 1.0
-GROUP_CACHE_VERSION = "4.0"
+GROUP_CACHE_VERSION = "4.5"
 DEFAULT_EXPORT_FPS = 30
+ExportMode = Literal["final", "preview"]
+PREVIEW_MAX_SCALE = 540
 
 YOUTUBE_PROFILE = "youtube_h264"
 DEFAULT_AUDIO_BITRATE = "192k"
@@ -266,7 +269,9 @@ def output_render_frames(state: ProjectState, fps: int | None = None) -> int:
     return max(1, int(round(seconds * fps)))
 
 
-def _video_encode_args(
+def _encoder_flags(
+    mode: ExportMode,
+    has_nvenc: bool,
     *,
     crf: int,
     preset: str,
@@ -275,25 +280,53 @@ def _video_encode_args(
     fps_den: int,
     cfr: bool,
 ) -> list[str]:
-    """Return the H.264 encoder flags shared by both render paths."""
+    """Return the single H.264 flag builder for final and preview renders."""
 
-    encoder = video_encoder()
-    if encoder == "h264_nvenc":
-        from videoflow.core.nvenc import DEFAULT_ARGS, nvenc_args
-
-        proven = nvenc_args(shutil.which("ffmpeg") or "ffmpeg")
-        if proven == list(DEFAULT_ARGS):
-            proven = [
+    if has_nvenc:
+        if mode == "preview":
+            args = [
+                "-c:v",
+                "h264_nvenc",
                 "-preset",
-                "p4",
+                "p1",
                 "-rc",
                 "vbr",
                 "-cq",
-                str(crf),
+                "28",
                 "-b:v",
                 "0",
+                "-pix_fmt",
+                "yuv420p",
             ]
-        args = ["-c:v", "h264_nvenc", *proven, "-pix_fmt", "yuv420p"]
+        else:
+            from videoflow.core.nvenc import DEFAULT_ARGS, nvenc_args
+
+            proven = nvenc_args(shutil.which("ffmpeg") or "ffmpeg")
+            if proven == list(DEFAULT_ARGS):
+                proven = [
+                    "-preset",
+                    "p4",
+                    "-rc",
+                    "vbr",
+                    "-cq",
+                    str(crf),
+                    "-b:v",
+                    "0",
+                    "-spatial_aq",
+                    "1",
+                ]
+            args = ["-c:v", "h264_nvenc", *proven, "-pix_fmt", "yuv420p"]
+    elif mode == "preview":
+        args = [
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "30",
+            "-pix_fmt",
+            "yuv420p",
+        ]
     else:
         args = [
             "-c:v",
@@ -305,11 +338,68 @@ def _video_encode_args(
             "-pix_fmt",
             "yuv420p",
         ]
-    if profile == YOUTUBE_PROFILE and encoder == "libx264":
+    if profile == YOUTUBE_PROFILE and not has_nvenc:
         args.extend(["-profile:v", "high", "-level", "4.1"])
-    if cfr:
+    if cfr or mode == "preview":
         args.extend(["-fps_mode", "cfr", "-r", f"{fps_num}/{fps_den}"])
     return args
+
+
+def _video_encode_args(
+    *,
+    crf: int,
+    preset: str,
+    profile: str,
+    fps_num: int,
+    fps_den: int,
+    cfr: bool,
+    mode: ExportMode = "final",
+    encoder: str | None = None,
+) -> list[str]:
+    """Backward-compatible wrapper around :func:`_encoder_flags`."""
+
+    chosen = encoder or video_encoder()
+    return _encoder_flags(
+        mode,
+        chosen == "h264_nvenc",
+        crf=crf,
+        preset=preset,
+        profile=profile,
+        fps_num=fps_num,
+        fps_den=fps_den,
+        cfr=cfr,
+    )
+
+
+def _nvenc_runtime_failure(exc: BaseException) -> bool:
+    text = str(exc).casefold()
+    return any(
+        marker in text
+        for marker in (
+            "nvenc",
+            "libnvidia-encode",
+            "openencodesessionex",
+            "no capable devices",
+            "unknown encoder",
+        )
+    )
+
+
+def _scale_filter(
+    media: MediaInfo,
+    *,
+    scale_height: int | None = None,
+    scale_max: int | None = None,
+) -> str | None:
+    if scale_max:
+        size = max(64, min(2160, int(scale_max)))
+        if media.height > media.width:
+            return f"scale={size}:-2:flags=lanczos,setsar=1"
+        return f"scale=-2:{size}:flags=lanczos,setsar=1"
+    if scale_height is not None:
+        height = max(64, min(2160, int(scale_height)))
+        return f"scale=-2:{height}:flags=lanczos,setsar=1"
+    return None
 
 
 def _audio_encode_args(*, bitrate: str) -> list[str]:
@@ -640,6 +730,9 @@ def _group_key(
     preset: str,
     profile: str,
     scale_height: int | None,
+    scale_max: int | None = None,
+    mode: ExportMode = "final",
+    encoder: str = "",
     fps: int | None = None,
 ) -> str:
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
@@ -649,16 +742,25 @@ def _group_key(
         clip_path = Path(clip_media.source_path).expanduser()
         stat = clip_path.stat()
         source_signatures.append([str(clip_path.resolve()), stat.st_size, stat.st_mtime_ns])
+    filters = {
+        "crf": crf,
+        "preset": preset,
+        "profile": profile,
+        "scale_height": scale_height,
+        "scale_max": scale_max,
+        "mode": mode,
+        "encoder": encoder,
+    }
     payload = {
         "version": GROUP_CACHE_VERSION,
         "sources": source_signatures,
         "fps": [media.fps_num, media.fps_den],
         "output_fps": fps or 0,
-        "crf": crf,
-        "preset": preset,
-        "profile": profile,
-        "scale_height": scale_height,
+        "filter_hash": hashlib.sha256(
+            json.dumps(filters, sort_keys=True).encode("utf-8")
+        ).hexdigest()[:16],
         "clips": [video[index].model_dump(mode="json") for index in group],
+        **filters,
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:24]
 
@@ -675,6 +777,9 @@ def _render_video_group(
     preset: str,
     profile: str = "",
     scale_height: int | None = None,
+    scale_max: int | None = None,
+    mode: ExportMode = "final",
+    encoder: str = "",
     fps: int | None = None,
 ) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -687,6 +792,9 @@ def _render_video_group(
         preset=preset,
         profile=profile,
         scale_height=scale_height,
+        scale_max=scale_max,
+        mode=mode,
+        encoder=encoder,
         fps=fps,
     )
     cached = cache_dir / f"group-{key}.mp4"
@@ -746,9 +854,9 @@ def _render_video_group(
             chains.append(f"{chain_inputs}concat=n={len(group)}:v=1:a=0[vgroup]")
             label = "[vgroup]"
 
-    if scale_height is not None:
-        height = max(64, min(2160, int(scale_height)))
-        chains.append(f"{label}scale=-2:{height}:flags=lanczos,setsar=1[vout]")
+    scale = _scale_filter(media, scale_height=scale_height, scale_max=scale_max)
+    if scale is not None:
+        chains.append(f"{label}{scale}[vout]")
         label = "[vout]"
 
     target = cache_dir / f"group-{key}.mp4"
@@ -769,6 +877,8 @@ def _render_video_group(
                     fps_num=fps or media.fps_num,
                     fps_den=1 if fps else media.fps_den,
                     cfr=True,
+                    mode=mode,
+                    encoder=encoder or None,
                 ),
                 "-movflags",
                 "+faststart",
@@ -802,8 +912,12 @@ def _export_mp4_segmented(
     qa_mode: str = "fast",
     progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,
+    scale_max: int | None = None,
+    mode: ExportMode = "final",
+    encoder: str = "",
     cache_dir: Path | None = None,
     fps: int | None = None,
+    render_report: dict[str, Any] | None = None,
 ) -> Path:
     ass_path = _resolve_burn_subtitles(ass_path, burn_subtitles)
     media, video_map, audio_map = require_timeline(state)
@@ -818,28 +932,50 @@ def _export_mp4_segmented(
         Path(cache_dir).expanduser() if cache_dir is not None else destination.parent / "segments"
     )
     groups = _video_groups(video)
+    chosen = encoder or video_encoder()
     total_groups = max(1, len(groups))
+    workers = (
+        2
+        if chosen == "h264_nvenc"
+        else min(4, max(1, (os.cpu_count() or 2) // 2))
+    )
     with tempfile.TemporaryDirectory(prefix="videoflow-render-", dir=destination.parent) as tmp:
         directory = Path(tmp)
         group_files: list[Path] = []
-        for group_index, group in enumerate(groups):
-            group_files.append(
-                _render_video_group(
-                    state,
-                    media,
-                    group,
-                    renderer=renderer,
-                    source=source,
-                    cache_dir=segments_dir,
-                    crf=crf,
-                    preset=preset,
-                    profile=profile,
-                    scale_height=scale_height,
-                    fps=fps,
+        kwargs = {
+            "state": state,
+            "media": media,
+            "renderer": renderer,
+            "source": source,
+            "cache_dir": segments_dir,
+            "crf": crf,
+            "preset": preset,
+            "profile": profile,
+            "scale_height": scale_height,
+            "scale_max": scale_max,
+            "mode": mode,
+            "encoder": chosen,
+            "fps": fps,
+        }
+        if len(groups) > 1 and workers > 1:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = [
+                    pool.submit(_render_video_group, group=group, **kwargs)
+                    for group in groups
+                ]
+                for group_index, future in enumerate(futures):
+                    group_files.append(future.result())
+                    if progress is not None:
+                        progress(
+                            min(55, int((group_index + 1) / total_groups * 55))
+                        )
+        else:
+            for group_index, group in enumerate(groups):
+                group_files.append(
+                    _render_video_group(group=group, **kwargs)
                 )
-            )
-            if progress is not None:
-                progress(min(55, int((group_index + 1) / total_groups * 55)))
+                if progress is not None:
+                    progress(min(55, int((group_index + 1) / total_groups * 55)))
 
         listing = directory / "segments.txt"
         listing.write_text(
@@ -1060,7 +1196,10 @@ def _export_mp4_segmented(
             qa_mode=qa_mode,
             progress=wrapped,
             scale_height=None,
+            mode=mode,
+            encoder=encoder,
             fps=fps,
+            report=render_report,
         )
 
 
@@ -1088,11 +1227,89 @@ def export_mp4(
     qa_mode: str = "fast",
     progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,
+    scale_max: int | None = None,
+    mode: ExportMode = "final",
+    encoder: str | None = None,
     cache_dir: Path | None = None,
     fps: int | None = None,
+    report: dict[str, Any] | None = None,
 ) -> Path:
-    """Render the validated main timeline to an H.264/AAC MP4 atomically."""
+    """Render the validated timeline, retrying on a runtime NVENC failure."""
 
+    if mode == "preview":
+        qa_mode = "off"
+        cfr = True
+    chosen = encoder or video_encoder()
+    outcome = report if report is not None else {}
+    outcome.setdefault("encoder", chosen)
+    outcome.setdefault("degraded", False)
+    options = {
+        "adapter": adapter,
+        "crf": crf,
+        "preset": preset,
+        "profile": profile,
+        "audio_bitrate": audio_bitrate,
+        "loudness_lufs": loudness_lufs,
+        "true_peak_db": true_peak_db,
+        "cfr": cfr,
+        "audio_master": audio_master,
+        "audio_filters": audio_filters,
+        "video_filters": video_filters,
+        "ass_path": ass_path,
+        "burn_subtitles": burn_subtitles,
+        "qa_mode": qa_mode,
+        "progress": progress,
+        "scale_height": scale_height,
+        "scale_max": scale_max,
+        "mode": mode,
+        "cache_dir": cache_dir,
+        "fps": fps,
+        "render_report": outcome,
+    }
+    try:
+        return _export_mp4_impl(
+            state, output_path, encoder=chosen, **options
+        )
+    except Exception as exc:
+        if chosen != "h264_nvenc" or not _nvenc_runtime_failure(exc):
+            raise
+        outcome.update(
+            encoder="libx264",
+            degraded=True,
+            degraded_reason="nvenc_runtime_fallback",
+        )
+        return _export_mp4_impl(
+            state, output_path, encoder="libx264", **options
+        )
+
+
+def _export_mp4_impl(
+    state: ProjectState,
+    output_path: Path,
+    *,
+    adapter: Any | None = None,
+    crf: int = 18,
+    preset: str = "medium",
+    profile: str = "",
+    audio_bitrate: str = DEFAULT_AUDIO_BITRATE,
+    loudness_lufs: float | None = None,
+    true_peak_db: float = YOUTUBE_TRUE_PEAK_DB,
+    cfr: bool = False,
+    audio_master: Path | None = None,
+    audio_filters: Sequence[str] | None = None,
+    video_filters: Sequence[str] | None = None,
+    ass_path: Path | None = None,
+    burn_subtitles: bool | None = None,
+    qa_mode: str = "fast",
+    progress: Callable[[int], None] | None = None,
+    scale_height: int | None = None,
+    scale_max: int | None = None,
+    mode: ExportMode = "final",
+    encoder: str = "",
+    cache_dir: Path | None = None,
+    fps: int | None = None,
+    render_report: dict[str, Any] | None = None,
+) -> Path:
     ass_path = _resolve_burn_subtitles(ass_path, burn_subtitles)
     media = state.media_info
     if media is None:
@@ -1122,8 +1339,12 @@ def export_mp4(
             qa_mode=qa_mode,
             progress=progress,
             scale_height=scale_height,
+            scale_max=scale_max,
+            mode=mode,
+            encoder=encoder,
             cache_dir=cache_dir,
             fps=fps,
+            render_report=render_report,
         )
     temporary = destination.with_name(f".{destination.stem}.{uuid4().hex}.part.mp4")
     try:
@@ -1145,6 +1366,9 @@ def export_mp4(
             qa_mode=qa_mode,
             progress=progress,
             scale_height=scale_height,
+            scale_max=scale_max,
+            mode=mode,
+            encoder=encoder,
             fps=fps,
         )
         report = (
@@ -1172,6 +1396,9 @@ def export_mp4(
                 qa_mode=qa_mode,
                 progress=progress,
                 scale_height=scale_height,
+                scale_max=scale_max,
+                mode=mode,
+                encoder=encoder,
                 fps=fps,
             )
             report = (
@@ -1210,6 +1437,9 @@ def _render_classic_mp4(
     qa_mode: str = "fast",
     progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,
+    scale_max: int | None = None,
+    mode: ExportMode = "final",
+    encoder: str = "",
     fps: int | None = None,
 ) -> Path:
     """Render the classic single-pass graph to ``output_path``."""
@@ -1323,9 +1553,9 @@ def _render_classic_mp4(
     apply_overlays([overlay for overlay in state.overlays if overlay.z >= 40])
     if graph_segments:
         graph += ";" + ";".join(graph_segments)
-    if scale_height is not None:
-        height = max(64, min(2160, int(scale_height)))
-        graph += f";{video_label}scale=-2:{height}:flags=lanczos,setsar=1[vscale]"
+    scale = _scale_filter(media, scale_height=scale_height, scale_max=scale_max)
+    if scale is not None:
+        graph += f";{video_label}{scale}[vscale]"
         video_label = "[vscale]"
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -1354,6 +1584,8 @@ def _render_classic_mp4(
             fps_num=fps or media.fps_num,
             fps_den=1 if fps else media.fps_den,
             cfr=cfr or bool(fps),
+            mode=mode,
+            encoder=encoder or None,
         ),
         *_audio_encode_args(bitrate=audio_bitrate),
         "-ar",

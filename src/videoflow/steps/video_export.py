@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import time
 from pathlib import Path
 from typing import Literal
 
@@ -35,6 +36,7 @@ class VideoExportParams(BaseModel):
 
     preset: VideoPreset = "ultrafast"
     fps: int | Literal["source"] = 30
+    mode: Literal["final", "preview"] = "final"
     subdir: str = Field(default="exports", max_length=120)
     filename_mode: Literal["source_timestamp", "fixed"] = "source_timestamp"
     filename: str = Field(default="video.mp4", min_length=1, max_length=200)
@@ -63,7 +65,9 @@ class VideoExportStep(BaseStep):
             raise ExportError("The video export requires a timeline")
         directory = context.output / options.subdir
         directory.mkdir(parents=True, exist_ok=True)
-        if options.filename_mode == "source_timestamp":
+        if options.mode == "preview":
+            destination = directory / "preview_fast.mp4"
+        elif options.filename_mode == "source_timestamp":
             destination = unique_path(directory, f"{timestamped_basename(context.source)}.mp4")
         else:
             name = Path(options.filename).name
@@ -144,6 +148,9 @@ class VideoExportStep(BaseStep):
         scale_height = None
         if options.draft_scale and 0 < options.draft_scale < 1 and context.media is not None:
             scale_height = max(144, int(context.media.height * options.draft_scale))
+        render_report: dict[str, object] = {}
+        started = time.monotonic()
+
         def render_local(
             target: Path,
             *,
@@ -171,6 +178,8 @@ class VideoExportStep(BaseStep):
                     progress=local_progress,
                     scale_height=scale_height,
                     cache_dir=context.output / "render" / "segments",
+                    mode=options.mode,
+                    report=render_report,
                 )
             except Exception as exc:  # noqa: BLE001 - preserve evidence
                 from videoflow.application.export_evidence import (
@@ -188,7 +197,7 @@ class VideoExportStep(BaseStep):
         placement = "local"
         encoder = "libx264"
         remote_error = ""
-        if options.compute_policy not in {"local", "local_gpu"}:
+        if options.compute_policy not in {"local", "local_gpu"} and options.mode != "preview":
             try:
                 from videoflow.application.compute import (
                     guard_remote_policy,
@@ -261,9 +270,20 @@ class VideoExportStep(BaseStep):
         if placement == "local":
             with render_gate.hold("export.video", str(context.output)):
                 render_local(destination, local_preset=preset, local_crf=crf)
+            encoder = str(render_report.get("encoder") or encoder)
         context.metadata["video_export_placement"] = placement
         context.metadata["video_export_encoder"] = encoder
-        if remote_error:
+        context.metadata["video_export_mode"] = options.mode
+        context.metadata["video_export_elapsed_sec"] = round(
+            time.monotonic() - started, 3
+        )
+        if render_report.get("degraded"):
+            context.metadata["video_export_degraded"] = True
+            context.metadata["video_export_degraded_reason"] = str(
+                render_report.get("degraded_reason")
+                or "nvenc_runtime_fallback"
+            )
+        elif remote_error:
             context.metadata["video_export_degraded_reason"] = remote_error
         context.artifacts["video"] = str(destination)
         context.hashes["export.video"] = digest_payload(
@@ -273,6 +293,7 @@ class VideoExportStep(BaseStep):
                 "crf": crf,
                 "fps": options.fps,
                 "audio_source": options.audio_source,
+                "mode": options.mode,
             }
         )
         io.report(100, f"Video ready: {destination.name}")
