@@ -789,13 +789,17 @@ def _render_video_group(
         return cached
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
     transitions = [item.transition_out for item in video[:-1]]
-    fps = media.fps_num / media.fps_den
+    target_fps = fps
+    source_fps = media.fps_num / media.fps_den
     inputs: list[str] = []
     chains: list[str] = []
     durations: list[float] = []
     for slot, clip_index in enumerate(group):
         clip = video[clip_index]
-        pre_roll = min(clip.source_in_frame, max(1, int(round(fps * PRE_ROLL_SECONDS))))
+        pre_roll = min(
+            clip.source_in_frame,
+            max(1, int(round(source_fps * PRE_ROLL_SECONDS))),
+        )
         seek_frame = clip.source_in_frame - pre_roll
         clip_media = state.video_media(clip) or media
         clip_fps = clip_media.fps_num / clip_media.fps_den
@@ -815,8 +819,12 @@ def _render_video_group(
             transitions=transitions,
             offset_frames=seek_frame,
         )
+        if target_fps:
+            filters.append(f"fps={int(target_fps)}")
         chains.append(f"[{slot}:v]{','.join(filters)}[c{slot}]")
-        durations.append((clip.timeline_out_frame - clip.timeline_in_frame) / fps)
+        durations.append(
+            (clip.timeline_out_frame - clip.timeline_in_frame) / source_fps
+        )
 
     label = "[c0]"
     if len(group) > 1:
@@ -827,7 +835,7 @@ def _render_video_group(
                 transition = video[group[offset_index - 1]].transition_out
                 if not _is_xfade(transition):
                     raise ExportError("Transition group has a non-xfade transition")
-                seconds = transition.duration_frames / fps
+                seconds = transition.duration_frames / source_fps
                 offset = max(0.0, cumulative - seconds)
                 effect = XFADE_TRANSITIONS.get(transition.type, "fade") if transition else "fade"
                 chains.append(
@@ -861,8 +869,8 @@ def _render_video_group(
                     crf=crf,
                     preset=preset,
                     profile=profile,
-                    fps_num=fps or media.fps_num,
-                    fps_den=1 if fps else media.fps_den,
+                    fps_num=target_fps or media.fps_num,
+                    fps_den=1 if target_fps else media.fps_den,
                     cfr=True,
                     mode=mode,
                     encoder=encoder or None,

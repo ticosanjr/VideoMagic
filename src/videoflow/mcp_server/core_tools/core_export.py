@@ -37,6 +37,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         compute_policy: str = "auto",
         allow_slow_cpu_fallback: bool = True,
         mode: Literal["final", "preview"] = "final",
+        draft_scale: float = 1.0,
     ) -> dict[str, Any]:
         from videoflow.application.delivery_bundle import (
             DEFAULT_BUNDLE_TARGETS,
@@ -87,11 +88,12 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 compute_policy=compute_policy,
                 allow_slow_cpu_fallback=allow_slow_cpu_fallback,
                 mp4_mode=mode,
+                mp4_draft_scale=draft_scale,
             ),
         )
         mp4 = (bundle.get("files") or {}).get("mp4") or {}
         path = Path(str(mp4.get("path") or ""))
-        if mode == "preview":
+        if mode == "preview" or qa_mode in {"off", "none"}:
             qa_mode = "off"
         if not draft and qa_mode != "off" and path.is_file():
             from videoflow.application.qa_final import audit_final
@@ -196,8 +198,13 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             )
         if audio_source not in {"mix", "master", "timeline"}:
             return error("invalid_audio_source", "audio_source must be mix, master, or timeline")
+        if qa_mode in {"none", "off"}:
+            qa_mode = "off"
         if qa_mode not in {"fast", "full", "off"}:
-            return error("invalid_qa_mode", "qa_mode must be fast, full, or off")
+            return error(
+                "invalid_qa_mode",
+                "qa_mode must be fast, full, off, or none",
+            )
         if mode not in {"final", "preview"}:
             return error("invalid_mode", "mode must be final or preview")
         started = time.monotonic()
@@ -218,6 +225,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 compute_policy=compute_policy,
                 allow_slow_cpu_fallback=allow_slow_cpu_fallback,
                 mode=mode,
+                draft_scale=draft_scale,
             )
         except VideoFlowError as exc:
             return exc.to_dict()

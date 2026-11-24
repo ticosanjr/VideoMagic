@@ -626,6 +626,30 @@ def audit_final(
         "text_cut_check": "deterministic_caption_box",
     }
     report_path = qa_dir / "final_qa.json"
+    if not ok:
+        checks = [
+            {
+                "id": f"qa-{index}",
+                "label": f"{item.get('kind')}: {item.get('message')}",
+                "ok": False,
+            }
+            for index, item in enumerate(critical, start=1)
+        ]
+        review = {
+            "ok": False,
+            "approved": False,
+            "status": "needs_review",
+            "video": str(video),
+            "qa_report": str(report_path),
+            "checks": checks,
+            "pending": [item["id"] for item in checks],
+        }
+        review_path = Path(output).expanduser() / "review.json"
+        review_path.write_text(
+            json.dumps(review, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        report["review"] = str(review_path)
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     from videoflow.application.qa_store import QaStore
 

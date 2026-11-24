@@ -18,16 +18,25 @@ def _resolve_export_path(
     """Prefer bundle names, then legacy fixed names, then timestamped exports."""
 
     names = (fixed_names,) if isinstance(fixed_names, str) else fixed_names
-    for name in names:
-        fixed = directory / name
-        if fixed.is_file():
-            return fixed
+    roots = [directory]
+    if directory.parent != directory and directory.parent not in roots:
+        roots.append(directory.parent)
+    for root in roots:
+        for name in names:
+            fixed = root / name
+            if fixed.is_file():
+                return fixed
     fixed = directory / names[0]
-    candidates = [
-        path for path in directory.glob(f"*{extension}") if "_VideoFlow_Edited_" in path.name
-    ]
+    candidates: list[Path] = []
+    for root in roots:
+        candidates.extend(
+            path
+            for path in root.glob(f"*{extension}")
+            if "_VideoFlow_Edited_" in path.name
+        )
     if not candidates:
-        candidates = list(directory.glob(f"*{extension}"))
+        for root in roots:
+            candidates.extend(root.glob(f"*{extension}"))
     if not candidates:
         return fixed
     return max(candidates, key=lambda path: (path.stat().st_mtime, path.name))

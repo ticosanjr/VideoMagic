@@ -92,6 +92,43 @@ def _look_filters(output: Path, look: MasterLook) -> list[str]:
     return filters
 
 
+def resolve_render_profile(
+    state: Any,
+    *,
+    mode: ExportMode = "final",
+    fps: int | None = None,
+    draft: bool = False,
+    draft_scale: float = 1.0,
+) -> dict[str, Any]:
+    """Resolve preview/final fps, scale, bitrate, and QA precedence once."""
+
+    media = getattr(state, "media_info", None)
+    if mode == "preview":
+        return {
+            "mode": "preview",
+            "fps": 30,
+            "scale_height": None,
+            "scale_max": PREVIEW_MAX_SCALE,
+            "audio_bitrate": "128k",
+            "loudness_lufs": None,
+            "qa_mode": "off",
+            "cfr": True,
+        }
+    scale_height = None
+    if draft and media is not None and 0 < float(draft_scale) < 1:
+        scale_height = max(144, int(round(media.height * float(draft_scale))))
+    return {
+        "mode": "final",
+        "fps": int(fps) if fps and int(fps) > 0 else None,
+        "scale_height": scale_height,
+        "scale_max": None,
+        "audio_bitrate": None,
+        "loudness_lufs": None,
+        "qa_mode": None,
+        "cfr": False,
+    }
+
+
 def resolve_audio_master(output: Path, audio_source: str) -> Path | None:
     """Resolve timeline, final mix, master, or an explicit audio path."""
 
@@ -141,6 +178,8 @@ def render_master(
     video_filters: Sequence[str] | None = None,
     fps: int | None = None,
     mode: ExportMode = "final",
+    draft: bool = False,
+    draft_scale: float = 1.0,
     report: dict[str, Any] | None = None,
 ) -> Path:
     """Render one timeline to the same H.264/AAC master for every caller."""
@@ -148,15 +187,26 @@ def render_master(
     outcome = report if report is not None else {}
     outcome.setdefault("encoder", video_encoder())
     outcome.setdefault("degraded", False)
-    scale_max = None
-    if mode == "preview":
-        scale_height = None
-        scale_max = PREVIEW_MAX_SCALE
-        audio_bitrate = "128k"
-        loudness_lufs = None
-        qa_mode = "off"
-        fps = 30
-        cfr = True
+    profile = resolve_render_profile(
+        state,
+        mode=mode,
+        fps=fps,
+        draft=draft,
+        draft_scale=draft_scale,
+    )
+    mode = profile["mode"]
+    if profile["fps"] is not None:
+        fps = int(profile["fps"])
+    if profile["scale_height"] is not None:
+        scale_height = int(profile["scale_height"])
+    scale_max = profile["scale_max"]
+    if profile["audio_bitrate"] is not None:
+        audio_bitrate = str(profile["audio_bitrate"])
+    if profile["loudness_lufs"] is not None or mode == "preview":
+        loudness_lufs = profile["loudness_lufs"]
+    if profile["qa_mode"] is not None:
+        qa_mode = str(profile["qa_mode"])
+    cfr = bool(profile["cfr"]) or cfr
     chosen = look or project_look(output)
     audio_master = resolve_audio_master(output, audio_source)
     outcome["audio_source"] = audio_source
@@ -197,4 +247,5 @@ __all__ = [
     "project_look",
     "render_master",
     "resolve_audio_master",
+    "resolve_render_profile",
 ]

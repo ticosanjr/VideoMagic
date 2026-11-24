@@ -84,6 +84,7 @@ class DeliveryBundleRequest:
     mp4_crf: int = 18
     mp4_preset: str = "veryfast"
     mp4_draft: bool = False
+    mp4_draft_scale: float = 1.0
     mp4_mode: ExportMode = "final"
     mp4_fps: int | str = 30
     audio_source: str = "mix"
@@ -463,6 +464,8 @@ def build_delivery_bundle(
                 progress=((lambda value: progress("mp4", value)) if progress is not None else None),
                 cache_dir=cache_dir,
                 mode=options.mp4_mode,
+                draft=options.mp4_draft,
+                draft_scale=options.mp4_draft_scale,
                 report=render_report,
             )
         artifacts["mp4"] = mp4_path
