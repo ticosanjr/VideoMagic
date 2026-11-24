@@ -61,6 +61,7 @@ uv run python scripts/build_portable.py \
   "$CLEAN_FLAG"
 
 uv run python scripts/build_appimage.py --onedir dist/videoflow-appimage
+uv run python scripts/build_worker_wheels.py --version "$VERSION"
 uv run python scripts/generate_sbom.py --output dist/sbom.json
 uv run python scripts/release.py --version "$VERSION" --force --keep 3
 

@@ -6,6 +6,7 @@ from videoflow.application.capabilities import (
     clear_capability_cache,
     ensure_external_allowed,
     external_services_allowed,
+    feature_matrix,
 )
 from videoflow.domain.errors import CapabilityUnavailableError
 
@@ -97,3 +98,23 @@ def test_manifest_mcp_names_are_exposed_by_the_full_profile() -> None:
     clear_capability_cache()
     for entry in capability_manifest():
         assert entry["mcp"] in names, entry["id"]
+
+
+def test_doctor_feature_matrix_lists_every_required_dependency() -> None:
+    entries = {item["feature"]: item for item in feature_matrix()}
+    assert set(entries) == {
+        "ffmpeg",
+        "ffmpeg_filter_flag",
+        "cuda",
+        "nvenc",
+        "faster_whisper",
+        "silero",
+        "yamnet",
+        "opencv",
+        "mediapipe",
+        "scenedetect",
+        "tray",
+    }
+    for item in entries.values():
+        assert item["status"] in {"available", "missing_dependency"}
+        assert item["package"]

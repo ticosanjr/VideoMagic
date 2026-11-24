@@ -7,7 +7,40 @@ permissions:
   contents: write
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install static FFmpeg
+        run: |
+          curl -fsSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o /tmp/ffmpeg.tar.xz
+          mkdir -p /tmp/ffmpeg-static
+          tar -xJf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg-static --strip-components=1
+          sudo install /tmp/ffmpeg-static/ffmpeg /usr/local/bin/ffmpeg
+          sudo install /tmp/ffmpeg-static/ffprobe /usr/local/bin/ffprobe
+      - name: Python dependencies
+        run: uv sync --extra dev --group dev
+      - name: Python lint
+        run: uv run ruff check src packages scripts tests
+      - name: Python tests
+        run: uv run pytest -q
+      - name: UI dependencies
+        working-directory: ui
+        run: npm ci
+      - name: UI checks
+        working-directory: ui
+        run: npm run check && npm test -- --run && npm run build
+
   linux:
+    needs: gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,10 +81,23 @@ jobs:
         run: npm ci && npm run build
       - name: Python dependencies
         run: uv sync --extra dev --group dev --extra faster-whisper --extra tray
+      - name: Read version
+        run: |
+          VERSION=$(uv run python -c "from videoflow import __version__; print(__version__)")
+          echo "VIDEOFLOW_VERSION=$VERSION" >> "$GITHUB_ENV"
       - name: Build worker wheels
-        run: uv run python scripts/build_worker_wheels.py
-      - name: Build Linux executable
-        run: uv run python scripts/build_portable.py --with-ffmpeg --with-whisper --with-silero --with-faster-whisper --with-tray
+        run: uv run python scripts/build_worker_wheels.py --version "$VIDEOFLOW_VERSION"
+      - name: Build Linux onedir and tar.zst
+        run: |
+          uv run python scripts/build_portable.py --onedir --name videoflow \
+            --with-ffmpeg --with-whisper --with-silero --with-faster-whisper --with-tray \
+            --skip-ui-build
+          tar -C dist -I 'zstd -1 -T0' \
+            -cf "dist/VideoFlow-${VIDEOFLOW_VERSION}-linux-x86_64.tar.zst" videoflow
+      - name: Build Linux onefile
+        run: |
+          uv run python scripts/build_portable.py --with-ffmpeg --with-whisper \
+            --with-silero --with-faster-whisper --with-tray --skip-ui-build
       - name: Build AppImage
         run: uv run python scripts/build_appimage.py
       - name: Generate SBOM
@@ -63,6 +109,7 @@ jobs:
           path: |
             dist/videoflow
             dist/VideoFlow-*-x86_64.AppImage
+            dist/VideoFlow-*-linux-x86_64.tar.zst
           if-no-files-found: error
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
@@ -72,6 +119,7 @@ jobs:
           if-no-files-found: error
 
   windows:
+    needs: gate
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -87,53 +135,54 @@ jobs:
         working-directory: ui
         run: npm ci; npm run build
       - name: Python dependencies
-        run: uv sync --extra dev --group dev --extra tray
-      - name: Build worker wheels
-        run: uv run python scripts/build_worker_wheels.py
-      - name: Build Windows executable
-        run: uv run python scripts/build_portable.py --fetch-ffmpeg --with-silero --with-tray
-      - name: Smoke test Windows executable
+        run: uv sync --extra dev --group dev --extra tray --extra asr-cuda
+      - name: Read version
         shell: pwsh
         run: |
-          $exe = ".\dist\videoflow.exe"
-          & $exe version
-          & $exe doctor
-          & $exe mcp --help
-
-          $port = 18765
-          $proc = Start-Process -FilePath $exe `
-            -ArgumentList @("serve", "--mcp-only", "--port", $port) -PassThru
-          try {
-            $ready = $false
-            for ($i = 0; $i -lt 60; $i++) {
-              try {
-                $health = Invoke-RestMethod "http://127.0.0.1:$port/health" -TimeoutSec 2
-                $ready = $true
-                break
-              } catch {
-                Start-Sleep -Milliseconds 500
-              }
-            }
-            if (-not $ready) { throw "serve did not become ready on port $port" }
-            if ($health.service -ne "videoflow") { throw "unexpected health payload" }
-            & $exe status
-            & $exe stop
-          } finally {
-            if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
-          }
+          $version = uv run python -c "from videoflow import __version__; print(__version__)"
+          "VIDEOFLOW_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Build worker wheels
+        run: uv run python scripts/build_worker_wheels.py --version $env:VIDEOFLOW_VERSION
+      - name: Build Windows onefile
+        run: >
+          uv run python scripts/build_portable.py
+          --fetch-ffmpeg --with-silero --with-tray --skip-ui-build
+      - name: Build Windows CUDA onedir
+        run: >
+          uv run python scripts/build_portable.py
+          --onedir --name videoflow-windows-cuda
+          --fetch-ffmpeg --with-silero --with-tray
+          --faster-whisper-runtime --with-cuda
+          --skip-ui-build
+      - name: Package Windows CUDA zip
+        shell: pwsh
+        run: |
+          $zip = "dist\VideoFlow-$env:VIDEOFLOW_VERSION-windows-x64-cuda.zip"
+          uv run python -c "import sys, zipfile; from pathlib import Path; sys.path.insert(0, 'scripts'); from build_portable import zip_directory; zip_directory(Path('dist/videoflow-windows-cuda'), Path(sys.argv[1]), compression=zipfile.ZIP_DEFLATED, compresslevel=1)" $zip
+          Get-Item $zip | Format-List Name,Length
+      - name: Smoke test Windows executable
+        shell: pwsh
+        run: >
+          uv run python scripts/smoke_windows.py
+          --exe ".\dist\videoflow.exe"
+          --timeout 180
       - name: Build tokenless Windows GPU worker kit
-        run: uv run python scripts/build_windows_kit.py --output dist
+        run: |
+          uv run python scripts/build_windows_kit.py --output dist
+          uv run python -c "import zipfile,pathlib; p=next(pathlib.Path('dist').glob('VideoFlow-Windows-GPU-Worker-*.zip')); z=zipfile.ZipFile(p); names=set(z.namelist()); assert 'worker.env' not in names; assert any(n.startswith('wheels/videoflow_gpu_worker-') for n in names); assert 'VideoFlowGPU.ps1' in names; print(p, len(names), 'files')"
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: videoflow-windows
           path: |
             dist/videoflow.exe
+            dist/VideoFlow-*-windows-x64-cuda.zip
             dist/VideoFlow-Windows-GPU-Worker-*.zip
+            dist/windows-kit.json
           if-no-files-found: error
 
   publish:
-    needs: [linux, windows]
+    needs: [gate, linux, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -141,25 +190,34 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Stage release assets
+      - name: Stage unified release assets
         run: |
+          set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p dist
           cp artifacts/videoflow-linux/videoflow dist/videoflow
           cp artifacts/videoflow-linux/VideoFlow-*-x86_64.AppImage "dist/VideoFlow-${VERSION}-x86_64.AppImage"
+          cp artifacts/videoflow-linux/VideoFlow-*-linux-x86_64.tar.zst "dist/VideoFlow-${VERSION}-linux-x86_64.tar.zst"
           cp artifacts/videoflow-windows/videoflow.exe dist/videoflow.exe
-          cp artifacts/videoflow-windows/VideoFlow-Windows-GPU-Worker-*.zip dist/
+          cp artifacts/videoflow-windows/VideoFlow-*-windows-x64-cuda.zip "dist/VideoFlow-${VERSION}-windows-x64-cuda.zip"
+          cp artifacts/videoflow-windows/VideoFlow-Windows-GPU-Worker-*.zip "dist/VideoFlow-Windows-GPU-Worker-${VERSION}.zip"
           cp artifacts/videoflow-sbom/sbom.json dist/sbom.json
           uv sync --extra dev --group dev
-          uv run python scripts/release.py --version "$VERSION" --force \
-            --artifact "$(ls dist/VideoFlow-Windows-GPU-Worker-*.zip)"
+          uv run python scripts/release.py --version "$VERSION" --force --require-all
+      - name: Publish GitHub release
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
           gh release create "$GITHUB_REF_NAME" \
             "releases/v${VERSION}/videoflow-${VERSION}-linux-x86_64" \
             "releases/v${VERSION}/VideoFlow-${VERSION}-x86_64.AppImage" \
+            "releases/v${VERSION}/VideoFlow-${VERSION}-linux-x86_64.tar.zst" \
             "releases/v${VERSION}/videoflow-${VERSION}-windows-x86_64.exe" \
+            "releases/v${VERSION}/VideoFlow-${VERSION}-windows-x64-cuda.zip" \
             "releases/v${VERSION}/VideoFlow-Windows-GPU-Worker-${VERSION}.zip" \
             "releases/v${VERSION}/sbom.json" \
             "releases/v${VERSION}/SHA256SUMS" \
+            "releases/v${VERSION}/manifest.json" \
             --title "VideoFlow ${VERSION}" \
             --notes-file "releases/v${VERSION}/release-notes.md"
         env:

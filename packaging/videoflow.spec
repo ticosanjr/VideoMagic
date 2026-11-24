@@ -88,8 +88,8 @@ try:
     datas += ort_datas
     binaries += ort_binaries
     hiddenimports += ort_hidden
-except Exception:
-    pass
+except Exception as exc:
+    print(f"[spec] optional package skipped: onnxruntime: {exc}")
 
 # Optional desktop/vision helpers. They are imported lazily, so PyInstaller
 # needs the package data and submodules explicitly.
@@ -99,8 +99,8 @@ for package in ("PIL", "pystray", "pytesseract", "Xlib", "six", "websocket"):
         datas += package_datas
         binaries += package_binaries
         hiddenimports += package_hidden
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"[spec] optional package skipped: {package}: {exc}")
 
 hiddenimports += [
     "optparse",
@@ -173,8 +173,8 @@ for distribution in (
 ):
     try:
         datas += copy_metadata(distribution)
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"[spec] optional package skipped: {distribution}: {exc}")
 
 analysis = Analysis(
     [str(ROOT / "src" / "videoflow" / "__main__.py")],

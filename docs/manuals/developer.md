@@ -179,9 +179,9 @@ The spec is `packaging/videoflow.spec`. It bundles presets, the UI, and the
 lazily imported package to `hiddenimports` or the frozen binary will fail with
 `ModuleNotFoundError`. Rebuild after touching the CLI, API mount, or MCP server.
 
-Windows must be built with a Windows Python and PyInstaller. The release on this
-machine used Wine WoW64 plus the Python embeddable distribution; the resulting
-PE32+ executable was smoke-tested under Wine. GitHub Actions is not used.
+Windows is built natively on `windows-latest` in the GitHub Actions release
+workflow with Windows Python and PyInstaller. The workflow smoke-tests the
+published executable before uploading it.
 
 ## 13. Release
 

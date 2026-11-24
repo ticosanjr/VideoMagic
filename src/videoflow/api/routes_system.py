@@ -316,6 +316,13 @@ def register_system_routes(app: FastAPI) -> None:
         ok = ok and not error
         checks["providers"] = len(list_providers())
         checks["service_definitions"] = len(list_definitions())
+        try:
+            from videoflow.application.capabilities import feature_matrix
+
+            checks["feature_matrix"] = feature_matrix()
+        except Exception as exc:  # noqa: BLE001 - diagnostics must not break doctor
+            checks["feature_matrix"] = []
+            checks["feature_matrix_error"] = str(exc)
         return {"ok": ok, "checks": checks}
 
     @app.get("/api/v1/metrics/cost")

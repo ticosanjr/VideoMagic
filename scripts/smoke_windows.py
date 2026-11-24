@@ -184,6 +184,117 @@ def http_json(url: str, *, timeout: float = 2.0) -> tuple[int, dict[str, object]
     return status, payload
 
 
+def check_ui_assets(base: str, *, timeout: float) -> str:
+    with urllib.request.urlopen(f"{base}/", timeout=timeout) as response:
+        html = response.read().decode("utf-8", errors="replace")
+    if "_app/immutable" not in html and "<div id=" not in html:
+        raise SmokeError("GET / did not return the built UI")
+    import re
+
+    match = re.search(r'(?:src|href)="([^"]+\.js[^"]*)"', html)
+    if match is None:
+        raise SmokeError("the UI HTML has no JavaScript asset")
+    path = match.group(1)
+    url = path if path.startswith("http") else base + path
+    with urllib.request.urlopen(url, timeout=timeout) as response:
+        status = int(response.status)
+        asset = response.read()
+    if status != 200 or len(asset) < 100:
+        raise SmokeError(f"UI asset {path} did not load")
+    print(f"[ok] ui: / and {path} returned 200")
+    return path
+
+
+def _bundled_ffmpeg(exe: Path) -> Path | None:
+    names = {"ffmpeg.exe"} if os.name == "nt" else {"ffmpeg"}
+    for path in exe.parent.rglob("*"):
+        if path.is_file() and path.name.casefold() in names:
+            return path
+    return None
+
+
+def check_synthetic_job(
+    exe: Path,
+    env: dict[str, str],
+    home: Path,
+    timeout: float,
+) -> None:
+    ffmpeg = _bundled_ffmpeg(exe)
+    if ffmpeg is None:
+        print("[skip] synthetic job: bundled ffmpeg was not found")
+        return
+    source = home / "synthetic.mp4"
+    recipe = home / "synthetic-recipe.json"
+    completed = subprocess.run(
+        [
+            str(ffmpeg),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=320x180:r=30:d=1",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:sample_rate=48000:duration=1",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-shortest",
+            str(source),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise SmokeError(f"cannot create the synthetic source: {completed.stderr[-800:]}")
+    recipe.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "id": "smoke_ingest",
+                "name": "Smoke ingest",
+                "steps": [
+                    {
+                        "id": "ingest",
+                        "type": "ingest",
+                        "params": {"extract_pcm": True},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = run(
+        exe,
+        [
+            "recipe",
+            "run",
+            str(recipe),
+            str(source),
+            "-o",
+            str(home / "synthetic-project"),
+            "--json",
+            "--force",
+        ],
+        env=env,
+        timeout=timeout,
+    )
+    if result.returncode != 0:
+        raise SmokeError(f"synthetic job failed: {result.stderr[-1200:]}")
+    payload = _json_output(result.stdout)
+    if payload.get("ok") is False:
+        raise SmokeError(f"synthetic job returned a failure: {payload}")
+    print("[ok] synthetic job: ingest recipe completed")
+
+
 def wait_for_server(
     exe: Path,
     *,
@@ -237,6 +348,7 @@ def wait_for_server(
             status, boards = http_json(f"{base}/api/v1/curation/boards")
             if status != 200 or boards.get("ok") is not True:
                 raise SmokeError(f"unexpected curation boards payload: {boards!r}")
+            check_ui_assets(base, timeout=timeout)
             print(
                 "[ok] serve: /health and /api/v1/curation/boards returned 200 "
                 f"({len(boards.get('boards') or [])} boards)"
@@ -346,6 +458,7 @@ def main(argv: list[str] | None = None) -> int:
             timeout=args.timeout,
             log_path=log_path,
         )
+        check_synthetic_job(exe, env, home, args.timeout)
     except SmokeError as exc:
         print(f"[fail] {exc}", file=sys.stderr)
         return 1

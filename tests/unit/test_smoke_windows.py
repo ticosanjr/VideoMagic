@@ -145,3 +145,11 @@ def test_zip_directory_can_deflate_for_release(tmp_path: Path) -> None:
             for item in bundle.infolist()
         )
     assert archive.stat().st_size < 100_000
+
+
+def test_certify_windows_nvidia_help_exits_zero() -> None:
+    from scripts import certify_windows_nvidia
+
+    with pytest.raises(SystemExit) as error:
+        certify_windows_nvidia.main(["--help"])
+    assert error.value.code == 0

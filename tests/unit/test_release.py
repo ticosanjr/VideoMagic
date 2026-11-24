@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from scripts.release import _prune_old_releases, _release_notes
+from scripts.release import _prune_old_releases, _release_notes, default_artifacts
 
 
 def test_prune_old_releases_keeps_newest_three(tmp_path: Path) -> None:
@@ -20,6 +20,13 @@ def test_prune_old_releases_keeps_newest_three(tmp_path: Path) -> None:
     }
     with pytest.raises(ValueError, match="keep must be at least 1"):
         _prune_old_releases(tmp_path, keep=0)
+
+
+def test_default_artifacts_include_the_cuda_zip_and_worker_kit() -> None:
+    names = {name for _path, name in default_artifacts("9.9.9")}
+    assert "VideoFlow-9.9.9-linux-x86_64.tar.zst" in names
+    assert "VideoFlow-9.9.9-windows-x64-cuda.zip" in names
+    assert "VideoFlow-Windows-GPU-Worker-9.9.9.zip" in names
 
 
 def test_release_notes_list_only_staged_linux_artifacts() -> None:
@@ -46,7 +53,7 @@ def test_release_notes_describe_windows_only_when_staged() -> None:
 
     assert "Windows:" in notes
     assert ".\\videoflow-9.9.9-windows-x86_64.exe doctor" in notes
-    assert "smoke-tested under Wine" in notes
+    assert "smoke-tested by CI" in notes
     assert "Linux plain binary" not in notes
 
 

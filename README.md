@@ -73,9 +73,10 @@ npm run dev                         # http://127.0.0.1:5173
 
 ## Local release build
 
-The official release is built and staged locally. The GitHub Actions
-workflows are manual fallbacks for CI, Windows, and release assets; nothing
-runs on push.
+The official release is staged locally or through the manual GitHub Actions
+release workflow. CI runs on `main` pushes and pull requests, including a
+Windows unit-test job; the release workflow gates Linux, AppImage, Windows,
+Windows CUDA, worker kits, SBOM, `SHA256SUMS`, and `manifest.json`.
 
 ```bash
 ./scripts/gate_local.sh              # fast: ruff, changed tests, UI unit
@@ -147,6 +148,22 @@ uv run python scripts/build_appimage.py                  # VideoFlow-X.Y.Z-x86_6
 Build caches in `build/`, `dist/`, `vendor/`, `ui/node_modules`, and `build/videoflow-base` are intentionally preserved so the next build is incremental. Nothing deletes them automatically. Use `./scripts/release_local.sh --clean 2.0.0` or `./scripts/release_fast.sh --clean 2.0.0` only after changing dependencies or the PyInstaller spec. `--refresh-runtime` rebuilds the fast runtime without discarding the rest of the cache.
 
 See [docs/manuals/portable.md](docs/manuals/portable.md).
+
+## Preview, pacing, and diagnostics
+
+- `vf_export(mode="preview")` and `export.video(mode="preview")` render a
+  540p/30fps `preview_fast.mp4` with NVENC `p1`/CQ28 or x264 `ultrafast`/CRF30,
+  AAC 128k, and QA off. `mode="final"` writes `youtube_master.mp4`.
+- `vf_decupage` accepts `pacing_profile="tight" | "balanced" | "relaxed"` with
+  explicit silence, pause, pad, and QA dead-air values. Distant retakes use a
+  25-sentence/420s transitive window with a 0.75 discard ceiling.
+- `videoflow doctor` prints a `feature_matrix` with `available` or
+  `missing_dependency` for FFmpeg, the filter-script flag, CUDA, NVENC,
+  Faster-Whisper, Silero, YAMNet, OpenCV, MediaPipe, scene detection, and tray.
+- `scripts/certify_windows_nvidia.py` drives the published Windows binary
+  through doctor, port fallback, UI assets, cross-process curation, ASR,
+  decupage, and preview/final exports, then writes evidence to
+  `docs/qa-evidence/windows-nvidia-cert/`.
 
 ## Implemented
 
@@ -265,8 +282,8 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - Batch history persisted as JSON and reloaded after restart.
 - Two-source split-screen: left panel from the main source, right panel from a second angle.
 - Repository policy test enforcing JSON for project data and tests.
-- Automatic tag release workflow for Linux, AppImage, Windows, SBOM, and checksums.
-- Windows smoke test (`version`, `doctor`) in CI.
+- Release workflow for Linux, AppImage, Windows, CUDA zip, SBOM, unified `SHA256SUMS`, and `manifest.json`.
+- Windows smoke test (`version`, `doctor`, UI assets, synthetic job) in CI.
 - CI media tests and automatic post-run checkpoint pruning.
 - Job history persisted as JSON; interrupted jobs are marked failed after restart.
 - Batch resume from the API and the batch modal.

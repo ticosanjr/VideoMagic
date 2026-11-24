@@ -640,6 +640,13 @@ def _doctor(*, install_models: bool = False) -> int:
         checks["mcp"] = False
         checks["mcp_error"] = str(exc)
         ok = False
+    try:
+        from videoflow.application.capabilities import feature_matrix
+
+        checks["feature_matrix"] = feature_matrix()
+    except Exception as exc:  # noqa: BLE001 - diagnostics must not break doctor
+        checks["feature_matrix"] = []
+        checks["feature_matrix_error"] = str(exc)
     checks["ok"] = ok
     print(json.dumps(checks, indent=2))
     return 0 if ok else 1

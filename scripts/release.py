@@ -51,7 +51,19 @@ def default_artifacts(version: str) -> tuple[tuple[Path, str], ...]:
             ROOT / "dist" / f"VideoFlow-{version}-x86_64.AppImage",
             f"VideoFlow-{version}-x86_64.AppImage",
         ),
+        (
+            ROOT / "dist" / f"VideoFlow-{version}-linux-x86_64.tar.zst",
+            f"VideoFlow-{version}-linux-x86_64.tar.zst",
+        ),
         (ROOT / "dist" / "videoflow.exe", f"videoflow-{version}-windows-x86_64.exe"),
+        (
+            ROOT / "dist" / f"VideoFlow-{version}-windows-x64-cuda.zip",
+            f"VideoFlow-{version}-windows-x64-cuda.zip",
+        ),
+        (
+            ROOT / "dist" / f"VideoFlow-Windows-GPU-Worker-{version}.zip",
+            f"VideoFlow-Windows-GPU-Worker-{version}.zip",
+        ),
         (ROOT / "dist" / "sbom.json", "sbom.json"),
     )
 
@@ -171,6 +183,8 @@ def _release_notes(version: str, staged: list[dict[str, object]]) -> str:
     )
     appimage = next((name for name in names if name.endswith(".AppImage")), None)
     windows = next((name for name in names if name.endswith(".exe")), None)
+    windows_cuda = next((name for name in names if "windows-x64-cuda" in name), None)
+    worker_kit = next((name for name in names if "GPU-Worker" in name), None)
     sections: list[str] = []
     if archive:
         sections.append(
@@ -208,7 +222,20 @@ def _release_notes(version: str, staged: list[dict[str, object]]) -> str:
             f".\\{windows} doctor\n"
             f".\\{windows} recipe list\n"
             "```\n\n"
-            "The Windows artifact is PE32+ x86-64 and was smoke-tested under Wine."
+            "The Windows artifact is PE32+ x86-64 and is smoke-tested by CI."
+        )
+    if windows_cuda:
+        sections.append(
+            "Windows CUDA onedir:\n\n"
+            "```powershell\n"
+            f"Expand-Archive {windows_cuda} -DestinationPath VideoFlow-CUDA\n"
+            ".\\VideoFlow-CUDA\\videoflow-windows-cuda\\videoflow.exe doctor\n"
+            "```"
+        )
+    if worker_kit:
+        sections.append(
+            "Windows GPU worker kit:\n\n"
+            f"Extract `{worker_kit}` on the worker and run `VideoFlowGPU.ps1`."
         )
     return (
         f"# VideoFlow {version}\n\n"

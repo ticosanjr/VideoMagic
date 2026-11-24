@@ -8,6 +8,7 @@ and the operator has not set the global kill switch.
 from __future__ import annotations
 
 import copy
+import importlib.util
 import os
 import time
 from collections.abc import Sequence
@@ -721,3 +722,150 @@ def _external_entry(
             "unset VIDEOWFLOW_ALLOW_EXTERNAL=0."
         )
     return entry
+
+
+def _matrix(
+    feature: str,
+    available: bool,
+    package: str,
+    *,
+    detail: str = "",
+) -> dict[str, object]:
+    return {
+        "feature": feature,
+        "status": "available" if available else "missing_dependency",
+        "package": package,
+        "detail": detail,
+    }
+
+
+def feature_matrix() -> list[dict[str, object]]:
+    """Return the operator-facing dependency matrix used by doctor."""
+
+    from videoflow.runtime import (
+        cuda_build,
+        find_binary,
+        find_faster_whisper_model,
+        find_silero_model,
+        find_yamnet_model,
+    )
+
+    matrix: list[dict[str, object]] = []
+    ffmpeg = find_binary("ffmpeg")
+    matrix.append(
+        _matrix(
+            "ffmpeg",
+            bool(ffmpeg),
+            "ffmpeg",
+            detail=str(ffmpeg or ""),
+        )
+    )
+    flag = ""
+    if ffmpeg:
+        try:
+            from videoflow.adapters.ffmpeg.helpers import probe_filter_script_flag
+
+            flag = probe_filter_script_flag(ffmpeg)
+        except Exception as exc:  # noqa: BLE001 - doctor must keep reporting
+            flag = f"unsupported: {exc}"
+    matrix.append(
+        _matrix(
+            "ffmpeg_filter_flag",
+            bool(flag) and not flag.startswith("unsupported:"),
+            "ffmpeg >= 7.1 with -/filter_complex (or -filter_complex_script)",
+            detail=flag,
+        )
+    )
+
+    devices = 0
+    try:
+        import ctranslate2
+
+        devices = int(ctranslate2.get_cuda_device_count())
+    except Exception:  # noqa: BLE001 - optional runtime
+        devices = 0
+    matrix.append(
+        _matrix(
+            "cuda",
+            devices > 0 or cuda_build(),
+            "nvidia-cuda-runtime-cu12 + ctranslate2",
+            detail=f"devices={devices} build={cuda_build()}",
+        )
+    )
+
+    nvenc = False
+    nvenc_detail = "ffmpeg missing"
+    if ffmpeg:
+        from videoflow.core.nvenc import probe_nvenc
+
+        probe = probe_nvenc(ffmpeg)
+        nvenc = bool(probe.available)
+        nvenc_detail = probe.reason or "ok"
+    matrix.append(
+        _matrix(
+            "nvenc",
+            nvenc,
+            "ffmpeg with h264_nvenc + NVIDIA driver",
+            detail=nvenc_detail,
+        )
+    )
+
+    whisper_package = importlib.util.find_spec("faster_whisper") is not None
+    whisper_model = find_faster_whisper_model("small")
+    matrix.append(
+        _matrix(
+            "faster_whisper",
+            bool(whisper_package and whisper_model),
+            "faster-whisper + ctranslate2 + av + tokenizers + huggingface-hub",
+            detail=str(whisper_model or ""),
+        )
+    )
+
+    onnx = importlib.util.find_spec("onnxruntime") is not None
+    silero = find_silero_model()
+    matrix.append(
+        _matrix(
+            "silero",
+            bool(onnx and silero),
+            "onnxruntime + silero VAD model",
+            detail=str(silero or ""),
+        )
+    )
+    yamnet = find_yamnet_model()
+    matrix.append(
+        _matrix(
+            "yamnet",
+            bool(onnx and yamnet),
+            "onnxruntime + YAMNet model",
+            detail=str(yamnet or ""),
+        )
+    )
+    for feature, package, module in (
+        ("opencv", "opencv-python-headless", "cv2"),
+        ("mediapipe", "mediapipe", "mediapipe"),
+        ("scenedetect", "scenedetect[opencv]", "scenedetect"),
+    ):
+        found = importlib.util.find_spec(module) is not None
+        matrix.append(_matrix(feature, found, package, detail=module))
+    try:
+        from videoflow.application.tray import tray_diagnostics
+
+        tray = tray_diagnostics()
+        matrix.append(
+            _matrix(
+                "tray",
+                bool(tray.get("available")),
+                "pystray + Pillow (+ python-xlib on Linux)",
+                detail=str(tray.get("reason") or tray.get("backend") or ""),
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - diagnostics must not break doctor
+        matrix.append(
+            _matrix(
+                "tray",
+                False,
+                "pystray + Pillow (+ python-xlib on Linux)",
+                detail=str(exc),
+            )
+        )
+    return matrix

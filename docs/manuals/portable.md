@@ -32,9 +32,10 @@ other caches.
 
 
 PyInstaller cannot cross-compile in the usual sense. The local release script
-builds Linux and AppImage natively. A Windows PE can be cross-built separately
-with Wine WoW64 plus the Windows embeddable Python; it is not part of the local
-Linux release. No GitHub Actions workflow runs automatically.
+builds Linux and AppImage natively, while the GitHub Actions release workflow
+builds Windows on `windows-latest`. The Windows job smoke-tests the executable
+and uploads the onefile, the CUDA onedir zip, the worker kit, `SHA256SUMS`, and
+`manifest.json`.
 
 ## 1. What the executable does
 
@@ -89,144 +90,106 @@ Notes:
 
 ## 4. Commands in detail
 
-### run
+### Recipes
+
+The legacy `videoflow run` command no longer exists. Recipes name every step
+explicitly, so the same graph runs from the CLI, REST API, UI, and MCP:
 
 ```bash
-videoflow run INPUT [-o DIR] [--vad-engine auto|silero|ffmpeg]
-                    [--speech-threshold 0.5]
-                    [--speech-pad-before-ms 120] [--speech-pad-after-ms 150]
-                    [--noise-db -30] [--min-silence-ms 400]
-                    [--min-speech-ms 100] [--no-jcuts] [--l-cuts] [--no-zooms]
-                    [--offset-ms 200] [--crossfade-ms 20] [--dialect 1.9]
-                    [--transcript subs.srt] [--cull-retakes]
-                    [--transcribe] [--whisper-engine auto|faster-whisper|whisper.cpp]
-                    [--model-size small] [--device cpu|cuda]
-                    [--compute-type int8|float16|float32] [--whisper-vad]
-                    [--faster-whisper-model DIR] [--whisper-model FILE]
-                    [--asr-base-url URL] [--asr-model MODEL] [--asr-language pt]
-                    [--llm-base-url URL] [--llm-model MODEL]
-                    [--strictness balanced] [--retake-strategy keep_last]
+videoflow recipe list
+videoflow recipe show youtube_talking_head
+videoflow recipe run youtube_talking_head interview.mp4 -o ./interview-edit
 ```
 
-Default output is `INPUT-stem-videoflow` next to the source.
+Override recipe values without editing the file:
 
-Writes:
-
+```bash
+videoflow recipe run youtube_talking_head interview.mp4 -o ./interview-edit \
+  --var pacing_profile=tight --force
 ```
+
+A recipe writes:
+
+```text
 DIR/
   project_state.json
   run.json
-  work/source.wav           # analysis PCM at the source audio rate
-  work/vad.wav              # only when Silero runs; 16 kHz mono
-  work/transcribe.wav       # full-source 16 kHz WAV for local transcription
-  exports/timeline.fcpxml   # Resolve
-  exports/timeline.xml      # Premiere
-  exports/timeline.kdenlive # Kdenlive
+  work/source.wav
+  exports/youtube_master.mp4
+  exports/preview_fast.mp4
+  exports/timeline.fcpxml
+  exports/timeline.xml
+  exports/timeline.kdenlive
 ```
 
-`run.json` is the machine-readable report: media info, `vad_engine`, speech
-interval count, VAD threshold and pads, segment counts, transcript/retake counts,
-warnings, artifact paths, PCM digest, and elapsed time.
+### Decupage pacing
+
+`vf_decupage` and the `decupage.snap` step accept `pacing_profile`:
+
+| Profile | min silence | max pause | pad before | pad after | QA dead air |
+| --- | --- | --- | --- | --- | --- |
+| `tight` | 220 ms | 250 ms | 60 ms | 90 ms | 550 ms |
+| `balanced` | 350 ms | 420 ms | 90 ms | 130 ms | 800 ms |
+| `relaxed` | 550 ms | 700 ms | 120 ms | 170 ms | 1200 ms |
+
+The second fuzzy pass and distant retakes run by default in
+`vf_decupage(action="run_full")`. Set `second_pass=false` only for a deliberate
+single-pass cut.
+
+### Preview and final renders
+
+`vf_export`, `export.video`, and the delivery bundle accept `mode`:
+
+- `mode="final"` renders the delivery master at the project resolution and
+  writes `youtube_master.mp4`.
+- `mode="preview"` renders at a maximum of 540 px, 30 fps, with `p4`/`p1`
+  NVENC or `ultrafast` x264, AAC 128k, QA off, and writes
+  `preview_fast.mp4` without touching `youtube_master.mp4`.
+
+```bash
+videoflow recipe run youtube_talking_head interview.mp4 -o ./interview-edit
+```
+
+With MCP, call `vf_export(project_id="...", mode="preview")` for the fast review
+and `mode="final"` for delivery. If NVENC fails after probing, the render falls
+back to x264 and reports `degraded=true` with
+`degraded_reason="nvenc_runtime_fallback"`.
 
 ### Shorts
 
-Shorts can run inside a job (API/UI card) or as a standalone command:
+Shorts are a recipe step (`shorts.select`, `shorts.render`) or a standalone
+command:
 
 ```bash
 videoflow shorts interview.mp4 --transcript interview.srt -o shorts-out \
   --count 3 --min-sec 30 --max-sec 60
 ```
 
-In a job, set `shorts=true` with the SRT and the count/duration bounds. The
-`shorts` stage reports progress and logs, and `job.result.shorts` lists the MP4s.
-
 Each clip is rendered at 1080x1920 with center crop and burned-in captions. Use
-`--no-subtitles` to skip ASS generation and `--cull-retakes` to remove exact
-repeats or LLM-selected retakes first. The report is `shorts-out/shorts.json`.
+`--no-subtitles` to skip ASS generation and `--cull-retakes` to remove repeats
+before rendering. The report is `shorts-out/shorts.json`.
 
 ### Speech-to-text
 
-With no SRT and no ASR URL, `--transcribe` extracts a 16 kHz mono WAV and runs
-entirely offline. `--whisper-engine auto` prefers Faster-Whisper when its package
-and the selected model directory are available, then falls back to whisper.cpp:
+Add a `transcribe` step to the recipe. The local chain prefers Faster-Whisper
+when its package and model are present, then falls back to whisper.cpp. Relevant
+environment overrides:
 
-```bash
-videoflow run interview.mp4 -o edit --transcribe --asr-language pt
-videoflow run interview.mp4 -o edit --transcribe \
-  --whisper-engine faster-whisper --model-size small
-```
+- `VIDEOWFLOW_FASTER_WHISPER_MODEL` for a CTranslate2 model directory.
+- `VIDEOWFLOW_WHISPER_BIN` and `VIDEOWFLOW_WHISPER_MODEL` for whisper.cpp.
+- `VIDEOWFLOW_ASR_BASE_URL`, `VIDEOWFLOW_ASR_API_KEY`, and
+  `VIDEOWFLOW_ASR_MODEL` for an OpenAI-compatible ASR endpoint.
 
-The release build bundles Faster-Whisper, CTranslate2, PyAV, and the pinned
-`Systran/faster-whisper-small` model. Force the fallback or a CPU/GPU policy with:
-
-```bash
-videoflow run interview.mp4 -o edit --transcribe --whisper-engine whisper.cpp
-videoflow run interview.mp4 -o edit --transcribe \
-  --device cuda --compute-type float16 --whisper-vad
-```
-
-Both local engines transcribe the full WAV. Do not pass pre-sliced VAD intervals;
-the adapter keeps one time origin and converts every word start with floor and
-every word end with ceil.
-
-To use another CTranslate2 model directory:
-
-```bash
-videoflow run interview.mp4 -o edit --transcribe \
-  --model-size medium --faster-whisper-model ~/models/faster-whisper-medium
-```
-
-`VIDEOWFLOW_FASTER_WHISPER_MODEL` overrides the model directory. The adapter
-never downloads a model. Explicit `faster-whisper` fails with the expected path
-and size when the model is absent; `auto` falls back to whisper.cpp.
-
-whisper.cpp still uses a GGML model. Use a larger one by pointing at a local file:
-
-```bash
-videoflow run interview.mp4 -o edit --transcribe \
-  --whisper-engine whisper.cpp --whisper-model ~/models/ggml-small.bin
-```
-
-`VIDEOWFLOW_WHISPER_BIN` and `VIDEOWFLOW_WHISPER_MODEL` override the bundled
-binary and model. An SRT and an ASR URL still take precedence.
-
-To use a remote or local OpenAI-compatible endpoint instead, set a base URL:
-
-```bash
-export VIDEOWFLOW_ASR_BASE_URL=http://localhost:8000/v1
-export VIDEOWFLOW_ASR_API_KEY=          # empty for a local server
-videoflow run interview.mp4 -o edit \
-  --transcribe --asr-model whisper-1 --asr-language pt
-```
-
-The endpoint must support `POST /audio/transcriptions` with
-`response_format=verbose_json`.
+Both local engines transcribe the full WAV. The adapter never downloads a model
+by itself.
 
 ### Transcript and retakes
 
-SRT can drive retake culling without a speech model:
-
-```bash
-videoflow run interview.mp4 -o edit \
-  --transcript interview.srt --cull-retakes
-```
-
-Without an LLM, only exact repeated text is culled. With an OpenAI-compatible
-endpoint, the model proposes discards per context window and the keep-last guard
-restores an illegal drop:
-
-```bash
-export VIDEOWFLOW_LLM_BASE_URL=http://localhost:11434/v1
-export VIDEOWFLOW_LLM_MODEL=qwen2.5:7b-instruct
-export VIDEOWFLOW_LLM_API_KEY=            # empty for local Ollama
-videoflow run interview.mp4 -o edit \
-  --transcript interview.srt --cull-retakes \
-  --strictness balanced --retake-strategy keep_last
-```
-
-The transcript and cull decisions are written to `project_state.json`. A cloud
-endpoint receives the transcript text; use a local endpoint if that is not
-acceptable.
+Add `retakes.cull` after `transcribe` (and after `speech.editorial_clean` when
+semantic cleanup is enabled). Without an LLM, deterministic cleanup still removes
+exact repeats, stutters, aborted starts, and distant retakes. With an
+OpenAI-compatible endpoint, the model proposes discards per context window and
+the unique-fact guard restores illegal drops.
 
 ### serve
 
@@ -422,27 +385,24 @@ uv run python scripts/build_appimage.py
 
 The AppImage wraps the same onefile binary. Opening it with no arguments starts
 the local server and opens `http://127.0.0.1:8765/` in the browser. Passing a
-command still works (`version`, `doctor`, `run`, `mcp`).
+command still works (`version`, `doctor`, `recipe`, `mcp`).
 
 If FUSE is unavailable, run it with `--appimage-extract-and-run` or set
 `APPIMAGE_EXTRACT_AND_RUN=1`. Data is stored in `videoflow-data` next to the
 AppImage unless `VIDEOWFLOW_HOME` overrides it.
 
-### Windows PE under Wine
+### Windows build
 
-```bash
-# once: portable Wine + embeddable Python + Windows wheels
-/tmp/opencode/wine/wine-11.20-amd64-wow64/bin/wine --version
-/tmp/opencode/winpy/python.exe -m pip install fastapi uvicorn pydantic mcp httpx opentimelineio pyinstaller onnxruntime
-
-VIDEOWFLOW_VENDOR_DIR='Z:\path\to\vendor-win' \
-  /tmp/opencode/wine/wine-11.20-amd64-wow64/bin/wine \
-  /tmp/opencode/winpy/python.exe -m PyInstaller --noconfirm --clean packaging\\videoflow.spec
+```powershell
+uv sync --extra dev --group dev --extra tray --extra asr-cuda
+uv run python scripts/build_portable.py --fetch-ffmpeg --with-silero --with-tray --skip-ui-build
+uv run python scripts/build_portable.py --onedir --name videoflow-windows-cuda `
+  --fetch-ffmpeg --with-silero --with-tray --faster-whisper-runtime --with-cuda --skip-ui-build
+uv run python scripts/smoke_windows.py --exe .\dist\videoflow.exe
 ```
 
-The result is a standard PE32+ `.exe`. It was validated under Wine with
-`version` and `doctor`. Native Windows testing is still recommended before wide
-distribution.
+The release job runs this on `windows-latest`, packages the CUDA onedir with
+`ZIP_DEFLATED` level 1, and smoke-tests the executable before upload.
 
 ## 8. Verification checklist
 
@@ -455,10 +415,10 @@ distribution.
 - [ ] A real recipe run reports `"vad_engine": "silero"` on a speech clip.
 - [ ] The artifacts parse (XML/MLT) and open in the three NLEs.
 - [ ] `videoflow serve` answers `/health`, `/`, and `/mcp/`.
-- [ ] An MCP host lists seventy-four tools over `videoflow mcp`.
+- [ ] An MCP host lists the full-profile tools over `videoflow mcp --profile full`.
 - [ ] The plain binary runs with `PATH` empty, proving bundled FFmpeg is used.
 - [ ] The AppImage runs `version` and `doctor` (normal PATH for FUSE).
-- [ ] The Windows `.exe` runs `version` and `doctor` (natively or under Wine).
+- [ ] The Windows `.exe` runs `version`, `doctor`, the UI asset check, and a synthetic job.
 - [ ] On Windows, the artifact is unblocked and SmartScreen is documented.
 
 ## 9. Limitations
@@ -467,7 +427,7 @@ distribution.
   double-click cannot mount it; use the plain Linux binary or the extract flag.
 - If the browser does not open, the server is still running at
   `http://127.0.0.1:8765/`; open it manually.
-- The Windows PE is built with Wine and validated under Wine. Run it on a real
+- The Windows PE is built in CI. Run the physical GPU certification on a real
   Windows machine before signing or wide distribution.
 - No code signing. SmartScreen will warn until a certificate is configured.
 - The rack UI drives the portable run. Persistent projects and operator presets
