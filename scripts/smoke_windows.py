@@ -399,6 +399,14 @@ def check_auto_download_disabled(home: Path) -> None:
     print("[ok] models: auto-download disabled")
 
 
+def _read_active_payload(home: Path) -> dict[str, object]:
+    try:
+        payload = json.loads((home / "active_server.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def check_port_fallback(
     exe: Path,
     *,
@@ -438,7 +446,9 @@ def check_port_fallback(
         while time.monotonic() < deadline:
             if process.poll() is not None:
                 raise SmokeError(
-                    f"serve exited with {process.returncode} before the fallback port"
+                    f"serve exited with {process.returncode} before the fallback port\n"
+                    f"active_server: {_read_active_payload(home)!r}\n"
+                    f"serve log:\n{_tail(log_path, lines=80)}"
                 )
             try:
                 payload = json.loads(
@@ -464,7 +474,9 @@ def check_port_fallback(
             time.sleep(0.25)
         if not real_port:
             raise SmokeError(
-                f"serve did not fall back from port {occupied_port}: {last_error}"
+                f"serve did not fall back from port {occupied_port}: {last_error}\n"
+                f"active_server: {_read_active_payload(home)!r}\n"
+                f"serve log:\n{_tail(log_path, lines=80)}"
             )
         status, boards = http_json(f"{base}/api/v1/curation/boards")
         if status != 200 or boards.get("ok") is not True:
