@@ -307,7 +307,10 @@ def test_master_export_look_and_audio_paths(tmp_path: Path, monkeypatch) -> None
     assert master_export.resolve_audio_master(output, "timeline") is None
     assert master_export.resolve_audio_master(output, "mix") == output / "audio" / "final.wav"
     assert master_export.resolve_audio_master(output, "master") == output / "audio" / "master.wav"
-    assert master_export.resolve_audio_master(output, "unknown") == output / "audio" / "master.wav"
+    explicit = output / "audio" / "custom.wav"
+    explicit.write_bytes(b"custom")
+    assert master_export.resolve_audio_master(output, str(explicit)) == explicit
+    assert master_export.resolve_audio_master(output, "unknown") is None
 
     captured: dict[str, object] = {}
 

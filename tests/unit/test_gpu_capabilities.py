@@ -260,8 +260,9 @@ def test_nvenc_probe_falls_back_from_invalid_options(monkeypatch) -> None:
     gpu_handlers._NVENC_PROBES.clear()
     probe = gpu_handlers.probe_nvenc("/fake/ffmpeg")
     assert probe.available is True
-    assert probe.args == ("-preset", "p4", "-tune", "hq", "-rc", "constqp", "-qp", "23")
+    assert probe.args == ("-preset", "p4", "-rc", "vbr", "-cq", "19", "-b:v", "0")
     assert len(calls) == 3
+    assert "-spatial-aq" in calls[1]
 
 
 def test_nvenc_probe_reports_actionable_advice(monkeypatch) -> None:

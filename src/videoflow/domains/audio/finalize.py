@@ -16,6 +16,7 @@ place that produces the delivery audio bed:
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -172,16 +173,15 @@ def _measure_loudnorm(
         check=False,
         timeout=600,
     )
-    text = completed.stderr or ""
-    start = text.rfind("{")
-    end = text.rfind("}")
-    if completed.returncode != 0 or start < 0 or end <= start:
+    text = f"{completed.stdout or ''}\n{completed.stderr or ''}"
+    match = re.search(r'\{[^{}]*"input_i"[^{}]*\}', text, re.DOTALL)
+    if completed.returncode != 0 or match is None:
         raise ExportError(
             "loudnorm measurement failed: "
-            + (text.strip()[-500:] or f"exit {completed.returncode}")
+            + (text.strip()[-1000:] or f"exit {completed.returncode}")
         )
     try:
-        payload = json.loads(text[start : end + 1])
+        payload = json.loads(match.group(0))
     except ValueError as exc:
         raise ExportError("loudnorm returned invalid JSON") from exc
     try:
@@ -203,6 +203,7 @@ def _build_graph(
     sfx: bool,
     music_gain: float,
     sfx_gain: float,
+    ducking: bool = True,
 ) -> str:
     voice_filters = []
     if mono_repair == "left":
@@ -219,17 +220,22 @@ def _build_graph(
     )
     chains = [f"[0:a]{','.join(voice_filters)},apad=whole_dur={duration:.6f}[voice]"]
     if music:
-        chains.append("[voice]asplit=2[voice_sc][voice_mix]")
         chains.append(
             f"[1:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
             f"aresample=48000,aloop=loop=-1:size=2880000,atrim=0:{duration:.6f},"
             f"volume={music_gain:.3f}[music]"
         )
-        chains.append(
-            "[music][voice_sc]sidechaincompress=threshold=0.02:ratio=8:"
-            "attack=20:release=300[ducked]"
-        )
-        chains.append("[voice_mix][ducked]amix=inputs=2:weights=1 1:normalize=0[mix0]")
+        if ducking:
+            chains.append("[voice]asplit=2[voice_sc][voice_mix]")
+            chains.append(
+                "[music][voice_sc]sidechaincompress=threshold=0.02:ratio=8:"
+                "attack=20:release=300[ducked]"
+            )
+            chains.append(
+                "[voice_mix][ducked]amix=inputs=2:weights=1 1:normalize=0[mix0]"
+            )
+        else:
+            chains.append("[voice][music]amix=inputs=2:weights=1 1:normalize=0[mix0]")
     else:
         chains.append("[voice]anull[mix0]")
     if sfx:
@@ -256,6 +262,8 @@ def finalize_audio(
     sample_rate: int = DEFAULT_SAMPLE_RATE,
     music_gain: float = DEFAULT_MUSIC_GAIN,
     sfx_gain: float = DEFAULT_SFX_GAIN,
+    ducking: bool = True,
+    music_gain_db: float | None = None,
     target_name: str = "final_mix.wav",
 ) -> AudioFinalizeResult:
     """Render the canonical final audio bed and return measured loudness."""
@@ -281,6 +289,8 @@ def finalize_audio(
     warnings: list[str] = []
     if mono_repair:
         warnings.append(f"mono repaired from the {mono_repair} channel")
+    if music_gain_db is not None:
+        music_gain = 10 ** (float(music_gain_db) / 20.0)
     graph = _build_graph(
         duration=duration,
         mono_repair=mono_repair,
@@ -288,6 +298,7 @@ def finalize_audio(
         sfx=sfx is not None,
         music_gain=max(0.0, min(1.0, float(music_gain))),
         sfx_gain=max(0.0, min(1.0, float(sfx_gain))),
+        ducking=bool(ducking),
     )
     inputs = ["-i", str(voice)]
     if music is not None:

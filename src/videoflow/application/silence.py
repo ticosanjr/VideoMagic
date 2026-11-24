@@ -8,11 +8,12 @@ long runs after the content cuts are already decided.
 
 from __future__ import annotations
 
-import math
-import wave
 from pathlib import Path
 
+import numpy as np
+
 from videoflow.domain.state import InactiveSpan
+from videoflow.domains.audio.pcm_io import read_wav_mono_float32
 
 PACING_PROFILES: dict[str, dict[str, int]] = {
     "tight": {
@@ -86,57 +87,41 @@ def detect_silence_spans(
     if path is None or not path.is_file() or frame_ms <= 0:
         return []
     try:
-        handle = wave.open(str(path), "rb")  # noqa: SIM115 - closed by the context manager
-    except (OSError, EOFError, wave.Error):
+        samples, rate = read_wav_mono_float32(path)
+    except (OSError, EOFError, ValueError):
         return []
-    with handle:
-        width = handle.getsampwidth()
-        rate = handle.getframerate()
-        if width != 2 or rate <= 0:
-            return []
-        frame_samples = max(1, round(rate * frame_ms / 1000))
-        threshold = (10 ** (threshold_db / 20.0)) * 32768.0
-        minimum = max(1, round(min_ms * rate / 1000))
-        spans: list[tuple[int, int]] = []
-        position = 0
-        silence_start: int | None = None
-        while True:
-            data = handle.readframes(frame_samples)
-            if not data:
-                break
-            samples = len(data) // width
-            if samples <= 0:
-                break
-            total = sum(
-                int.from_bytes(
-                    data[offset : offset + width],
-                    "little",
-                    signed=True,
-                )
-                ** 2
-                for offset in range(0, len(data), width)
-            )
-            rms = math.sqrt(total / samples)
-            silent = rms <= threshold
-            if silent and silence_start is None:
-                silence_start = position
-            elif not silent and silence_start is not None:
-                if position - silence_start >= minimum:
-                    spans.append((silence_start, position))
-                silence_start = None
-            position += frame_samples
-        if silence_start is not None and position - silence_start >= minimum:
-            spans.append((silence_start, position))
-        if rate != sample_rate:
-            scale = sample_rate / rate
-            spans = [
-                (
-                    round(start * scale),
-                    round(end * scale),
-                )
-                for start, end in spans
-            ]
-        return spans
+    if rate <= 0 or samples.size == 0:
+        return []
+    frame_samples = max(1, round(rate * frame_ms / 1000))
+    threshold = 10 ** (threshold_db / 20.0)
+    minimum = max(1, round(min_ms * rate / 1000))
+    count = samples.size // frame_samples
+    if count <= 0:
+        return []
+    frames = samples[: count * frame_samples].reshape(count, frame_samples)
+    rms = np.sqrt(np.mean(frames * frames, axis=1))
+    silent = rms <= threshold
+    spans: list[tuple[int, int]] = []
+    position = 0
+    silence_start: int | None = None
+    while position < count:
+        if silent[position] and silence_start is None:
+            silence_start = position * frame_samples
+        elif not silent[position] and silence_start is not None:
+            end = position * frame_samples
+            if end - silence_start >= minimum:
+                spans.append((silence_start, end))
+            silence_start = None
+        position += 1
+    if silence_start is not None and count * frame_samples - silence_start >= minimum:
+        spans.append((silence_start, count * frame_samples))
+    if rate != sample_rate:
+        scale = sample_rate / rate
+        spans = [
+            (round(start * scale), round(end * scale))
+            for start, end in spans
+        ]
+    return spans
 
 
 def cap_silence_spans(

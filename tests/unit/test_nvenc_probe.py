@@ -38,13 +38,15 @@ def test_probe_falls_back_to_compatible_nvenc_options(tmp_path: Path) -> None:
     assert probe.args == (
         "-preset",
         "p4",
-        "-tune",
-        "hq",
         "-rc",
-        "constqp",
-        "-qp",
-        "23",
+        "vbr",
+        "-cq",
+        "19",
+        "-b:v",
+        "0",
     )
+    first = (tmp_path / "calls.txt").read_text(encoding="utf-8").splitlines()[1]
+    assert "-spatial-aq" in first
 
 
 def test_probe_reports_missing_encoder(tmp_path: Path) -> None:

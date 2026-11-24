@@ -9,7 +9,6 @@ crossing a neighbouring word.
 
 from __future__ import annotations
 
-import array
 import contextlib
 import re
 import wave
@@ -18,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from videoflow.domain.state import Sentence, WordTiming
+from videoflow.domains.audio.pcm_io import decode_pcm_mono_rms
 
 _LETTER = re.compile(r"[^a-z0-9à-ÿ]")
 _FRAME_MS = 10
@@ -31,31 +31,6 @@ def plausible_ms(word: str) -> int:
     """Upper bound for a believable word duration, based on its length."""
 
     return min(1500, 150 + 60 * max(1, _letters(word)))
-
-
-def decode_pcm_mono_rms(data: bytes, *, sampwidth: int, channels: int) -> int:
-    """Return RMS in the 16-bit domain for signed PCM 16-bit or 24-bit data."""
-
-    if sampwidth not in {2, 3}:
-        raise ValueError(f"Unsupported PCM sample width: {sampwidth}")
-    channels = max(1, int(channels))
-    frame = sampwidth * channels
-    usable = len(data) - len(data) % frame
-    if usable <= 0:
-        return 0
-    if sampwidth == 2:
-        samples = array.array("h")
-        samples.frombytes(data[:usable])
-        samples = samples[::channels]
-    else:
-        samples = [
-            int.from_bytes(data[offset : offset + 3], "little", signed=True) >> 8
-            for offset in range(0, usable, frame)
-        ]
-    if not samples:
-        return 0
-    total = sum(int(value) * int(value) for value in samples)
-    return int((total / len(samples)) ** 0.5)
 
 
 class _Rms:
@@ -84,7 +59,7 @@ class _Rms:
     def __call__(self, start: int, end: int) -> int:
         if self.handle is None:
             return 0
-        if self.width not in {2, 3}:
+        if self.width not in {2, 3, 4}:
             raise ValueError(f"Unsupported PCM sample width: {self.width}")
         start = max(0, start)
         end = max(start + 1, end)

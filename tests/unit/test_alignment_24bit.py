@@ -57,17 +57,16 @@ def test_16bit_pcm_still_works(tmp_path: Path) -> None:
         rms.close()
 
 
-def test_unsupported_pcm_width_fails_closed(tmp_path: Path) -> None:
+def test_32bit_pcm_is_supported_and_8bit_fails_closed(tmp_path: Path) -> None:
     path = tmp_path / "voice32.wav"
     with wave.open(str(path), "wb") as handle:
         handle.setnchannels(1)
         handle.setsampwidth(4)
         handle.setframerate(RATE)
-        handle.writeframes(b"\x00" * 16)
+        handle.writeframes((1000 << 16).to_bytes(4, "little", signed=True) * 480)
     rms = _Rms(path, RATE)
     try:
-        with pytest.raises(ValueError, match="Unsupported PCM sample width: 4"):
-            rms(0, 4)
+        assert rms(0, 480) > 900
     finally:
         rms.close()
 

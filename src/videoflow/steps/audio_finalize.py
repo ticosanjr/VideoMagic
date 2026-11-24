@@ -33,6 +33,8 @@ class AudioFinalizeParams(BaseModel):
     sample_rate: int = Field(default=48_000, ge=8_000, le=192_000)
     music_gain: float = Field(default=DEFAULT_MUSIC_GAIN, ge=0.0, le=1.0)
     sfx_gain: float = Field(default=DEFAULT_SFX_GAIN, ge=0.0, le=1.0)
+    ducking: bool = True
+    music_gain_db: float = Field(default=-18.0, ge=-60.0, le=0.0)
     target_name: str = Field(default="final.wav", max_length=120)
 
 
@@ -124,6 +126,13 @@ class AudioFinalizeStep(BaseStep):
             sample_rate=options.sample_rate,
             music_gain=options.music_gain,
             sfx_gain=options.sfx_gain,
+            ducking=options.ducking,
+            music_gain_db=(
+                None
+                if "music_gain" in options.model_fields_set
+                and "music_gain_db" not in options.model_fields_set
+                else options.music_gain_db
+            ),
             target_name=options.target_name,
         )
         payload = result.to_dict()

@@ -17,19 +17,20 @@ from pathlib import Path
 DEFAULT_ARGS: tuple[str, ...] = (
     "-preset",
     "p4",
-    "-tune",
-    "hq",
     "-rc",
     "vbr",
     "-cq",
-    "23",
+    "19",
     "-b:v",
     "0",
 )
 
-# Ordered from best quality to the most permissive command.
+# Ordered from best quality to the most permissive command. FFmpeg 7/8/9 use
+# the hyphenated ``-spatial-aq``; older drivers get a candidate without AQ.
 CANDIDATES: tuple[tuple[str, ...], ...] = (
+    (*DEFAULT_ARGS, "-spatial-aq", "1"),
     DEFAULT_ARGS,
+    ("-preset", "fast"),
     ("-preset", "p4", "-tune", "hq", "-rc", "constqp", "-qp", "23"),
     ("-preset", "fast", "-tune", "hq", "-rc", "constqp", "-qp", "23"),
     ("-preset", "p1", "-rc", "constqp", "-qp", "23"),

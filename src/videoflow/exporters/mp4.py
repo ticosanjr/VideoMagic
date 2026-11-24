@@ -299,22 +299,9 @@ def _encoder_flags(
                 "yuv420p",
             ]
         else:
-            from videoflow.core.nvenc import DEFAULT_ARGS, nvenc_args
+            from videoflow.core.nvenc import nvenc_args
 
             proven = nvenc_args(shutil.which("ffmpeg") or "ffmpeg")
-            if proven == list(DEFAULT_ARGS):
-                proven = [
-                    "-preset",
-                    "p4",
-                    "-rc",
-                    "vbr",
-                    "-cq",
-                    str(crf),
-                    "-b:v",
-                    "0",
-                    "-spatial_aq",
-                    "1",
-                ]
             args = ["-c:v", "h264_nvenc", *proven, "-pix_fmt", "yuv420p"]
     elif mode == "preview":
         args = [

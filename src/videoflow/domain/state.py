@@ -209,6 +209,7 @@ OverlayAnchor = Literal[
     "bottom_center",
     "bottom_right",
     "center",
+    "fullscreen",
 ]
 
 

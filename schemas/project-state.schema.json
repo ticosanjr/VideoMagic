@@ -889,7 +889,8 @@
             "bottom_left",
             "bottom_center",
             "bottom_right",
-            "center"
+            "center",
+            "fullscreen"
           ],
           "title": "Anchor",
           "type": "string"

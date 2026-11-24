@@ -191,6 +191,8 @@ def overlay_box(
     height = _even(width * (image_h / max(1, image_w)))
     margin_x = max(0, int(overlay.margin_x))
     margin_y = max(0, int(overlay.margin_y))
+    if overlay.anchor == "fullscreen":
+        return PixelBox(x=0, y=0, width=int(canvas_w), height=int(canvas_h), z=overlay.z)
     if overlay.anchor == "top_left":
         x, y = margin_x, margin_y
     elif overlay.anchor == "top_center":

@@ -39,7 +39,20 @@ class NvencProbe:
 # driver or FFmpeg build that rejects modern options still gets a real chance
 # to prove that the GPU can encode.
 _NVENC_CANDIDATES: tuple[tuple[str, ...], ...] = (
-    ("-preset", "p4", "-tune", "hq", "-rc", "vbr", "-cq", "23", "-b:v", "0"),
+    (
+        "-preset",
+        "p4",
+        "-rc",
+        "vbr",
+        "-cq",
+        "19",
+        "-b:v",
+        "0",
+        "-spatial-aq",
+        "1",
+    ),
+    ("-preset", "p4", "-rc", "vbr", "-cq", "19", "-b:v", "0"),
+    ("-preset", "fast"),
     ("-preset", "p4", "-tune", "hq", "-rc", "constqp", "-qp", "23"),
     ("-preset", "fast", "-tune", "hq", "-rc", "constqp", "-qp", "23"),
     ("-preset", "p1", "-rc", "constqp", "-qp", "23"),

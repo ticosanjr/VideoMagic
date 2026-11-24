@@ -93,16 +93,28 @@ def _look_filters(output: Path, look: MasterLook) -> list[str]:
 
 
 def resolve_audio_master(output: Path, audio_source: str) -> Path | None:
+    """Resolve timeline, final mix, master, or an explicit audio path."""
+
     root = Path(output).expanduser()
-    if audio_source == "timeline":
+    source = str(audio_source or "").strip()
+    if source in {"", "timeline"}:
         return None
-    if audio_source == "mix":
-        for candidate in (root / "audio" / "final.wav", root / "audio" / "master.wav"):
+    if source in {"mix", "final", "final_mix"}:
+        for candidate in (
+            root / "audio" / "final_mix.wav",
+            root / "audio" / "final.wav",
+            root / "audio" / "master.wav",
+        ):
             if candidate.is_file():
                 return candidate
         return None
-    master = root / "audio" / "master.wav"
-    return master if master.is_file() else None
+    if source == "master":
+        master = root / "audio" / "master.wav"
+        return master if master.is_file() else None
+    explicit = Path(source).expanduser()
+    if not explicit.is_absolute():
+        explicit = root / explicit
+    return explicit if explicit.is_file() else None
 
 
 def render_master(
@@ -146,6 +158,9 @@ def render_master(
         fps = 30
         cfr = True
     chosen = look or project_look(output)
+    audio_master = resolve_audio_master(output, audio_source)
+    outcome["audio_source"] = audio_source
+    outcome["audio_master"] = str(audio_master) if audio_master else ""
     filters = list(_look_filters(output, chosen))
     if video_filters:
         filters.extend(str(item) for item in video_filters if item)
@@ -160,7 +175,7 @@ def render_master(
         loudness_lufs=loudness_lufs,
         true_peak_db=true_peak_db,
         cfr=cfr,
-        audio_master=resolve_audio_master(output, audio_source),
+        audio_master=audio_master,
         audio_filters=list(chosen.audio_filters),
         video_filters=filters,
         ass_path=ass_path,

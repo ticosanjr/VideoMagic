@@ -9,30 +9,24 @@ or noisy rather than voiced.
 from __future__ import annotations
 
 import math
-import wave
 from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
+
+from videoflow.domains.audio.pcm_io import read_wav_mono_float32
 
 
 def load_pcm_mono(path: Path | None, *, sample_rate: int = 48_000) -> np.ndarray:
     if path is None or not Path(path).is_file():
         return np.zeros(0, dtype=np.float32)
     try:
-        with wave.open(str(path), "rb") as handle:
-            channels = max(1, handle.getnchannels())
-            width = handle.getsampwidth()
-            rate = handle.getframerate()
-            data = handle.readframes(handle.getnframes())
-    except (OSError, EOFError, wave.Error):
+        samples, rate = read_wav_mono_float32(path)
+    except (OSError, EOFError, ValueError):
         return np.zeros(0, dtype=np.float32)
-    if width != 2 or rate <= 0 or not data:
+    if samples.size == 0 or rate <= 0:
         return np.zeros(0, dtype=np.float32)
-    samples = np.frombuffer(data, dtype="<i2").astype(np.float32) / 32768.0
-    if channels > 1:
-        samples = samples.reshape(-1, channels).mean(axis=1)
-    if rate != sample_rate and samples.size:
+    if rate != sample_rate:
         # The timeline stores source samples at the media rate. Resample only
         # for the detector; the returned spans are converted back by the caller.
         target = max(1, round(samples.size * sample_rate / rate))

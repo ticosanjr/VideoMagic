@@ -33,6 +33,7 @@ from videoflow.application.short_composition.tracking import (
     median_face,
 )
 from videoflow.core.media_contract import PIPELINE_SCHEMA_VERSION
+from videoflow.core.nvenc import nvenc_args
 from videoflow.domain.errors import IngestError
 from videoflow.domain.scenes import SceneEntry, ScenesManifest
 from videoflow.domain.short_composition import ShortCompositionPlan
@@ -501,18 +502,7 @@ def build_commands(
             video_codec = [
                 "-c:v",
                 "h264_nvenc",
-                "-preset",
-                "p4",
-                "-rc",
-                "vbr",
-                "-cq",
-                "20",
-                "-b:v",
-                "0",
-                "-spatial-aq",
-                "1",
-                "-temporal-aq",
-                "1",
+                *nvenc_args(),
                 "-pix_fmt",
                 "yuv420p",
             ]
@@ -624,22 +614,7 @@ def build_commands(
         codec = [
             "-c:v",
             "h264_nvenc",
-            "-preset",
-            DEFAULT_PRESET,
-            "-tune",
-            "hq",
-            "-rc",
-            "vbr",
-            "-cq",
-            str(DEFAULT_CRF),
-            "-b:v",
-            "0",
-            "-spatial-aq",
-            "1",
-            "-temporal-aq",
-            "1",
-            "-rc-lookahead",
-            "20",
+            *nvenc_args(),
             "-pix_fmt",
             "yuv420p",
         ]
