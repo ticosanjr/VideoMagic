@@ -33,14 +33,17 @@ from videoflow.application.retakes import cull_retakes as cull_transcript_retake
 from videoflow.application.services import (
     append_server_log,
     discover_services,
+    pick_available_port,
     port_is_busy,
     probe_service,
     process_alive,
     read_pid_file,
+    remove_active_server,
     remove_pid_file,
     server_log_path,
     stop_other_services,
     stop_services_on_port,
+    write_active_server,
     write_pid_file,
 )
 from videoflow.application.services import (
@@ -977,11 +980,18 @@ def _tray(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return _serve(argparse.Namespace(host=host, port=port, open=not args.no_open))
-    return tray_module.run_tray(
+    result = tray_module.run_tray(
         host=host,
         port=port,
         open_browser=not args.no_open and settings.runtime.open_browser,
     )
+    if result != 0:
+        print(
+            "Tray stopped before the service was ready; starting the terminal service.",
+            file=sys.stderr,
+        )
+        return _serve(argparse.Namespace(host=host, port=port, open=not args.no_open))
+    return result
 
 
 def _serve(args: argparse.Namespace) -> int:
@@ -1002,6 +1012,20 @@ def _serve(args: argparse.Namespace) -> int:
         args.open = True
     if settings.paths.temp_dir:
         os.environ["TMPDIR"] = settings.paths.temp_dir
+    if probe_service(args.host, args.port) is None and port_is_busy(args.host, args.port):
+        previous = args.port
+        try:
+            args.port = pick_available_port(args.host, args.port + 1)
+        except OSError as exc:
+            print(f"Port {previous} is busy and no fallback was found: {exc}", file=sys.stderr)
+            return 1
+        print(
+            f"Port {previous} is owned by another process; using {args.port}.",
+            file=sys.stderr,
+        )
+        append_server_log(
+            f"serve port fallback from {previous} to {args.port} pid={os.getpid()}"
+        )
     append_server_log(f"serve requested host={args.host} port={args.port} pid={os.getpid()}")
     url = _ui_url(args.host, args.port)
     lock = _InstanceLock(args.port)
@@ -1094,6 +1118,7 @@ def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
     app.state.host = args.host
     pid_path = _pid_file()
     _write_pid(pid_path, args.host, args.port)
+    write_active_server(args.host, args.port)
     opened = False
     try:
         while True:
@@ -1124,6 +1149,7 @@ def _serve_locked(args: argparse.Namespace, uvicorn, create_http_app) -> int:
             )
     finally:
         _remove_pid(pid_path)
+        remove_active_server()
         append_server_log(f"stopped pid={os.getpid()}")
     return 0
 

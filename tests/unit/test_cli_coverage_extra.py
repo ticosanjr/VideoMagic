@@ -797,6 +797,8 @@ def test_serve_applies_settings_and_releases_lock(monkeypatch, tmp_path) -> None
     monkeypatch.setattr(cli, "_InstanceLock", FakeLock)
     monkeypatch.setattr(cli, "_serve_locked", fake_locked)
     monkeypatch.setattr(cli, "append_server_log", logs.append)
+    monkeypatch.setattr(cli, "port_is_busy", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(cli, "probe_service", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         settings_module,
         "load_settings",

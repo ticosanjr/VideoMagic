@@ -801,7 +801,7 @@ export interface AppSettings {
     cache_ttl_hours: number;
   };
   gpu: {
-    mode: "auto" | "local_only" | "remote_preferred";
+    mode: "auto" | "local_only" | "local_gpu" | "remote_preferred";
     worker_url: string;
     worker_id: string;
     worker_token_secret: string;
@@ -1837,10 +1837,11 @@ export async function resetSettings(): Promise<AppSettings> {
 
 export interface GpuWorkerStatus {
   ok: boolean;
-  mode: "auto" | "local_only" | "remote_preferred";
+  mode: "auto" | "local_only" | "local_gpu" | "remote_preferred";
   worker_url: string;
   execution_node: string;
   available: boolean;
+  local_gpu_available?: boolean;
   worker_id: string;
   version?: string;
   auth_mode?: string;
@@ -2002,7 +2003,7 @@ export async function connectGpuWorker(payload: {
   worker_url: string;
   token?: string;
   worker_id?: string;
-  mode?: "auto" | "local_only" | "remote_preferred";
+  mode?: "auto" | "local_only" | "local_gpu" | "remote_preferred";
 }): Promise<{ ok: boolean; connected: boolean; status: GpuWorkerStatus }> {
   return request("/api/v1/gpu/connect", {
     method: "POST",

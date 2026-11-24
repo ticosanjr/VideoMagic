@@ -311,13 +311,15 @@
           aria-hidden="true"
         ></span>
         <span class="text-[length:var(--vf-text-xs)] text-neutral-300" data-testid="gpu-status-line">
-          {status?.available
-            ? `${status.gpu_name || "GPU"} · ${formatGb(status.vram_free_mb)} / ${formatGb(status.vram_total_mb)} GB · ${status.encoder || "encoder?"}`
-            : loading
-              ? "Checking worker…"
-              : status?.mode === "local_only"
-                ? "Local mode"
-                : "No worker connected"}
+          {status?.mode === "local_gpu"
+            ? `GPU local: ${status.gpu_name || "NVIDIA"}${status.nvenc ? " · NVENC" : ""}`
+            : status?.available
+              ? `${status.gpu_name || "GPU"} · ${formatGb(status.vram_free_mb)} / ${formatGb(status.vram_total_mb)} GB · ${status.encoder || "encoder?"}`
+              : loading
+                ? "Checking worker…"
+                : status?.mode === "local_only"
+                  ? "Local mode"
+                  : "No worker connected"}
         </span>
       </div>
       {#if status?.asr_ready === false}

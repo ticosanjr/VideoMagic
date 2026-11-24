@@ -9,6 +9,7 @@ an advisory file lock for multiple VideoFlow processes.
 from __future__ import annotations
 
 import contextlib
+import os
 import threading
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -17,6 +18,22 @@ from pathlib import Path
 from vf_shared.contracts.locking import FileLock
 
 from videoflow.runtime import portable_home
+
+
+def _cross_process_available() -> bool:
+    """Whether the shared FileLock can exclude another process."""
+
+    if os.name == "nt":
+        try:
+            import msvcrt  # noqa: F401
+        except ImportError:
+            return False
+        return True
+    try:
+        import fcntl  # noqa: F401
+    except ImportError:
+        return False
+    return True
 
 
 @dataclass
@@ -71,7 +88,7 @@ class RenderGate:
                 "current": self._current,
                 "queued": self._queued,
                 "path": str(self.path or (portable_home() / "render.lock")),
-                "cross_process": True,
+                "cross_process": _cross_process_available(),
             }
 
 

@@ -43,8 +43,21 @@ class RouterHealthMixin:
                 self._client = None
                 self.invalidate()
 
-        if self.mode in {"local_only", "local_gpu"}:
-            return WorkerHealth(available=False, message=f"{self.mode} mode")
+        if self.mode == "local_gpu":
+            from vf_shared.compute.local_gpu import (
+                local_gpu_available,
+                local_gpu_name,
+            )
+
+            available = local_gpu_available()
+            return WorkerHealth(
+                available=available,
+                message="" if available else "no local NVIDIA GPU",
+                gpu_name=(local_gpu_name() or "Local NVIDIA GPU") if available else "",
+                nvenc=available,
+            )
+        if self.mode == "local_only":
+            return WorkerHealth(available=False, message="local_only mode")
 
         explicit_env = env_worker_url()
         if explicit_env:
@@ -100,13 +113,27 @@ class RouterHealthMixin:
                     self.worker_source = "mdns"
                     self._discovery_reason = "worker discovered on the LAN"
             if not self.worker_url and self._client is None:
-                health = WorkerHealth(
-                    available=False,
-                    message=(
-                        "worker not configured"
-                        + (f": {self._discovery_reason}" if self._discovery_reason else "")
-                    ),
-                )
+                if self.local_gpu_available:
+                    from vf_shared.compute.local_gpu import local_gpu_name
+
+                    health = WorkerHealth(
+                        available=True,
+                        message="local_gpu",
+                        gpu_name=local_gpu_name() or "Local NVIDIA GPU",
+                        nvenc=True,
+                    )
+                else:
+                    health = WorkerHealth(
+                        available=False,
+                        message=(
+                            "worker not configured"
+                            + (
+                                f": {self._discovery_reason}"
+                                if self._discovery_reason
+                                else ""
+                            )
+                        ),
+                    )
                 self._health = health
                 self._health_at = now
                 return health
@@ -170,6 +197,8 @@ class RouterHealthMixin:
         canonical = canonical_capability(capability)
         if self.mode in {"local_only", "local_gpu"}:
             return _local(f"{self.mode} mode", capability)
+        if not self.worker_url and self.local_gpu_available:
+            return _local("local_gpu mode", capability)
 
         health = self.health()
         required = max(int(required_vram_mb or 0), vram_cost(capability), 0)

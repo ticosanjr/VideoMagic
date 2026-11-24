@@ -59,44 +59,29 @@ def test_video_encoder_env_choices(monkeypatch) -> None:
     video_encoder.cache_clear()
     monkeypatch.setenv("VF_VIDEO_ENCODER", "auto")
     monkeypatch.setattr(mp4.shutil, "which", lambda name: None)
+    monkeypatch.setattr(
+        "videoflow.core.nvenc.nvenc_available", lambda *a, **k: False
+    )
     assert video_encoder() == "libx264"
 
 
-def test_video_encoder_auto_detects_nvenc(monkeypatch) -> None:
-    class Probe:
-        returncode = 0
-        stdout = "NVIDIA GeForce RTX 3060\n"
-
-    class Encoders:
-        returncode = 0
-        stdout = " V....D h264_nvenc"
-
+def test_video_encoder_auto_uses_the_unified_nvenc_probe(monkeypatch) -> None:
     calls: list[list[str]] = []
 
-    def fake_run(command, **kwargs):
-        calls.append(command)
-        return Probe() if "nvidia-smi" in command[0] else Encoders()
+    def fake_probe(binary, **kwargs):
+        calls.append([binary])
+        return True
 
     monkeypatch.setenv("VF_VIDEO_ENCODER", "auto")
-    monkeypatch.setattr(mp4.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(mp4.subprocess, "run", fake_run)
+    monkeypatch.setattr(mp4.shutil, "which", lambda name: None)
     monkeypatch.setattr(
-        "videoflow.core.nvenc.nvenc_available", lambda *a, **k: True
+        "videoflow.core.nvenc.nvenc_available", fake_probe
     )
     video_encoder.cache_clear()
     assert video_encoder() == "h264_nvenc"
-    assert any("nvidia-smi" in command[0] for command in calls)
+    assert calls
     video_encoder.cache_clear()
 
-    class BrokenProbe:
-        returncode = 1
-        stdout = ""
-
-    monkeypatch.setattr(
-        mp4.subprocess,
-        "run",
-        lambda command, **kwargs: BrokenProbe(),
-    )
     monkeypatch.setattr(
         "videoflow.core.nvenc.nvenc_available", lambda *a, **k: False
     )

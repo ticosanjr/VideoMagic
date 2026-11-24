@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from videoflow.application.settings import AppSettings
-from videoflow.runtime import cuda_build
 
 
 @dataclass(frozen=True)
@@ -140,14 +139,15 @@ def resolve_asr_plan(
         requested = "balanced"
     profile = requested
 
-    device = str(getattr(options, "device", "cpu") or "cpu")
+    requested_device = str(getattr(options, "device", "cpu") or "cpu")
+    explicit_cuda = requested_device == "cuda"
+    device = requested_device
     if device == "cpu":
         device = settings.speech.device
     forced_device = os.environ.get("VIDEOWFLOW_ASR_DEVICE", "").strip().lower()
     if forced_device in {"cpu", "cuda", "auto"}:
         device = forced_device
-    elif cuda_build():
-        device = "cuda"
+        explicit_cuda = explicit_cuda or forced_device == "cuda"
     policy = str(getattr(options, "compute_policy", "auto") or "auto").strip().lower()
     gpu_fallback = ""
     local_gpu = False
@@ -162,6 +162,18 @@ def resolve_asr_plan(
         if forced_device != "cuda":
             device = "cpu"
         gpu_fallback = "local_gpu requested but no local CUDA device was detected"
+    if device == "cuda" and not local_gpu:
+        if explicit_cuda or forced_device == "cuda":
+            from videoflow.domain.errors import TranscriptionError
+
+            raise TranscriptionError(
+                "CUDA ASR was requested but no local NVIDIA GPU was detected"
+            )
+        device = "cpu"
+        gpu_fallback = (
+            gpu_fallback
+            or "CUDA runtime requested but no local NVIDIA GPU was detected; using CPU"
+        )
     compute_type = str(getattr(options, "compute_type", "int8") or "int8")
     if compute_type == "int8":
         compute_type = settings.speech.compute_type
@@ -170,6 +182,8 @@ def resolve_asr_plan(
         compute_type = forced_compute
     elif device == "cuda" and compute_type == "int8":
         compute_type = "float16" if local_gpu else "int8_float16"
+    if gpu_fallback and device == "cpu" and not forced_compute:
+        compute_type = "int8"
     if profile == "custom":
         model_id = str(getattr(options, "model_id", "") or "") or str(
             settings.models.defaults.get("asr", "")

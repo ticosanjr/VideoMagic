@@ -14,8 +14,10 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import webbrowser
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -23,14 +25,17 @@ import httpx
 from videoflow import __version__
 from videoflow.application.services import (
     append_server_log,
+    pick_available_port,
     port_is_busy,
     probe_service,
+    remove_active_server,
     remove_pid_file,
     stop_services_on_port,
+    write_active_server,
     write_pid_file,
 )
 from videoflow.domain.errors import VideoFlowError
-from videoflow.runtime import bundle_root
+from videoflow.runtime import bundle_root, portable_home
 
 
 class TrayError(VideoFlowError):
@@ -199,6 +204,7 @@ class ServerSupervisor:
                 daemon=True,
             )
             write_pid_file(self.host, self.port)
+            write_active_server(self.host, self.port)
             self._server = server
             self._thread = thread
             self._last_error = ""
@@ -209,6 +215,7 @@ class ServerSupervisor:
                 self._server = None
                 self._thread = None
                 remove_pid_file()
+                remove_active_server()
                 raise TrayError(f"Could not start the VideoFlow server thread: {exc}") from exc
             return True
 
@@ -235,6 +242,7 @@ class ServerSupervisor:
                 self._last_error = "The server did not stop within the timeout."
                 append_server_log(self._last_error)
         remove_pid_file()
+        remove_active_server()
         append_server_log(f"tray stop pid={os.getpid()}")
         return True
 
@@ -246,10 +254,19 @@ class ServerSupervisor:
         health = probe_service(self.host, self.port)
         if health is None and not port_is_busy(self.host, self.port):
             return
-        result = stop_services_on_port(self.host, self.port)
-        if not bool(result.get("free")):
-            raise TrayError(f"Port {self.port} is already in use and could not be freed.")
-        append_server_log(f"tray replaced service on port {self.port}")
+        if health is not None:
+            result = stop_services_on_port(self.host, self.port)
+            if bool(result.get("free")):
+                append_server_log(f"tray replaced service on port {self.port}")
+                return
+        previous = self.port
+        try:
+            self.port = pick_available_port(self.host, self.port + 1)
+        except OSError as exc:
+            raise TrayError(f"Port {previous} is busy and no fallback was found: {exc}") from exc
+        append_server_log(
+            f"tray port {previous} is owned by another process; using {self.port}"
+        )
 
     def _run_server(self, server: Any) -> None:
         try:
@@ -293,6 +310,7 @@ class TrayActions:
         port = getattr(self.supervisor, "port", 0)
         if host and port:
             _wait_for_service(str(host), int(port))
+        self.jobs.base_url = self.supervisor.url.rstrip("/")
 
     def open_ui(self) -> None:
         if not self.supervisor.running:
@@ -507,13 +525,29 @@ def tray_available() -> bool:
     return bool(tray_diagnostics()["available"])
 
 
+def _write_tray_crash(exc: BaseException) -> Path:
+    directory = portable_home() / "crash-reports"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"tray-{int(time.time())}.log"
+    detail = traceback.format_exc()
+    if detail.strip() == "NoneType: None":
+        detail = f"{type(exc).__name__}: {exc}"
+    path.write_text(detail, encoding="utf-8")
+    append_server_log(f"tray crash report: {path}")
+    return path
+
+
 def _icon_image() -> Any:
     from PIL import Image, ImageDraw
 
-    candidate = bundle_root() / "packaging" / "videoflow.png"
-    if candidate.is_file():
-        with Image.open(candidate) as source:
-            return source.convert("RGBA").copy()
+    candidates = [
+        bundle_root() / "packaging" / "videoflow.png",
+        Path(__file__).resolve().parents[2] / "packaging" / "videoflow.png",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            with Image.open(candidate) as source:
+                return source.convert("RGBA").copy()
     image = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     draw.rounded_rectangle((2, 2, 61, 61), radius=14, fill=(15, 23, 42, 255))
@@ -609,6 +643,7 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
     try:
         pystray = _import_pystray()
     except Exception as exc:  # noqa: BLE001 - optional dependency
+        _write_tray_crash(exc)
         print(f"VideoFlow tray backend is unavailable: {exc}", file=sys.stderr)
         return 1
     append_server_log(f"tray backend={getattr(pystray.Icon, '__module__', 'unknown')}")
@@ -627,8 +662,9 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
     except TrayError as exc:
         print(f"Could not start VideoFlow: {exc}", file=sys.stderr)
         return 1
+    actions.jobs.base_url = str(getattr(supervisor, "url", "")).rstrip("/")
     if open_browser:
-        _wait_for_service(host, port)
+        _wait_for_service(host, int(getattr(supervisor, "port", port)))
         with contextlib.suppress(Exception):
             actions.open_ui()
 
@@ -643,6 +679,7 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
             "videoflow", _icon_image(), "VideoFlow", _menu(pystray, actions, on_quit)
         )
     except Exception as exc:  # noqa: BLE001 - missing desktop integration
+        _write_tray_crash(exc)
         stop_poller.set()
         supervisor.stop()
         print(f"Could not create the VideoFlow tray icon: {exc}", file=sys.stderr)
@@ -661,6 +698,7 @@ def run_tray(*, host: str, port: int, open_browser: bool = True) -> int:
     try:
         icon.run()
     except Exception as exc:  # noqa: BLE001 - backend failure after startup
+        _write_tray_crash(exc)
         print(f"VideoFlow tray stopped: {exc}", file=sys.stderr)
         return 1
     finally:

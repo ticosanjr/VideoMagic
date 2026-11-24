@@ -966,6 +966,8 @@ export const GLOSSARY: Record<string, string> = {
   "Resources": "Recursos",
   "Free GPU memory": "Liberar memória da GPU",
   "Automatic — use GPU when available": "Automático — usar GPU quando disponível",
+  "Local GPU — CUDA/NVENC on this computer":
+    "GPU local — CUDA/NVENC neste computador",
   "Force local — run everything on this computer": "Forçar local — rodar tudo neste computador",
   "Open GPU settings": "Abrir configurações de GPU",
   "GPU": "GPU",

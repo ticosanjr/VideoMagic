@@ -92,16 +92,16 @@ def test_supervisor_restart_replaces_the_server(home) -> None:
     assert supervisor.stop() is True
 
 
-def test_supervisor_refuses_a_port_it_cannot_free(home, monkeypatch) -> None:
+def test_supervisor_falls_back_when_a_port_cannot_be_freed(home, monkeypatch) -> None:
     monkeypatch.setattr(tray, "probe_service", lambda *args, **kwargs: {"service": "videoflow"})
     monkeypatch.setattr(tray, "stop_services_on_port", lambda *args, **kwargs: {"free": False})
     supervisor, created = _supervisor()
 
-    with pytest.raises(tray.TrayError):
-        supervisor.start()
-
-    assert created == []
-    assert not (home / "server.pid").exists()
+    assert supervisor.start() is True
+    assert supervisor.port != 8765
+    assert created
+    assert (home / "server.pid").is_file()
+    assert supervisor.stop() is True
 
 
 def test_supervisor_keeps_tray_alive_when_the_server_thread_dies(home) -> None:

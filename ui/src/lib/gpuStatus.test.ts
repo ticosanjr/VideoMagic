@@ -40,6 +40,19 @@ describe("gpu pill", () => {
       tone: "busy",
       label: "GPU: RTX 3060 · 10% busy"
     });
+    expect(
+      gpuPill({
+        ...base,
+        mode: "local_gpu",
+        available: true,
+        gpu_name: "RTX 3060",
+        nvenc: true,
+        worker_url: ""
+      })
+    ).toMatchObject({
+      tone: "ready",
+      label: "GPU local: RTX 3060 · NVENC"
+    });
   });
 
   it("formats VRAM and toggles capabilities immutably", () => {

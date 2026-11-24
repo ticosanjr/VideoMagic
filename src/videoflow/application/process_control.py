@@ -6,6 +6,7 @@ import os
 import signal
 import subprocess
 import time
+from pathlib import Path
 from typing import Any
 
 try:
@@ -42,6 +43,63 @@ def process_alive(pid: int) -> bool:
     except OSError:
         return False
     return True
+
+
+def _windows_parent_pid(pid: int) -> int:
+    import ctypes
+    from ctypes import wintypes
+
+    class ProcessEntry32W(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.c_size_t),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", wintypes.WCHAR * 260),
+        ]
+
+    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+    snapshot = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)
+    if snapshot in {0, -1}:
+        return 0
+    entry = ProcessEntry32W()
+    entry.dwSize = ctypes.sizeof(entry)
+    try:
+        current = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
+        while current:
+            if int(entry.th32ProcessID) == int(pid):
+                return int(entry.th32ParentProcessID)
+            current = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(snapshot)
+    return 0
+
+
+def ancestor_pids(pid: int | None = None, *, limit: int = 64) -> set[int]:
+    """Return the parent chain of ``pid`` without /proc on Windows."""
+
+    current = int(pid or os.getpid())
+    result: set[int] = set()
+    while current > 1 and len(result) < max(1, limit):
+        parent = 0
+        if os.name == "nt":
+            parent = _windows_parent_pid(current)
+        else:
+            try:
+                stat = Path(f"/proc/{current}/stat").read_text(encoding="utf-8")
+                parent = int(stat.rsplit(")", 1)[1].split()[1])
+            except (OSError, ValueError, IndexError):
+                parent = 0
+        if parent <= 1 or parent in result:
+            break
+        result.add(parent)
+        current = parent
+    return result
 
 
 def terminate_pid(pid: int, *, force: bool = False, timeout: float = 5.0) -> bool:
@@ -112,4 +170,10 @@ def peak_rss_mb() -> float | None:
         return None
 
 
-__all__ = ["peak_rss_mb", "process_alive", "terminate_pid", "terminate_process"]
+__all__ = [
+    "ancestor_pids",
+    "peak_rss_mb",
+    "process_alive",
+    "terminate_pid",
+    "terminate_process",
+]

@@ -26,7 +26,7 @@
     }
   }
 
-  async function setMode(mode: "auto" | "local_only") {
+  async function setMode(mode: "auto" | "local_only" | "local_gpu") {
     busy = true;
     try {
       const payload = await patchGpuSettings({ mode });
@@ -92,11 +92,13 @@
         <div>
           <p class="font-semibold text-neutral-100">{view.label}</p>
           <p class="mt-0.5 text-neutral-500">
-            {status?.available
-              ? `${status.hostname || status.worker_id || "worker"} · queue ${status.queue_depth}`
-              : status?.mode === "local_only"
-                ? "Automatic GPU placement is disabled."
-                : "No worker is paired. Local execution stays available."}
+            {status?.mode === "local_gpu"
+              ? `CUDA/NVENC local${status.gpu_name ? `: ${status.gpu_name}` : ""}.`
+              : status?.available
+                ? `${status.hostname || status.worker_id || "worker"} · queue ${status.queue_depth}`
+                : status?.mode === "local_only"
+                  ? "Automatic GPU placement is disabled."
+                  : "No worker is paired. Local execution stays available."}
           </p>
         </div>
         <button
@@ -114,12 +116,25 @@
           disabled={busy}
           onclick={() => void setMode("auto")}
           class={`rounded-lg border px-2.5 py-2 text-left ${
-            status?.mode !== "local_only"
+            status?.mode === "auto"
               ? "border-sky-400/30 bg-sky-500/10 text-sky-100"
               : "border-white/10 text-neutral-300"
           }`}
         >
           Automatic — use GPU when available
+        </button>
+        <button
+          type="button"
+          data-testid="gpu-mode-local-gpu"
+          disabled={busy}
+          onclick={() => void setMode("local_gpu")}
+          class={`rounded-lg border px-2.5 py-2 text-left ${
+            status?.mode === "local_gpu"
+              ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
+              : "border-white/10 text-neutral-300"
+          }`}
+        >
+          Local GPU — CUDA/NVENC on this computer
         </button>
         <button
           type="button"

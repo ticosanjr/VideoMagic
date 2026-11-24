@@ -195,6 +195,8 @@ class ComputeRouter(RouterHealthMixin, RouterExecuteMixin, RouterSubmitMixin):
             return "local"
         if self.mode == "local_gpu":
             return "local_cuda" if self.local_gpu_available else "local"
+        if not self.worker_url and self.local_gpu_available:
+            return "local_cuda"
         health = self._health
         if health is None or not health.available:
             return "local"

@@ -48,6 +48,13 @@ def cuda_device_count() -> int:
     return sum(1 for line in output.splitlines() if line.strip().startswith("GPU "))
 
 
+def local_gpu_name() -> str:
+    """Best-effort human name for the first local NVIDIA GPU."""
+
+    output = _run_nvidia_smi("--query-gpu=name", "--format=csv,noheader")
+    return next((line.strip() for line in output.splitlines() if line.strip()), "")
+
+
 def local_gpu_available(*, force: bool = False) -> bool:
     """Whether a local NVIDIA CUDA device is present."""
 
@@ -67,5 +74,6 @@ def reset_local_gpu_cache() -> None:
 __all__ = [
     "cuda_device_count",
     "local_gpu_available",
+    "local_gpu_name",
     "reset_local_gpu_cache",
 ]

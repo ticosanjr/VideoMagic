@@ -7,7 +7,6 @@ import hashlib
 import json
 import os
 import shutil
-import subprocess
 import tempfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -245,25 +244,11 @@ def video_encoder() -> str:
         return "h264_nvenc"
     if requested not in {"auto", ""}:
         return "libx264"
-    if shutil.which("nvidia-smi") is None:
-        return "libx264"
-    try:
-        probe = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=2,
-        )
-        if probe.returncode != 0 or not probe.stdout.strip():
-            return "libx264"
-        return (
-            "h264_nvenc"
-            if _nvenc_works(shutil.which("ffmpeg") or "ffmpeg")
-            else "libx264"
-        )
-    except (OSError, subprocess.SubprocessError):
-        return "libx264"
+    return (
+        "h264_nvenc"
+        if _nvenc_works(shutil.which("ffmpeg") or "ffmpeg")
+        else "libx264"
+    )
 
 
 def output_render_frames(state: ProjectState, fps: int | None = None) -> int:

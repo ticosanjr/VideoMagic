@@ -14,6 +14,15 @@ export function formatGb(mb: number): string {
 
 export function gpuPill(status: GpuWorkerStatus | null | undefined): GpuPillView {
   if (!status) return { tone: "offline", label: "GPU: checking…" };
+  if (status.mode === "local_gpu") {
+    if (status.available) {
+      return {
+        tone: "ready",
+        label: `GPU local: ${status.gpu_name || "NVIDIA"}${status.nvenc ? " · NVENC" : ""}`
+      };
+    }
+    return { tone: "local", label: "Local mode (CPU)" };
+  }
   if (!status.available) {
     if (status.mode === "local_only") {
       return { tone: "local", label: "Local mode (CPU)" };

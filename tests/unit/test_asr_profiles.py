@@ -186,10 +186,10 @@ def test_vulkan_availability_checks(tmp_path, monkeypatch) -> None:
     assert asr_profiles._vulkan_available() is True
 
 
-def test_cuda_build_forces_cuda_and_fp16_compute(monkeypatch) -> None:
+def test_local_gpu_forces_cuda_and_fp16_compute(monkeypatch) -> None:
     from videoflow.domains.asr import profiles as asr_profiles
 
-    monkeypatch.setattr(asr_profiles, "cuda_build", lambda: True)
+    monkeypatch.setattr(asr_profiles, "_local_gpu_available", lambda: True)
     monkeypatch.delenv("VIDEOWFLOW_ASR_DEVICE", raising=False)
     monkeypatch.delenv("VIDEOWFLOW_ASR_COMPUTE_TYPE", raising=False)
     plan = resolve_asr_plan(
@@ -198,7 +198,7 @@ def test_cuda_build_forces_cuda_and_fp16_compute(monkeypatch) -> None:
         installed={"faster-whisper-large-v3-turbo": True},
     )
     assert plan.device == "cuda"
-    assert plan.compute_type == "int8_float16"
+    assert plan.compute_type == "float16"
 
     monkeypatch.setenv("VIDEOWFLOW_ASR_DEVICE", "cpu")
     monkeypatch.setenv("VIDEOWFLOW_ASR_COMPUTE_TYPE", "int8")
@@ -208,4 +208,19 @@ def test_cuda_build_forces_cuda_and_fp16_compute(monkeypatch) -> None:
         installed={"faster-whisper-large-v3-turbo": True},
     )
     assert plan.device == "cpu"
+
+
+def test_no_local_gpu_falls_back_to_cpu(monkeypatch) -> None:
+    from videoflow.domains.asr import profiles as asr_profiles
+
+    monkeypatch.setattr(asr_profiles, "_local_gpu_available", lambda: False)
+    monkeypatch.delenv("VIDEOWFLOW_ASR_DEVICE", raising=False)
+    monkeypatch.delenv("VIDEOWFLOW_ASR_COMPUTE_TYPE", raising=False)
+    plan = resolve_asr_plan(
+        _settings(quality_profile="balanced"),
+        _options(),
+        installed={"faster-whisper-large-v3-turbo": True},
+    )
+    assert plan.device == "cpu"
+    assert plan.compute_type == "int8"
     assert plan.compute_type == "int8"

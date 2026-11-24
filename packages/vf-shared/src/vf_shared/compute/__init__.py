@@ -35,6 +35,7 @@ from vf_shared.compute.execution import ExecutionRecord, now_iso
 from vf_shared.compute.local_gpu import (
     cuda_device_count,
     local_gpu_available,
+    local_gpu_name,
     reset_local_gpu_cache,
 )
 from vf_shared.compute.models import JobStatus, WorkerDecision, WorkerHealth
@@ -62,6 +63,7 @@ __all__ = [
     "load_gpu_config",
     "load_gpu_config_file",
     "local_gpu_available",
+    "local_gpu_name",
     "reset_local_gpu_cache",
     "save_gpu_config",
     "VRAM_COST_MB",

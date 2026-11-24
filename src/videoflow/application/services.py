@@ -17,8 +17,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from videoflow.application.process_control import ancestor_pids, terminate_pid
 from videoflow.application.process_control import process_alive as _platform_process_alive
-from videoflow.application.process_control import terminate_pid
 from videoflow.runtime import portable_home
 
 PROC_ROOT = Path("/proc")
@@ -66,6 +66,65 @@ class ServiceProcess:
 
 def pid_file() -> Path:
     return portable_home() / "server.pid"
+
+
+def active_server_path() -> Path:
+    return portable_home() / "active_server.json"
+
+
+def pick_available_port(host: str, preferred_port: int, span: int = 100) -> int:
+    """Return the first TCP port that can really be bound on ``host``."""
+
+    preferred = max(1, int(preferred_port))
+    limit = min(65535, preferred + max(1, int(span)))
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    for port in range(preferred, limit):
+        with socket.socket(family, socket.SOCK_STREAM) as probe:
+            try:
+                probe.bind((host, port))
+            except OSError:
+                continue
+            return port
+    raise OSError(f"no free TCP port on {host} between {preferred} and {limit - 1}")
+
+
+def write_active_server(host: str, port: int, pid: int | None = None) -> Path:
+    """Publish the real serving port for MCP/curation cross-process readers."""
+
+    path = active_server_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    visible = host if host not in {"0.0.0.0", "::"} else "127.0.0.1"
+    payload = {
+        "host": host,
+        "port": int(port),
+        "url": f"http://{visible}:{int(port)}/",
+        "pid": int(pid if pid is not None else os.getpid()),
+        "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
+    return path
+
+
+def read_active_server() -> dict[str, Any]:
+    try:
+        payload = json.loads(active_server_path().read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def remove_active_server() -> None:
+    path = active_server_path()
+    payload = read_active_server()
+    try:
+        owner = int(payload.get("pid") or 0)
+    except (TypeError, ValueError):
+        owner = 0
+    if owner in {0, os.getpid()}:
+        with contextlib.suppress(OSError):
+            path.unlink(missing_ok=True)
 
 
 def server_log_path() -> Path:
@@ -336,7 +395,7 @@ def _discover_windows_services(current_pid: int) -> list[ServiceProcess]:
                 ports=tuple(sorted(ports)),
                 version=version,
                 current=pid == current_pid,
-                protected=pid == os.getpid(),
+                protected=pid == os.getpid() or pid in ancestor_pids(os.getpid()),
             )
         )
     services.sort(key=lambda item: (not item.current, item.port or 0, item.pid))
@@ -407,7 +466,9 @@ def stop_service_pid(
     if pid <= 0:
         return False
     if os.name == "nt":
-        if not allow_current and pid == os.getpid():
+        if not allow_current and (
+            pid == os.getpid() or pid in ancestor_pids(os.getpid())
+        ):
             return False
         image = _windows_image_name(pid)
         if not image or "videoflow" not in image.casefold():
