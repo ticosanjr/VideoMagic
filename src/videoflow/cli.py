@@ -23,6 +23,7 @@ from videoflow.application.fonts import fonts_dir
 from videoflow.application.models import (
     install_model,
     installed_path,
+    invalidate_model_cache,
     list_models,
     model_roots,
     models_dir,
@@ -478,6 +479,10 @@ def _install_asr_model(model_id: str) -> int:
         result = install_model(model_id, allow_network=True, progress=progress)
     except Exception as exc:  # noqa: BLE001 - CLI must report a readable error
         print(f"Could not install {model_id}: {exc}", file=sys.stderr)
+        return 1
+    invalidate_model_cache()
+    if not result.get("installed"):
+        print(f"Model was not installed: {model_id}", file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2))
     return 0

@@ -11,7 +11,7 @@ from videoflow.application import artifacts as artifact_service
 from videoflow.application.projects import get_project
 from videoflow.domain.errors import VideoFlowError
 from videoflow.mcp_server.agent_helpers import _job_payload
-from videoflow.mcp_server.context import error
+from videoflow.mcp_server.context import error, unknown_action
 
 from .core_shared import (
     _is_step,
@@ -113,9 +113,10 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             )
             response = {"ok": True, "job": _job_payload(job), "project_id": project_id}
         else:
-            return error(
-                "unknown_action",
-                "vf_exec supports action='step' or action='short'; recipes are not exposed via MCP",
+            return unknown_action(
+                "vf_exec",
+                action,
+                ("step", "short"),
             )
         if wait and response.get("ok"):
             job_id = str((response.get("job") or {}).get("job_id") or "")
@@ -311,9 +312,10 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 return {"ok": True, "job": stored[0]}
         if action == "get":
             return legacy["vf_get_job"](project_id=project_id, job_id=job_id)
-        return error(
-            "unknown_action",
-            "vf_job supports list, cancel, get, status, wait, logs, or qa",
+        return unknown_action(
+            "vf_job",
+            action,
+            ("list", "cancel", "get", "status", "wait", "logs", "qa"),
         )
 
     @register

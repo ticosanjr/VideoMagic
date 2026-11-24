@@ -16,7 +16,12 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
 from vf_shared.contracts.locking import FileLock
-from vf_shared.contracts.workspace import ensure_project, project_dir, write_project
+from vf_shared.contracts.workspace import (
+    ensure_project,
+    project_dir,
+    workspace_root,
+    write_project,
+)
 
 from videoflow.application import database
 from videoflow.application.state_sidecars import (
@@ -83,6 +88,39 @@ def project_lock(output: Path) -> Iterator[None]:
 
 def state_path(record: ProjectRecord) -> Path:
     return Path(record.output).expanduser() / "project_state.json"
+
+
+def project_output_dir(
+    project_id: str,
+    output: str | Path = "",
+    *,
+    base: str | Path | None = None,
+) -> Path:
+    """Return the canonical project folder without nesting ``projects`` twice.
+
+    ``base`` accepts a workspace root that may already end in ``projects``.
+    ``output`` accepts an explicit project folder, a ``projects`` container, or
+    nothing (the shared workspace). A folder already named after the project is
+    returned untouched.
+    """
+
+    text = str(project_id or "").strip()
+    if base is not None:
+        root = Path(base).expanduser()
+        if text and root.name == text:
+            return root
+        if root.name == "projects" or not text:
+            return root / text if text else root
+        return root / "projects" / text
+    raw = str(output or "").strip()
+    if not raw:
+        return project_output_dir(project_id, base=workspace_root())
+    path = Path(raw).expanduser()
+    if text and path.name == text:
+        return path
+    if path.name == "projects":
+        return path / text if text else path
+    return path
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -471,6 +509,54 @@ def delete_project(record: ProjectRecord, *, force: bool = False) -> dict[str, A
     return {"project_id": record.project_id, "output": str(root), "deleted": True}
 
 
+def _clone_shared_files(source: Path, target: Path) -> None:
+    """Hardlink project working files, copying when the filesystem refuses."""
+
+    for folder in ("work", "assets"):
+        origin = source / folder
+        if not origin.is_dir():
+            continue
+        for item in origin.rglob("*"):
+            if not item.is_file():
+                continue
+            destination = target / folder / item.relative_to(origin)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if destination.exists():
+                continue
+            try:
+                os.link(item, destination)
+            except OSError:
+                shutil.copy2(item, destination)
+
+
+def _rewrite_path_prefix(value: Any, source: str, target: str) -> Any:
+    separator = os.sep
+    if isinstance(value, str):
+        if value == source:
+            return target
+        if value.startswith(source + separator):
+            return target + value[len(source):]
+        return value
+    if isinstance(value, list):
+        return [_rewrite_path_prefix(item, source, target) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _rewrite_path_prefix(item, source, target)
+            for key, item in value.items()
+        }
+    return value
+
+
+def _clone_target_name(target: Path) -> Path:
+    base = target.with_name(f"{target.name}-copy")
+    candidate = base
+    index = 1
+    while candidate.exists() and any(candidate.iterdir()):
+        index += 1
+        candidate = base.with_name(f"{base.name}-{index}")
+    return candidate
+
+
 def clone_project(
     record: ProjectRecord,
     *,
@@ -481,18 +567,27 @@ def clone_project(
     """Clone decoded state without copying or re-analysing the source media."""
 
     source_state = load_project_state(record)
+    source_root = Path(record.output).expanduser().resolve()
     target = Path(output).expanduser() if output else Path(record.output).expanduser()
     if not output:
-        target = target.with_name(f"{target.name}-copy")
+        target = _clone_target_name(target)
     if target.exists() and any(target.iterdir()):
         raise ProjectStateError(f"Clone output is not empty: {target}")
     target.mkdir(parents=True, exist_ok=True)
+    target_root = target.resolve()
+    _clone_shared_files(source_root, target_root)
+    rewritten = _rewrite_path_prefix(
+        source_state.model_dump(mode="json"),
+        str(source_root),
+        str(target_root),
+    )
     project_id = project_id or str(uuid.uuid4())
-    state = source_state.model_copy(
+    state = ProjectState.model_validate(rewritten)
+    state = state.model_copy(
         update={
             "project_id": project_uuid(project_id),
             "revision": 1,
-            "pipeline": source_state.pipeline.model_copy(
+            "pipeline": state.pipeline.model_copy(
                 update={
                     "run_id": "",
                     "step": "",

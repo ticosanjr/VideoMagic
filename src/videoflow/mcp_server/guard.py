@@ -332,6 +332,28 @@ def _truncate_lists(value: Any) -> Any:
     return value
 
 
+def normalize_error_hint(payload: Any) -> Any:
+    """Make unknown actions and invalid params self-correcting for agents."""
+
+    if not isinstance(payload, dict) or payload.get("ok") is not False:
+        return payload
+    hint = str(payload.get("fix_hint") or "").strip()
+    valid = payload.get("valid_actions")
+    if isinstance(valid, (list, tuple)) and valid:
+        listing = ", ".join(str(item) for item in valid)
+        if listing.casefold() not in hint.casefold():
+            payload["fix_hint"] = (hint + f" Valid actions: {listing}.").strip()
+    expected = payload.get("expected_fields")
+    if isinstance(expected, dict) and expected:
+        listing = ", ".join(f"{key}: {value}" for key, value in expected.items())
+        if listing.casefold() not in str(payload.get("fix_hint") or "").casefold():
+            payload["fix_hint"] = (
+                str(payload.get("fix_hint") or "")
+                + f" Expected fields: {listing}."
+            ).strip()
+    return payload
+
+
 def normalize_success(payload: Any, tool_name: str = "") -> Any:
     """Add the next-step contract and compact long lists on successful tools."""
 
@@ -391,8 +413,10 @@ def mcp_tool_guard(func: Any) -> Any:
                             result = await func(*call_args, **call_kwargs)
                             tracker.finish(result)
             except Exception as exc:  # noqa: BLE001 - MCP boundary
-                return error_envelope(exc, func=func)
-            return normalize_execution(normalize_success(result, func.__name__))
+                return normalize_error_hint(error_envelope(exc, func=func))
+            return normalize_error_hint(
+                normalize_execution(normalize_success(result, func.__name__))
+            )
 
         async_wrapper.__mcp_guarded__ = True  # type: ignore[attr-defined]
         return async_wrapper
@@ -410,8 +434,10 @@ def mcp_tool_guard(func: Any) -> Any:
                         result = func(*call_args, **call_kwargs)
                         tracker.finish(result)
         except Exception as exc:  # noqa: BLE001 - MCP boundary
-            return error_envelope(exc, func=func)
-        return normalize_execution(normalize_success(result, func.__name__))
+            return normalize_error_hint(error_envelope(exc, func=func))
+        return normalize_error_hint(
+            normalize_execution(normalize_success(result, func.__name__))
+        )
 
     wrapper.__mcp_guarded__ = True  # type: ignore[attr-defined]
     return wrapper

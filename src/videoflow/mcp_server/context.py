@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from videoflow.application.jobs import JobManager
@@ -12,6 +13,25 @@ class ToolContext:
     """Application services shared by every agent-facing tool."""
 
     manager: JobManager
+
+
+def unknown_action(
+    tool: str,
+    action: str,
+    valid_actions: Sequence[str],
+) -> dict[str, object]:
+    """Fail-closed envelope for an unsupported tool action."""
+
+    actions = [str(item) for item in valid_actions]
+    payload = error(
+        "unknown_action",
+        f"{tool} does not support action {action!r}",
+        fix_hint=f"Valid actions: {', '.join(actions)}.",
+        action=action,
+        valid_actions=actions,
+    )
+    payload["valid_actions"] = actions
+    return payload
 
 
 def error(

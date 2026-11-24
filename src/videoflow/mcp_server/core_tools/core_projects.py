@@ -11,13 +11,36 @@ from videoflow.application.hilt import list_requests, load_response, public_payl
 from videoflow.application.projects import (
     get_project,
     list_projects,
+    project_output_dir,
     project_uuid,
 )
 from videoflow.domain.errors import VideoFlowError
-from videoflow.mcp_server.context import error
+from videoflow.mcp_server.context import error, unknown_action
 
 from .core_shared import (
     _step_catalog,
+)
+
+PROJECT_ACTIONS = (
+    "status",
+    "session_brief",
+    "checkpoint",
+    "checkpoints",
+    "restore_checkpoint",
+    "list",
+    "archive",
+    "unarchive",
+    "delete",
+    "history",
+    "undo",
+    "restore",
+    "clone",
+    "clone_style",
+    "learn_rule",
+    "init",
+    "create",
+    "new",
+    "open",
 )
 
 
@@ -48,6 +71,8 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
     ) -> dict[str, Any]:
         """Create/open/status a project, manage lifecycle, or undo revisions."""
 
+        if action not in PROJECT_ACTIONS:
+            return unknown_action("vf_project", action, PROJECT_ACTIONS)
         if action == "session_brief":
             from videoflow.application.session_brief import build_session_brief
 
@@ -213,10 +238,8 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             if not project_id and name:
                 project_id = _project_slug(name)
             if not output:
-                from vf_shared.contracts.workspace import project_dir as workspace_project_dir
-
                 try:
-                    output = str(workspace_project_dir(project_id))
+                    output = str(project_output_dir(project_id))
                 except ValueError as exc:
                     return error("invalid_project_id", str(exc))
             if channel_id and not is_brand_kit(channel_id):

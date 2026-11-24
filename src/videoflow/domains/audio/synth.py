@@ -166,6 +166,13 @@ def _notch(samples: np.ndarray, frequency: float, sample_rate: int) -> np.ndarra
 
 
 def _foley(kind: str, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
+    aliases = {
+        "click": "keyboard_click",
+        "keyboard": "keyboard_click",
+        "page_turn": "paper_turn",
+        "page": "paper_turn",
+    }
+    kind = aliases.get(str(kind or "").strip().lower(), str(kind or "whoosh"))
     rng = np.random.default_rng(sum(ord(char) for char in kind) % (2**32))
     duration = 0.45 if kind in {"paper_turn", "whoosh"} else 0.18
     if kind == "riser":

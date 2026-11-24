@@ -79,9 +79,11 @@ class Workspace:
     """Project-scoped asset store following the vf-contracts layout."""
 
     def __init__(self, project_id: str, root: str | Path | None = None) -> None:
+        from videoflow.application.projects import project_output_dir
+
         self.project_id = safe_project_id(project_id)
         base = Path(root).expanduser() if root is not None else _default_workspace_root()
-        self.root = (base / "projects" / self.project_id).resolve()
+        self.root = project_output_dir(self.project_id, base=base).resolve()
         self.assets_root = self.root / "assets"
         self.cache_dir = self.root / ".cache"
 

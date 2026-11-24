@@ -12,7 +12,10 @@ from typing import Any
 
 import httpx
 
-from videoflow.application.capabilities import ensure_external_allowed
+from videoflow.application.capabilities import (
+    clear_capability_cache,
+    ensure_external_allowed,
+)
 from videoflow.domain.errors import FilesystemError, StateNotReadyError
 from videoflow.runtime import external_home, model_search_dirs, portable_home
 
@@ -391,6 +394,17 @@ def models_dir() -> Path:
         return directory
 
 
+def invalidate_model_cache() -> None:
+    """Drop memoized model availability after an install or removal.
+
+    Model discovery itself is disk-backed, but the capability manifest is
+    cached for a few seconds. Clearing it here makes a freshly installed model
+    usable by the very next ``transcribe`` call, without a process restart.
+    """
+
+    clear_capability_cache()
+
+
 def model_roots() -> list[Path]:
     """All roots checked for an installed model, preferred install path first."""
 
@@ -479,6 +493,7 @@ def install_model(
 
     if _installed(model_id):
         report(100, "Already installed")
+        invalidate_model_cache()
         return {
             "id": model_id,
             "installed": True,
@@ -507,6 +522,7 @@ def install_model(
             token=os.environ.get("HF_TOKEN") or None,
         )
         report(100, "Installed")
+        invalidate_model_cache()
         return {"id": model_id, "installed": True, "path": str(target)}
     is_directory = entry["kind"] == "faster-whisper"
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -563,6 +579,7 @@ def install_model(
             raise FilesystemError(f"Checksum mismatch for {url}")
         temp.replace(destination)
     report(100, "Installed")
+    invalidate_model_cache()
     return {"id": model_id, "installed": True, "path": str(target)}
 
 
@@ -583,6 +600,7 @@ def remove_model(model_id: str) -> None:
             removed = True
     if not removed:
         raise StateNotReadyError(f"Model is not installed: {model_id}")
+    invalidate_model_cache()
 
 
 def update_model(

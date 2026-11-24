@@ -32,6 +32,7 @@ from .freesound import (
     freesound_license_filter,
     freesound_license_name,
 )
+from .internet_archive import InternetArchiveClient
 from .local import LocalSfxProvider
 from .openverse import OpenverseClient
 from .stock import PexelsClient, PixabayClient

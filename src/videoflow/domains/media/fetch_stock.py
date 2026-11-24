@@ -17,6 +17,7 @@ from .fetch_common import _bounded_int, _check_orientation, _require_query
 from .fetch_service_base import FetchServiceBase
 from .providers import (
     GalleryDLClient,
+    InternetArchiveClient,
     LocalAsset,
     OpenverseClient,
     WikimediaClient,
@@ -42,17 +43,94 @@ class StockMixin(FetchServiceBase):
         orientation = _check_orientation(orientation)
         min_duration = _bounded_int(min_duration, name="min_duration", minimum=0, maximum=3600)
         max_results = _bounded_int(max_results, name="max_results", minimum=1, maximum=50)
-        provider_name, client = resolve_keyed_provider(
-            provider,
-            env=self._env(),
-            media="video",
-            client=self._http_client(),
-        )
+        requested = str(provider or "auto").strip().lower()
+        allowed = {
+            "auto",
+            "pexels",
+            "pixabay",
+            "wikimedia",
+            "internet_archive",
+        }
+        if requested not in allowed:
+            raise InvalidRequestError(
+                f"Unknown provider {provider!r}; use 'auto', 'pexels', 'pixabay', "
+                "'wikimedia', or 'internet_archive'."
+            )
         params = {
             "orientation": orientation,
             "min_duration": min_duration,
             "max_results": max_results,
         }
+        keyless_chain: list[str] = []
+        client: Any = None
+        provider_name = ""
+        if requested in {"wikimedia", "internet_archive"}:
+            keyless_chain = [requested]
+        else:
+            try:
+                provider_name, client = resolve_keyed_provider(
+                    requested,
+                    env=self._env(),
+                    media="video",
+                    client=self._http_client(),
+                )
+            except ProviderUnavailableError:
+                if requested != "auto":
+                    raise
+                keyless_chain = ["wikimedia", "internet_archive"]
+
+        if keyless_chain:
+            factories = {
+                "wikimedia": WikimediaClient,
+                "internet_archive": InternetArchiveClient,
+            }
+            last_failure: Exception | None = None
+            for candidate_name in keyless_chain:
+                candidate_client = factories[candidate_name](
+                    client=self._http_client()
+                )
+                request = {
+                    "tool": "fetch_stock_broll",
+                    "provider": candidate_name,
+                    "query": query,
+                    **params,
+                }
+                key = workspace.key({**request, "project_id": workspace.project_id})
+                cached = self._cached(
+                    workspace, key, provider=candidate_name, request=request
+                )
+                if cached is not None:
+                    return cached
+                try:
+                    candidates = candidate_client.search_videos(
+                        query,
+                        orientation=orientation,
+                        min_duration=min_duration,
+                        max_results=max_results,
+                    )
+                    if not candidates:
+                        raise ProviderResponseError(
+                            f"{candidate_name} returned no videos for {query!r}."
+                        )
+                except (McpFetchError, httpx.HTTPError) as exc:
+                    last_failure = exc
+                    continue
+                return self._materialize_remote(
+                    workspace,
+                    key,
+                    kind="broll",
+                    provider_name=candidate_name,
+                    candidates=candidates,
+                    downloader=candidate_client,
+                    query=query,
+                    params=params,
+                    request=request,
+                )
+            raise ProviderResponseError(
+                f"Keyless video search failed for {query!r}: {last_failure}",
+                detail={"query": query},
+            )
+
         request = {
             "tool": "fetch_stock_broll",
             "provider": provider_name,

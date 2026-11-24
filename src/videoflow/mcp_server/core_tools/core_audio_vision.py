@@ -7,7 +7,7 @@ from typing import Any
 
 from videoflow.application.projects import get_project, load_project_state
 from videoflow.domain.errors import VideoFlowError
-from videoflow.mcp_server.context import error
+from videoflow.mcp_server.context import error, unknown_action
 
 
 def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
@@ -52,6 +52,12 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             if action == "stems":
                 return studio.separate_audio_stems(project_id, input_path, stems=stems)
             if action == "music":
+                if music_path:
+                    return studio.attach_music_track(
+                        project_id,
+                        music_path,
+                        output_name=output_name or "music.wav",
+                    )
                 return studio.generate_music_or_sfx(
                     project_id,
                     prompt,
@@ -106,9 +112,10 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     "audio_master": context.artifacts.get("audio_master", ""),
                     "finalize": context.metadata.get("audio_finalize", {}),
                 }
-            return error(
-                "unknown_action",
-                "vf_audio supports tts, clean, stems, music, mix, or master",
+            return unknown_action(
+                "vf_audio",
+                action,
+                ("tts", "clean", "stems", "music", "mix", "master"),
             )
         except VideoFlowError as exc:
             return exc.to_dict()
@@ -152,9 +159,10 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     scale=scale,
                     backend=backend,
                 )
-            return error(
-                "unknown_action",
-                "vf_vision supports captions, matte, or upscale",
+            return unknown_action(
+                "vf_vision",
+                action,
+                ("captions", "matte", "upscale"),
             )
         except VideoFlowError as exc:
             return exc.to_dict()
@@ -203,7 +211,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 if not font_path:
                     return error("font_required", "font_path is required")
                 return {"ok": True, "font": register_font(Path(font_path), name=name)}
-            return error("unknown_action", "vf_font supports list, resolve, or register")
+            return unknown_action("vf_font", action, ("list", "resolve", "register"))
         except VideoFlowError as exc:
             return exc.to_dict()
         except Exception as exc:  # noqa: BLE001 - keep MCP errors structured

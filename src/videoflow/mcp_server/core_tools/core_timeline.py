@@ -8,7 +8,7 @@ from typing import Any
 
 from videoflow.application.projects import get_project, load_project_state
 from videoflow.domain.errors import VideoFlowError
-from videoflow.mcp_server.context import error
+from videoflow.mcp_server.context import error, unknown_action
 
 from .core_shared import (
     _wait,
@@ -43,6 +43,12 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
     ) -> dict[str, Any]:
         """Read, edit, discard sentences, or apply a declarative beatmap."""
 
+        if action not in {"get", "discard_sentences", "apply_beatmap", "edit"}:
+            return unknown_action(
+                "vf_timeline",
+                action,
+                ("get", "edit", "discard_sentences", "apply_beatmap"),
+            )
         if action == "discard_sentences":
             if not sentence_ids:
                 return error("sentence_ids_required", "sentence_ids is required")
@@ -247,6 +253,39 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
     ) -> dict[str, Any]:
         """Run session ingest, multicam synchronization, or audio diagnosis."""
 
+        if action not in {"session", "multicam", "diagnose", "probe"}:
+            return unknown_action(
+                "vf_ingest",
+                action,
+                ("session", "multicam", "diagnose", "probe"),
+            )
+        if action == "probe":
+            from videoflow.adapters.ffmpeg import FFmpegAdapter
+            from videoflow.domain.paths import resolve_allowed
+            from videoflow.runtime import allowed_roots
+
+            candidate = str(sources[0]) if sources else ""
+            if not candidate and project_id:
+                try:
+                    record = get_project(project_id)
+                    state = load_project_state(record)
+                    media = state.media_info
+                    candidate = media.source_path if media is not None else record.primary_source
+                except VideoFlowError as exc:
+                    return exc.to_dict()
+            if not candidate:
+                return error("source_required", "Pass sources or project_id to probe")
+            try:
+                path = resolve_allowed(Path(candidate).expanduser(), allowed_roots())
+                media_info = FFmpegAdapter().probe(path)
+            except VideoFlowError as exc:
+                return exc.to_dict()
+            return {
+                "ok": True,
+                "project_id": project_id,
+                "source": str(path),
+                "probe": media_info.model_dump(mode="json"),
+            }
         if action == "diagnose":
             from videoflow.domains.audio.diagnose import diagnose_audio
 

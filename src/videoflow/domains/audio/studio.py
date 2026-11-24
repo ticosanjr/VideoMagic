@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .studio_attach import attach_music_track
 from .studio_common import AUDIO_EXTENSIONS, ROUTER
 from .studio_mix import (
     build_mix_graph,
@@ -18,6 +19,7 @@ from .studio_tts import (
 __all__ = [
     "AUDIO_EXTENSIONS",
     "ROUTER",
+    "attach_music_track",
     "build_mix_graph",
     "build_voice_clean_filter",
     "generate_music_or_sfx",

@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from .errors import InvalidRequestError
+from .errors import InvalidRequestError, ProviderUnavailableError
 from .fetch_common import _bounded_float, _bounded_int, _clip, _require_query
 from .fetch_service_base import FetchServiceBase
 from .providers import (
@@ -117,11 +117,16 @@ class RipSfxMixin(FetchServiceBase):
         max_duration = _bounded_float(max_duration, name="max_duration", minimum=0.0)
         freesound_license_filter(license_filter)
         license_filter = str(license_filter or "any").strip().lower()
-        provider_name, client = resolve_sfx_provider(
-            provider,
-            env=self._env(),
-            client=self._http_client(),
-        )
+        try:
+            provider_name, client = resolve_sfx_provider(
+                provider,
+                env=self._env(),
+                client=self._http_client(),
+            )
+        except ProviderUnavailableError:
+            if str(provider or "auto").strip().lower() != "auto":
+                raise
+            provider_name, client = "procedural", None
         params = {
             "max_duration": max_duration,
             "license_filter": license_filter,
@@ -136,6 +141,15 @@ class RipSfxMixin(FetchServiceBase):
         cached = self._cached(workspace, key, provider=provider_name, request=request)
         if cached is not None:
             return cached
+
+        if provider_name == "procedural":
+            return self._procedural_sfx(
+                workspace,
+                key,
+                request=request,
+                query=query,
+                params=params,
+            )
 
         if provider_name == "freesound":
             candidates = client.search_sfx(
@@ -172,3 +186,69 @@ class RipSfxMixin(FetchServiceBase):
             params=params,
             request=request,
         )
+
+    def _procedural_sfx(
+        self,
+        workspace: Any,
+        key: str,
+        *,
+        request: dict[str, Any],
+        query: str,
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Synthesize a real WAV cue when no SFX provider is configured."""
+
+        from videoflow.domains.audio.synth import synthesize_foley
+
+        kind = _procedural_kind(query)
+        with tempfile.TemporaryDirectory(prefix="vf-sfx-") as temporary:
+            generated = synthesize_foley(Path(temporary), [{"kind": kind}])
+            path = Path(str(generated["cues"][0]["path"]))
+            candidate = LocalAsset(
+                path=path,
+                metadata={
+                    "name": f"{kind}.wav",
+                    "query": query,
+                    "kind": kind,
+                    "procedural": True,
+                },
+                license={
+                    "provider": "procedural",
+                    "license": "cc0",
+                    "status": "cleared",
+                    "commercial_use": True,
+                    "attribution_required": False,
+                    "attribution": "VideoFlow procedural synth",
+                },
+            )
+            return self._materialize_local(
+                workspace,
+                key,
+                kind="sfx",
+                provider_name="procedural",
+                candidates=[candidate],
+                query=query,
+                params=params,
+                request=request,
+            )
+
+
+def _procedural_kind(query: str) -> str:
+    """Map a free-form SFX query onto a synth cue that actually exists."""
+
+    text = str(query or "").casefold()
+    for token, kind in (
+        ("whoosh", "whoosh"),
+        ("riser", "riser"),
+        ("impact", "impact"),
+        ("hit", "impact"),
+        ("boom", "impact"),
+        ("click", "click"),
+        ("paper", "paper_turn"),
+        ("page", "paper_turn"),
+        ("turn", "paper_turn"),
+        ("marker", "marker_underline"),
+    ):
+        if token in text:
+            return kind
+    return "whoosh"

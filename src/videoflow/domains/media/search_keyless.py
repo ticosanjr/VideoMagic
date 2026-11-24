@@ -84,7 +84,7 @@ def _wikimedia(
         params={
             "action": "query",
             "generator": "search",
-            "gsrsearch": query,
+            "gsrsearch": f"filetype:{'video' if media == 'video' else 'bitmap'} {query}",
             "gsrnamespace": 6,
             "gsrlimit": limit,
             "prop": "imageinfo",
@@ -147,7 +147,7 @@ def _internet_archive(
     response = httpx.get(
         "https://archive.org/advancedsearch.php",
         params={
-            "q": query,
+            "q": f"mediatype:movies AND ({query})" if media == "video" else query,
             "fl[]": [
                 "identifier",
                 "title",

@@ -7,7 +7,7 @@ from typing import Any
 
 from videoflow.application.projects import get_project, load_project_state
 from videoflow.domain.errors import VideoFlowError
-from videoflow.mcp_server.context import error
+from videoflow.mcp_server.context import error, unknown_action
 
 
 def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
@@ -46,6 +46,25 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         try:
             from videoflow.domains.media import fetch_tools
 
+            if action == "search":
+                if not project_id:
+                    return error("project_required", "project_id is required")
+                if type.strip().lower() in {"video", "broll"}:
+                    return fetch_tools.fetch_stock_broll(
+                        project_id,
+                        query,
+                        orientation=orientation,
+                        min_duration=min_duration,
+                        max_results=max_results,
+                        provider=provider,
+                    )
+                return fetch_tools.fetch_stock_images(
+                    project_id,
+                    query,
+                    count=count,
+                    keyless=keyless,
+                    provider=provider,
+                )
             if action == "fetch_stock_images":
                 if not project_id:
                     return error("project_required", "project_id is required")
@@ -142,11 +161,21 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     "blockers": blockers,
                     "blocking_count": len(blockers),
                 }
-            return error(
-                "unknown_action",
-                "vf_media supports fetch_stock_images, fetch_stock_broll, "
-                "rip_video_segment, fetch_sfx, image_to_broll_motion, "
-                "generate_music_or_sfx, list, license_audit, or approve_license",
+            return unknown_action(
+                "vf_media",
+                action,
+                (
+                    "search",
+                    "fetch_stock_images",
+                    "fetch_stock_broll",
+                    "rip_video_segment",
+                    "fetch_sfx",
+                    "image_to_broll_motion",
+                    "generate_music_or_sfx",
+                    "list",
+                    "license_audit",
+                    "approve_license",
+                ),
             )
         except VideoFlowError as exc:
             return exc.to_dict()
@@ -194,9 +223,10 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 return exc.to_dict()
             return {"ok": True, "action": action, "font": record}
         if action not in {"list", "approve", "quarantine"}:
-            return error(
-                "unknown_action",
-                "vf_assets supports list, approve, quarantine, fonts, or register_font",
+            return unknown_action(
+                "vf_assets",
+                action,
+                ("list", "approve", "quarantine", "fonts", "register_font"),
             )
         if not project_id:
             return error("project_required", "project_id is required")
@@ -237,9 +267,10 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     state=state,
                 )
                 return result
-            return error(
-                "unknown_action",
-                "vf_assets supports list, approve, quarantine, fonts, or register_font",
+            return unknown_action(
+                "vf_assets",
+                action,
+                ("list", "approve", "quarantine", "fonts", "register_font"),
             )
         except VideoFlowError as exc:
             return exc.to_dict()
