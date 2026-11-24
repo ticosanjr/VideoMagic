@@ -195,7 +195,7 @@ def apply_decisions(
     asus: list[Asu],
     decisions: list[AsuDecision],
     *,
-    max_discard_ratio: float = 0.45,
+    max_discard_ratio: float = 0.75,
 ) -> tuple[list[Asu], list[dict[str, Any]], list[dict[str, str]], dict[str, Any]]:
     """Apply validated decisions to an ASU copy and return source cuts."""
 

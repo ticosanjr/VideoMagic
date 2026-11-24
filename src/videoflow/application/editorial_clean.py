@@ -95,7 +95,7 @@ def clean_editorial(
     semantic_overlap: int = 4,
     fuzzy_similarity: float = 0.65,
     prefix_similarity: float = 0.75,
-    max_discard_ratio: float = 0.45,
+    max_discard_ratio: float = 0.75,
     stutter_gap_sec: float = 1.2,
     snap_ms: int = 60,
     pad_before_ms: int = 110,
@@ -154,14 +154,24 @@ def clean_editorial(
                 prefix_similarity=prefix_similarity,
                 max_discard_ratio=max_discard_ratio,
             )
-            combined = set(fuzzy_discards) | set(extra)
+            extra_distant = _distant_retake_groups(
+                survivors,
+                similarity=fuzzy_similarity,
+                max_discard_ratio=max_discard_ratio,
+            )
+            combined = (
+                set(fuzzy_discards)
+                | set(extra)
+                | {group["sentence_id"] for group in extra_distant}
+            )
             fuzzy_discards = sorted(
                 _limit_discards(working, combined, max_discard_ratio=max_discard_ratio)
             )
+            selected = set(fuzzy_discards)
             fuzzy_groups.extend(
                 group
-                for group in extra_groups
-                if group["sentence_id"] in set(fuzzy_discards)
+                for group in [*extra_groups, *extra_distant]
+                if group["sentence_id"] in selected
             )
 
     semantic_discards: list[dict[str, Any]] = []
@@ -395,6 +405,47 @@ def _false_start(
         return False
     duration_ms = (left.end_sample - left.start_sample) / max(1, sample_rate) * 1000
     return duration_ms < 220 or left.probability < 0.45
+
+
+def _distant_retake_groups(
+    sentences: Sequence[Sentence],
+    *,
+    similarity: float,
+    max_discard_ratio: float,
+) -> list[dict[str, Any]]:
+    """Group retakes spread across the whole transcript, not just neighbours."""
+
+    from videoflow.application.decupage.retake_cluster import cluster_distant_retakes
+
+    clusters = cluster_distant_retakes(
+        sentences,
+        max_window_sentences=25,
+        max_gap_sec=420.0,
+        min_similarity=similarity,
+        max_discard_ratio=max_discard_ratio,
+    )
+    by_id = {item.id: item for item in sentences}
+    groups: list[dict[str, Any]] = []
+    for cluster in clusters:
+        keeper = by_id.get(cluster.keeper_id)
+        if keeper is None:
+            continue
+        for identifier in cluster.discard_ids:
+            sentence = by_id.get(identifier)
+            if sentence is None:
+                continue
+            groups.append(
+                {
+                    "sentence_id": identifier,
+                    "keeper_id": keeper.id,
+                    "similarity": round(_sentence_similarity(sentence, keeper)[0], 4),
+                    "prefix": 1.0,
+                    "reason": cluster.reason,
+                    "text": sentence.text,
+                    "keeper_text": keeper.text,
+                }
+            )
+    return groups
 
 
 def _fuzzy_sentence_discards(

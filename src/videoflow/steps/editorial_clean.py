@@ -30,7 +30,7 @@ class EditorialCleanParams(BaseModel):
     semantic_overlap: int = Field(default=4, ge=0, le=16)
     fuzzy_similarity: float = Field(default=0.65, ge=0.0, le=1.0)
     prefix_similarity: float = Field(default=0.75, ge=0.0, le=1.0)
-    max_discard_ratio: float = Field(default=0.45, ge=0.05, le=0.9)
+    max_discard_ratio: float = Field(default=0.75, ge=0.05, le=0.9)
     stutter_gap_sec: float = Field(default=1.2, ge=0.0, le=5.0)
     snap_ms: int = Field(default=60, ge=0, le=250)
     pad_before_ms: int = Field(default=110, ge=0, le=500)

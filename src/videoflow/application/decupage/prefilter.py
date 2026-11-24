@@ -104,7 +104,7 @@ def prefilter(
     min_words: int = 3,
     prefix_similarity: float = 0.78,
     token_similarity: float = 0.72,
-    max_group_seconds: float = 180.0,
+    max_group_seconds: float = 420.0,
 ) -> PrefilterResult:
     """Return grouped ASUs and deterministic quarantine decisions."""
 
@@ -118,15 +118,74 @@ def prefilter(
     grouped: dict[str, Asu] = {}
     group_index = 0
     used: set[str] = set()
+
+    # Distant retakes first: a component can span many minutes and comments.
+    from videoflow.application.decupage.retake_cluster import (
+        cluster_distant_retakes,
+    )
+    from videoflow.domain.state import Sentence
+
+    candidates = [
+        asu
+        for asu in ordered
+        if not _protected(asu.text) and len(_tokens(asu.text)) >= min_words
+    ]
+    sentences = [
+        Sentence(
+            id=index,
+            start_sample=asu.start_sample,
+            end_sample=asu.end_sample,
+            text=asu.text,
+        )
+        for index, asu in enumerate(candidates)
+    ]
+    for cluster in cluster_distant_retakes(
+        sentences,
+        max_window_sentences=25,
+        max_gap_sec=max_group_seconds,
+    ):
+        members = [
+            candidates[index]
+            for index in (cluster.keeper_id, *cluster.discard_ids)
+            if 0 <= index < len(candidates)
+        ]
+        if len(members) < 2:
+            continue
+        existing = next(
+            (item.retake_group_id for item in members if item.retake_group_id),
+            "",
+        )
+        if existing:
+            group_id = existing
+        else:
+            group_index += 1
+            group_id = f"RG_{group_index:04d}"
+        for item in members:
+            used.add(item.asu_id)
+            grouped[item.asu_id] = item.model_copy(update={"retake_group_id": group_id})
+        if not existing:
+            decisions.append(
+                AsuDecision(
+                    asu_id=members[0].asu_id,
+                    action="REVIEW",
+                    category="RETAKE_GROUP",
+                    confidence=0.5,
+                    reason=f"transitive retake group {group_id}",
+                )
+            )
+
+    # Local near-duplicates that the transitive pass may not have linked.
     for index, asu in enumerate(ordered):
         if asu.asu_id in used:
             continue
         if _protected(asu.text):
             grouped[asu.asu_id] = asu
             continue
-        candidates: list[Asu] = [asu]
+        local: list[Asu] = [asu]
         for later in ordered[index + 1 : index + 7]:
-            if later.asu_id in used or _protected(later.text):
+            if later.asu_id in used:
+                break
+            if later.asu_id in grouped or _protected(later.text):
                 break
             if later.start_sec - asu.start_sec > lookahead_seconds:
                 break
@@ -137,20 +196,20 @@ def prefilter(
             prefix = _prefix_ratio(asu.text, later.text)
             overlap = _token_set_ratio(asu.text, later.text)
             if prefix >= prefix_similarity or overlap >= token_similarity:
-                candidates.append(later)
-        if len(candidates) < 2:
+                local.append(later)
+        if len(local) < 2:
             grouped[asu.asu_id] = asu
             continue
         group_index += 1
         group_id = f"RG_{group_index:04d}"
-        for item in candidates:
+        for item in local:
             used.add(item.asu_id)
             grouped[item.asu_id] = item.model_copy(
                 update={"retake_group_id": group_id}
             )
         decisions.append(
             AsuDecision(
-                asu_id=candidates[0].asu_id,
+                asu_id=local[0].asu_id,
                 action="REVIEW",
                 category="RETAKE_GROUP",
                 confidence=0.5,

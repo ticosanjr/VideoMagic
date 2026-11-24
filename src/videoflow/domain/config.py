@@ -113,6 +113,9 @@ class RetakesConfig(StrictModel):
     model_name: str = "qwen2.5:7b-instruct"
     strictness: Strictness = "balanced"
     context_window_sentences: int = Field(default=15, ge=1, le=100, deprecated=True)
+    search_window_sentences: int = Field(default=25, ge=2, le=100)
+    max_group_span_seconds: float = Field(default=420.0, ge=30.0, le=1800.0)
+    max_discard_ratio: float = Field(default=0.75, ge=0.1, le=0.9)
     retake_strategy: RetakeStrategy = "keep_last"
     temperature: float = Field(default=0.0, ge=0.0, le=0.0)
     prompt_template_version: str = PROMPT_TEMPLATE_VERSION

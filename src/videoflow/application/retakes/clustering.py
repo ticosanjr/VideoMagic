@@ -6,12 +6,8 @@ from collections.abc import Sequence
 
 from videoflow.application.retakes.models import RetakeGroup
 from videoflow.application.retakes.similarity import (
-    _ELLIPSIS,
     _STRICTNESS_RULES,
     _choose_keeper,
-    _has_content,
-    _keeper,
-    _normalized,
     _similarity,
     _unique_facts,
 )
@@ -53,71 +49,45 @@ def cluster_similar_repetitions(
     sentences: Sequence[Sentence],
     *,
     strategy: Strategy = "keep_last",
-    max_gap_seconds: float = 300.0,
-    min_similarity: float = 0.62,
+    max_gap_seconds: float = 420.0,
+    min_similarity: float = 0.58,
+    max_group_span_seconds: float = 420.0,
+    max_window_sentences: int = 25,
+    max_discard_ratio: float = 0.75,
 ) -> tuple[RetakeGroup, ...]:
-    """Group nearby near-duplicate sentences, including small word swaps."""
+    """Group nearby and distant near-duplicate sentences transitively."""
 
-    rate = AUDIO_MASTER_RATE
+    from videoflow.application.decupage.retake_cluster import cluster_distant_retakes
+
     ordered = sorted(sentences, key=lambda item: (item.start_sample, item.end_sample, item.id))
-    used: set[int] = set()
+    by_id = {item.id: item for item in ordered}
     groups: list[RetakeGroup] = []
-    for index, sentence in enumerate(ordered):
-        if sentence.id in used or _ELLIPSIS.match(sentence.text.strip()):
+    for cluster in cluster_distant_retakes(
+        ordered,
+        max_window_sentences=max_window_sentences,
+        max_gap_sec=max_gap_seconds,
+        strategy=strategy,
+        min_similarity=min_similarity,
+        max_discard_ratio=max_discard_ratio,
+    ):
+        keeper = by_id.get(cluster.keeper_id)
+        discarded = [by_id[item] for item in cluster.discard_ids if item in by_id]
+        if keeper is None or not discarded:
             continue
-        group = [sentence]
-        cursor = index + 1
-        while cursor < len(ordered):
-            candidate = ordered[cursor]
-            if candidate.start_sample - sentence.start_sample > max_gap_seconds * rate:
-                break
-            if candidate.id in used:
-                cursor += 1
-                continue
-            exact = _normalized(sentence.text) == _normalized(candidate.text)
-            fuzzy = (
-                _has_content(sentence)
-                and _has_content(candidate)
-                and _similarity(sentence, candidate) >= min_similarity
-            )
-            if exact or fuzzy:
-                group.append(candidate)
-            cursor += 1
-        if len(group) < 2:
-            continue
-        for item in group:
-            used.add(item.id)
-        exact_group = len({_normalized(item.text) for item in group}) == 1
-        if exact_group:
-            keep = max(
-                (item.id for item in group),
-                key=lambda identifier: (
-                    next(item.start_sample for item in group if item.id == identifier),
-                    identifier,
-                ),
-            )
-        else:
-            keep = _keeper(
-                [item.id for item in group],
-                {item.id: item for item in group},
-                strategy,
-            )
-        discard = tuple(item.id for item in group if item.id != keep)
-        keep_sentence = next(item for item in group if item.id == keep)
-        discarded = [item for item in group if item.id != keep]
+        times = [keeper.start_sample, *(item.start_sample for item in discarded)]
+        ends = [keeper.end_sample, *(item.end_sample for item in discarded)]
         groups.append(
             RetakeGroup(
-                keep=(keep,),
-                discard=discard,
-                reason="near-duplicate passage",
-                keep_text=(keep_sentence.text,),
+                keep=(keeper.id,),
+                discard=tuple(item.id for item in discarded),
+                reason=cluster.reason,
+                keep_text=(keeper.text,),
                 discard_text=tuple(item.text for item in discarded),
-                start_sec=round(min(item.start_sample for item in group) / AUDIO_MASTER_RATE, 3),
-                end_sec=round(max(item.end_sample for item in group) / AUDIO_MASTER_RATE, 3),
+                start_sec=round(min(times) / AUDIO_MASTER_RATE, 3),
+                end_sec=round(max(ends) / AUDIO_MASTER_RATE, 3),
             )
         )
     return tuple(groups)
-
 
 def _parse_groups(
     raw: dict[str, object],

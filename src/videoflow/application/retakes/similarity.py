@@ -258,6 +258,18 @@ def _tail_candidate(candidate: Sentence, other: Sentence) -> bool:
     return right.endswith(left) or left in right
 
 
+def _proper_names(text: str) -> set[str]:
+    """Capitalized names, ignoring the ambiguous first word of a sentence."""
+
+    words = text.split()
+    body = " ".join(words[1:]) if len(words) > 1 else ""
+    return {
+        item
+        for item in _PROPER.findall(body)
+        if item.casefold() not in _COMMON_NAMES
+    }
+
+
 def _unique_facts(candidate: Sentence, keeper: Sentence) -> bool:
     text = candidate.text.strip()
     if _PROTECTED.search(text):
@@ -268,9 +280,8 @@ def _unique_facts(candidate: Sentence, keeper: Sentence) -> bool:
         return True
     names = {
         item
-        for item in _PROPER.findall(text)
-        if item.casefold() not in _COMMON_NAMES
-        and item.casefold() not in keeper.text.casefold()
+        for item in _proper_names(text)
+        if item.casefold() not in keeper.text.casefold()
     }
     return len(candidate.text.split()) >= 4 and bool(names)
 

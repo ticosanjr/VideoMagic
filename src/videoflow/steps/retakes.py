@@ -38,8 +38,8 @@ class RetakesParams(BaseModel):
     context_window: int = Field(default=15, ge=1, le=200)
     normalize: bool = True
     single_pass: bool = True
-    max_group_span_seconds: float = Field(default=180.0, ge=15.0, le=600.0)
-    max_discard_ratio: float = Field(default=0.45, ge=0.05, le=0.9)
+    max_group_span_seconds: float = Field(default=420.0, ge=15.0, le=1800.0)
+    max_discard_ratio: float = Field(default=0.75, ge=0.05, le=0.9)
     semantic_duplicates: bool = False
     editorial_clean: bool = True
     editorial_semantic: bool = True

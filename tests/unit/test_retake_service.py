@@ -116,7 +116,7 @@ def test_keep_wins_when_groups_conflict() -> None:
 def test_group_spanning_too_much_time_is_rejected() -> None:
     sentences = [
         sentence(0, "First complete attempt.", 0, 1000),
-        sentence(1, "Second complete attempt.", 400 * 48000, 401 * 48000),
+        sentence(1, "Second complete attempt.", 500 * 48000, 501 * 48000),
     ]
     client = FakeClient(
         [{"groups": [{"keep": [1], "discard": [0], "reason": "too far"}]}]

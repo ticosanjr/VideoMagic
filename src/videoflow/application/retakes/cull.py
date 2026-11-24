@@ -55,8 +55,8 @@ def cull_retakes(
     context_window: int = 15,
     strictness: str = "balanced",
     single_pass: bool = True,
-    max_group_span_seconds: float = 180.0,
-    max_discard_ratio: float = 0.45,
+    max_group_span_seconds: float = 420.0,
+    max_discard_ratio: float = 0.75,
     semantic_duplicates: bool = False,
 ) -> RetakeResult:
     if not sentences:
@@ -110,14 +110,28 @@ def cull_retakes(
                 "of falling back to near-duplicate matching"
             )
         else:
-            groups = list(cluster_similar_repetitions(sentences, strategy=strategy))
+            groups = list(
+                cluster_similar_repetitions(
+                    sentences,
+                    strategy=strategy,
+                    max_group_span_seconds=max_group_span_seconds,
+                    max_discard_ratio=max_discard_ratio,
+                )
+            )
 
     discard = {identifier for group in groups for identifier in group.discard}
     keepers = {identifier for group in groups for identifier in group.keep}
     discard -= keepers
     if len(discard) > max(1, int(len(sentences) * max_discard_ratio)):
         notes.append("retake proposal exceeded the discard budget; kept only near-duplicate groups")
-        groups = list(cluster_similar_repetitions(sentences, strategy=strategy))
+        groups = list(
+            cluster_similar_repetitions(
+                sentences,
+                strategy=strategy,
+                max_group_span_seconds=max_group_span_seconds,
+                max_discard_ratio=max_discard_ratio,
+            )
+        )
         groups = _apply_strategy(groups, order, strategy)
         groups, _ = _guard_unique_discards(groups)
         discard = {identifier for group in groups for identifier in group.discard}

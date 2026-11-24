@@ -139,7 +139,7 @@ class PrefilterParams(BaseModel):
     min_words: int = Field(default=3, ge=1, le=20)
     prefix_similarity: float = Field(default=0.78, ge=0.0, le=1.0)
     token_similarity: float = Field(default=0.72, ge=0.0, le=1.0)
-    max_group_seconds: float = Field(default=180.0, ge=15.0, le=600.0)
+    max_group_seconds: float = Field(default=420.0, ge=15.0, le=1800.0)
 
 
 @register_step
@@ -217,7 +217,7 @@ class LlmParams(BaseModel):
     window_sec: float = Field(default=240.0, ge=30.0, le=600.0)
     overlap_sec: float = Field(default=45.0, ge=0.0, le=180.0)
     max_words: int = Field(default=600, ge=50, le=4000)
-    max_discard_ratio: float = Field(default=0.45, ge=0.05, le=0.9)
+    max_discard_ratio: float = Field(default=0.75, ge=0.05, le=0.9)
     max_keep_chars: int = Field(default=12_000, ge=1000, le=100_000)
 
 
@@ -401,7 +401,7 @@ class ApplyParams(BaseModel):
 
     decisions: list[dict[str, Any]] | None = None
     decisions_path: str = ""
-    max_discard_ratio: float = Field(default=0.45, ge=0.05, le=0.9)
+    max_discard_ratio: float = Field(default=0.75, ge=0.05, le=0.9)
     deterministic_repeats: bool = True
     second_pass: bool = False
     second_pass_max_gap_seconds: float = Field(default=1.2, ge=0.1, le=10.0)

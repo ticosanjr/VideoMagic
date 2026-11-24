@@ -1354,6 +1354,20 @@
           "title": "Context Window Sentences",
           "type": "integer"
         },
+        "max_discard_ratio": {
+          "default": 0.75,
+          "maximum": 0.9,
+          "minimum": 0.1,
+          "title": "Max Discard Ratio",
+          "type": "number"
+        },
+        "max_group_span_seconds": {
+          "default": 420.0,
+          "maximum": 1800.0,
+          "minimum": 30.0,
+          "title": "Max Group Span Seconds",
+          "type": "number"
+        },
         "model_name": {
           "default": "qwen2.5:7b-instruct",
           "title": "Model Name",
@@ -1381,6 +1395,13 @@
           ],
           "title": "Retake Strategy",
           "type": "string"
+        },
+        "search_window_sentences": {
+          "default": 25,
+          "maximum": 100,
+          "minimum": 2,
+          "title": "Search Window Sentences",
+          "type": "integer"
         },
         "secret_name": {
           "default": "VIDEOWFLOW_LLM_API_KEY",

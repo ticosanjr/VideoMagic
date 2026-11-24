@@ -97,6 +97,43 @@ def second_pass_cuts(
                 "reason": f"second-pass ambiguous repetition: {cut.text}",
             }
         )
+
+    # Sentence-level residue: the first pass can leave two takes of the same
+    # passage apart from each other after its neighbours were removed.
+    from videoflow.application.decupage.retake_cluster import cluster_distant_retakes
+    from videoflow.domain.state import Sentence
+
+    survivors = [
+        asu
+        for asu in asus
+        if not any(
+            start <= asu.start_sample and asu.end_sample <= end
+            for start, end in existing_cuts
+        )
+    ]
+    sentences = [
+        Sentence(
+            id=index,
+            start_sample=asu.start_sample,
+            end_sample=asu.end_sample,
+            text=asu.text,
+        )
+        for index, asu in enumerate(survivors)
+    ]
+    for cluster in cluster_distant_retakes(sentences, max_gap_sec=420.0):
+        for index in cluster.discard_ids:
+            if index < 0 or index >= len(survivors):
+                continue
+            asu = survivors[index]
+            result.cuts.append(
+                {
+                    "asu_id": asu.asu_id,
+                    "start_sample": asu.start_sample,
+                    "end_sample": asu.end_sample,
+                    "reason": "second_pass_retake",
+                }
+            )
+            result.repeats += 1
     return result
 
 
