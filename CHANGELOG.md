@@ -75,9 +75,9 @@ inicialização 1-clique no Windows.
   sem derrubar UI/MCP.
 - `--no-auto-download` (e `VIDEOWFLOW_NO_AUTO_DOWNLOAD=1`) desativam downloads.
 - `serve` e o tray escolhem a próxima porta livre com `pick_available_port(...,
-  span=100)`, validam bind e conexão (incluindo `SO_EXCLUSIVEADDRUSE` no
-  Windows), gravam `active_server.json` com a porta real e nunca abortam por
-  porta ocupada.
+  span=100)`, validam bind e conexão (incluindo `SO_EXCLUSIVEADDRUSE` e
+  `netstat` no Windows), gravam `active_server.json` com a porta real e nunca
+  abortam por porta ocupada.
 - `videoflow restart` inicia processo destacado, encerra o PID antigo com
   timeout rígido de 5 s e retorna após `/health` em até 15 s.
 - Spec PyInstaller inclui `pystray._win32`, `PIL.Image`, `PIL.ImageDraw`,

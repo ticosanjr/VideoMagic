@@ -79,7 +79,10 @@ def pick_available_port(host: str, preferred_port: int, span: int = 100) -> int:
     preferred = max(1, int(preferred_port))
     limit = min(65535, preferred + max(1, int(span)))
     family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    busy_ports = _windows_listening_ports() if os.name == "nt" else set()
     for port in range(preferred, limit):
+        if port in busy_ports:
+            continue
         bound = True
         with socket.socket(family, socket.SOCK_STREAM) as probe:
             if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
@@ -97,7 +100,7 @@ def pick_available_port(host: str, preferred_port: int, span: int = 100) -> int:
                 bound = False
         if not bound:
             continue
-        if port_is_busy(host, port):
+        if os.name != "nt" and port_is_busy(host, port):
             continue
         return port
     raise OSError(f"no free TCP port on {host} between {preferred} and {limit - 1}")
@@ -299,6 +302,8 @@ def probe_service(host: str, port: int, *, timeout: float = 0.6) -> dict[str, An
 
 
 def port_is_busy(host: str, port: int) -> bool:
+    if os.name == "nt" and port in _windows_listening_ports():
+        return True
     visible = "::1" if host == "::" else host if host != "0.0.0.0" else "127.0.0.1"
     try:
         with socket.create_connection((visible, port), timeout=0.35):
@@ -397,6 +402,14 @@ def _windows_image_name(pid: int) -> str:
         return next(csv.reader([line]))[0]
     except (StopIteration, IndexError):
         return ""
+
+
+def _windows_listening_ports() -> set[int]:
+    """All local TCP LISTENING ports, independent of connect() semantics."""
+
+    if os.name != "nt":
+        return set()
+    return {port for ports in _windows_listeners().values() for port in ports}
 
 
 def _windows_listeners() -> dict[int, set[int]]:

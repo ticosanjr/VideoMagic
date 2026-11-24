@@ -58,6 +58,33 @@ def test_pick_available_port_skips_a_port_that_accepts_connections(monkeypatch) 
     assert services.pick_available_port("127.0.0.1", 8765, span=5) == 8766
 
 
+def test_pick_available_port_skips_windows_listening_ports(monkeypatch) -> None:
+    class FakeSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def bind(self, address):
+            return None
+
+        def setsockopt(self, *args):
+            return None
+
+    monkeypatch.setattr(services.os, "name", "nt")
+    monkeypatch.setattr(services, "_windows_listening_ports", lambda: {8765})
+    monkeypatch.setattr(services.socket, "socket", lambda *args, **kwargs: FakeSocket())
+    assert services.pick_available_port("127.0.0.1", 8765, span=5) == 8766
+
+
+def test_port_is_busy_uses_the_windows_netstat_snapshot(monkeypatch) -> None:
+    monkeypatch.setattr(services.os, "name", "nt")
+    monkeypatch.setattr(services, "_windows_listening_ports", lambda: {8765})
+    assert services.port_is_busy("127.0.0.1", 8765) is True
+    assert services.port_is_busy("127.0.0.1", 8766) is False
+
+
 def test_server_supervisor_falls_back_and_publishes_active_port(
     monkeypatch, tmp_path: Path
 ) -> None:
