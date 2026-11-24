@@ -424,6 +424,8 @@ export const GLOSSARY: Record<string, string> = {
   "Register local model": "Registrar modelo local",
   "Reject": "Rejeitar",
   "Reload": "Recarregar",
+  "Recarregar": "Recarregar",
+  "Preview indisponível (HTTP/arquivo)": "Preview indisponível (HTTP/arquivo)",
   "Reload UI": "Recarregar UI",
   "Remove": "Remover",
   "Render one from the current timeline, or run a recipe that produces an MP4.": "Renderize uma pela timeline atual ou rode uma receita que gere MP4.",

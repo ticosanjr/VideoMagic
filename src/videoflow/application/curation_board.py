@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import wave
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import quote
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from videoflow.application.clock import now_iso
 from videoflow.application.files import read_json_dict, write_json_atomic
 from videoflow.domain.errors import VideoFlowError
-from videoflow.runtime import portable_home
+from videoflow.runtime import find_binary, portable_home
 
 CurationCategory = Literal["style", "music", "sfx", "broll", "image", "short", "cut_review"]
 CurationMediaType = Literal["audio", "video", "image", "style"]
@@ -36,6 +39,9 @@ class CurationItem(BaseModel):
     title: str
     local_path: str = ""
     media_type: CurationMediaType
+    media_url: str = ""
+    poster_url: str = ""
+    preview_meta: dict[str, Any] = Field(default_factory=dict)
     duration_sec: float = 0.0
     recommended: bool = False
     reason: str = ""
@@ -137,6 +143,161 @@ def _persist(
     return board
 
 
+def _media_url(project_id: str, item_id: str, suffix: str = "media") -> str:
+    return (
+        f"/api/v1/curation/{quote(project_id, safe='')}/"
+        f"{suffix}/{quote(item_id, safe='')}"
+    )
+
+
+def _resolve_local_path(project_dir: Path, item: CurationItem) -> Path | None:
+    raw = item.local_path.strip()
+    if not raw:
+        if item.media_type in {"audio", "video", "image"}:
+            raise CurationError(
+                "curation_media_missing",
+                f"Curation item {item.item_id!r} has no local_path",
+            )
+        return None
+    candidate = Path(raw).expanduser()
+    candidates = [candidate] if candidate.is_absolute() else [
+        project_dir / candidate,
+        project_dir / "assets" / candidate,
+    ]
+    for path in candidates:
+        if path.is_file():
+            return path.resolve()
+    raise CurationError(
+        "curation_media_missing",
+        f"Curation media does not exist: {raw}",
+    )
+
+
+def _needs_audio_preview(path: Path) -> bool:
+    if path.stat().st_size > 15 * 1024 * 1024:
+        return True
+    try:
+        with wave.open(str(path), "rb") as handle:
+            return int(handle.getsampwidth()) != 2
+    except (OSError, EOFError, wave.Error):
+        return True
+
+
+def _make_poster(project_dir: Path, item_id: str, source: Path) -> str:
+    binary = find_binary("ffmpeg")
+    if binary is None:
+        return ""
+    target = project_dir / "curation" / "posters" / f"{item_id}.jpg"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    for seek in ("0.5", "0"):
+        completed = subprocess.run(
+            [
+                binary,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-ss",
+                seek,
+                "-i",
+                str(source),
+                "-frames:v",
+                "1",
+                "-vf",
+                "scale=480:-2",
+                "-q:v",
+                "3",
+                str(target),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=90,
+        )
+        if completed.returncode == 0 and target.is_file() and target.stat().st_size:
+            return str(target)
+    return ""
+
+
+def _make_audio_preview(project_dir: Path, item_id: str, source: Path) -> str:
+    binary = find_binary("ffmpeg")
+    if binary is None:
+        return ""
+    target = project_dir / "curation" / "previews" / f"{item_id}.mp3"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    completed = subprocess.run(
+        [
+            binary,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(source),
+            "-vn",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "128k",
+            "-ar",
+            "48000",
+            str(target),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=90,
+    )
+    return str(target) if completed.returncode == 0 and target.is_file() else ""
+
+
+def _style_preview(item_id: str) -> dict[str, Any]:
+    try:
+        from videoflow.application.style_catalog import StyleCatalog
+
+        style = StyleCatalog().get(item_id)
+    except Exception:  # noqa: BLE001 - a missing style is not a broken board
+        return {}
+    return {
+        "palette": list(style.palette),
+        "fonts": list(style.fonts),
+        "aspect_ratio": style.aspect_ratio,
+        "caption_preset": style.caption_preset,
+    }
+
+
+def _prepare_item(
+    project_dir: Path,
+    project_id: str,
+    item: CurationItem,
+) -> CurationItem:
+    local = _resolve_local_path(project_dir, item)
+    media_url = ""
+    poster_url = ""
+    preview_meta = dict(item.preview_meta)
+    if local is not None:
+        media_url = _media_url(project_id, item.item_id)
+        if item.media_type == "video":
+            poster = _make_poster(project_dir, item.item_id, local)
+            poster_url = (
+                _media_url(project_id, item.item_id, "poster") if poster else ""
+            )
+        if item.media_type == "audio" and _needs_audio_preview(local):
+            preview = _make_audio_preview(project_dir, item.item_id, local)
+            if preview:
+                media_url = _media_url(project_id, item.item_id)
+    if item.media_type == "style":
+        preview_meta = _style_preview(item.item_id)
+    return item.model_copy(
+        update={
+            "local_path": str(local) if local is not None else "",
+            "media_url": media_url,
+            "poster_url": poster_url,
+            "preview_meta": preview_meta,
+        }
+    )
+
+
 def publish_board(
     project_dir: str | Path,
     project_id: str,
@@ -148,7 +309,7 @@ def publish_board(
         raise CurationError(
             "empty_curation_board", "A curation board needs at least one item"
         )
-    parsed: list[CurationItem] = []
+    parsed_items: list[CurationItem] = []
     seen: set[str] = set()
     for raw in items:
         try:
@@ -160,7 +321,11 @@ def publish_board(
                 "duplicate_item_id", f"Duplicate curation item: {item.item_id}"
             )
         seen.add(item.item_id)
-        parsed.append(item)
+        parsed_items.append(item)
+    root = Path(project_dir).expanduser()
+    parsed = [
+        _prepare_item(root, project_id, item) for item in parsed_items
+    ]
     board = CurationBoard(
         project_id=project_id,
         board_id=f"board-{uuid4().hex[:12]}",

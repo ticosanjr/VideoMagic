@@ -42,6 +42,8 @@
   let busy = $state(false);
   let error = $state("");
   let notice = $state("");
+  let previewErrors = $state<Record<string, string>>({});
+  let previewRetries = $state<Record<string, number>>({});
 
   const statusLabel: Record<string, string> = {
     waiting_human: "Waiting for human",
@@ -130,6 +132,36 @@
     } finally {
       loading = false;
     }
+  }
+
+  function mediaUrl(item: CurationItem): string {
+    return item.media_url || curationMediaUrl(currentProject, item.item_id);
+  }
+
+  function posterUrl(item: CurationItem): string {
+    return item.poster_url || "";
+  }
+
+  function previewSrc(item: CurationItem): string {
+    const retry = previewRetries[item.item_id] ?? 0;
+    return retry ? `${mediaUrl(item)}?retry=${retry}` : mediaUrl(item);
+  }
+
+  function markPreviewError(item: CurationItem) {
+    previewErrors = {
+      ...previewErrors,
+      [item.item_id]: "Preview indisponível (HTTP/arquivo)"
+    };
+  }
+
+  function retryPreview(item: CurationItem) {
+    previewRetries = {
+      ...previewRetries,
+      [item.item_id]: (previewRetries[item.item_id] ?? 0) + 1
+    };
+    const next = { ...previewErrors };
+    delete next[item.item_id];
+    previewErrors = next;
   }
 
   function toggle(item: CurationItem, status: "selected" | "rejected") {
@@ -284,14 +316,31 @@
                 {/if}
               </div>
 
-              {#if item.local_path && item.media_type === "audio"}
-                <audio class="mt-3 w-full" controls preload="none" src={curationMediaUrl(board.project_id, item.item_id)}></audio>
+              {#if item.media_type === "style"}
+                <div class="mt-3 rounded-lg border border-white/10 bg-black/20 p-2">
+                  <div class="flex gap-1">
+                    {#each (item.preview_meta.palette ?? []).slice(0, 6) as colour}
+                      <span class="h-5 flex-1 rounded" style={`background:${colour}`}></span>
+                    {/each}
+                  </div>
+                  <p class="mt-2 text-[length:var(--vf-text-2xs)] text-neutral-300">{item.preview_meta.fonts?.join(" · ") || "—"} · {item.preview_meta.aspect_ratio || "auto"}</p>
+                </div>
+              {:else if item.local_path && item.media_type === "audio"}
+                <audio class="mt-3 w-full" controls preload="metadata" src={previewSrc(item)} onerror={() => markPreviewError(item)}></audio>
+                {#if item.duration_sec}<p class="mt-1 text-[length:var(--vf-text-2xs)] text-neutral-500">{item.duration_sec.toFixed(1)}s</p>{/if}
               {:else if item.local_path && item.media_type === "video"}
-                <video class="mt-3 w-full rounded-lg" controls muted preload="metadata" src={curationMediaUrl(board.project_id, item.item_id)}></video>
+                <video class="mt-3 w-full rounded-lg" controls muted playsinline preload="metadata" poster={posterUrl(item)} src={previewSrc(item)} onerror={() => markPreviewError(item)}></video>
               {:else if item.local_path && item.media_type === "image"}
-                <img class="mt-3 aspect-video w-full rounded-lg object-cover" src={curationMediaUrl(board.project_id, item.item_id)} alt={item.title} />
+                <img class="mt-3 aspect-video w-full rounded-lg object-cover" src={previewSrc(item)} alt={item.title} onerror={() => markPreviewError(item)} />
               {:else}
                 <p class="mt-3 rounded-lg border border-dashed border-white/10 px-2 py-3 text-center text-[length:var(--vf-text-2xs)] text-neutral-500">No media preview</p>
+              {/if}
+
+              {#if previewErrors[item.item_id]}
+                <div class="mt-2 rounded-lg border border-rose-400/20 bg-rose-500/10 px-2 py-1.5 text-[length:var(--vf-text-2xs)] text-rose-100">
+                  <span>{previewErrors[item.item_id]}</span>
+                  <button type="button" class="ml-2 underline" onclick={() => retryPreview(item)}>Recarregar</button>
+                </div>
               {/if}
 
               {#if item.reason}

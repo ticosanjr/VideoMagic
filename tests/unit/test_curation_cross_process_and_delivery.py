@@ -26,13 +26,18 @@ from videoflow.domain.state import AudioSegment, VideoSegment
 from videoflow.mcp_server.server import build_server
 
 
-def _items() -> list[dict[str, object]]:
+def _items(project_output: Path) -> list[dict[str, object]]:
+    media = project_output / "assets" / "curation"
+    media.mkdir(parents=True, exist_ok=True)
+    (media / "bed.wav").write_bytes(b"fixture")
+    (media / "broll.mp4").write_bytes(b"fixture")
     return [
         {
             "item_id": "music-1",
             "category": "music",
             "title": "Bed",
             "media_type": "audio",
+            "local_path": "assets/curation/bed.wav",
             "recommended": True,
         },
         {
@@ -40,6 +45,7 @@ def _items() -> list[dict[str, object]]:
             "category": "broll",
             "title": "B-roll",
             "media_type": "video",
+            "local_path": "assets/curation/broll.mp4",
         },
     ]
 
@@ -128,7 +134,11 @@ def test_mcp_board_is_decided_by_api_and_read_back_by_mcp(
     published = _call(
         server,
         "vf_curation",
-        {"action": "publish", "project_id": record.project_id, "items": _items()},
+        {
+            "action": "publish",
+            "project_id": record.project_id,
+            "items": _items(Path(record.output)),
+        },
     )
     assert published["ok"] is True
     assert published["board_url"].endswith("/#curation/cross-process")

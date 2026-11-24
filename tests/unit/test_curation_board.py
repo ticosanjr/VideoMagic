@@ -21,7 +21,17 @@ from videoflow.application.projects import init_project
 from videoflow.mcp_server.server import build_server
 
 
-def _items() -> list[dict[str, object]]:
+def _items(project_output: Path | None = None) -> list[dict[str, object]]:
+    if project_output is not None:
+        media = project_output / "assets" / "curation"
+        media.mkdir(parents=True, exist_ok=True)
+        for name in ("bed.wav", "whoosh.wav", "city.mp4"):
+            (media / name).write_bytes(b"fixture")
+        music_path = "assets/curation/bed.wav"
+        sfx_path = "assets/curation/whoosh.wav"
+        broll_path = "assets/curation/city.mp4"
+    else:
+        music_path = sfx_path = broll_path = ""
     return [
         {
             "item_id": "music-1",
@@ -29,6 +39,7 @@ def _items() -> list[dict[str, object]]:
             "scene_id": "scene-1",
             "title": "Bed A",
             "media_type": "audio",
+            "local_path": music_path,
             "recommended": True,
         },
         {
@@ -37,6 +48,7 @@ def _items() -> list[dict[str, object]]:
             "scene_id": "scene-1",
             "title": "Whoosh",
             "media_type": "audio",
+            "local_path": sfx_path,
         },
         {
             "item_id": "broll-1",
@@ -44,6 +56,7 @@ def _items() -> list[dict[str, object]]:
             "scene_id": "scene-2",
             "title": "City",
             "media_type": "video",
+            "local_path": broll_path,
         },
     ]
 
@@ -57,7 +70,9 @@ def project(tmp_path: Path, monkeypatch):
 
 
 def test_publish_human_decision_and_pending_list(project, tmp_path: Path) -> None:
-    board = publish_board(project.output, project.project_id, _items())
+    board = publish_board(
+        project.output, project.project_id, _items(Path(project.output))
+    )
     assert board.status == "waiting_human"
     assert (Path(project.output) / "curation" / "board.json").is_file()
     assert (Path(project.output) / "curation" / "decisions.json").is_file()
@@ -88,14 +103,16 @@ def test_publish_human_decision_and_pending_list(project, tmp_path: Path) -> Non
 
 
 def test_delegate_and_auto_select(project) -> None:
-    publish_board(project.output, project.project_id, _items())
+    publish_board(
+        project.output, project.project_id, _items(Path(project.output))
+    )
     delegated = save_decisions(project.output, [], [], delegate_to_ai=True)
     assert delegated.status == "delegated_to_ai"
     assert [item.item_id for item in delegated.items if item.status == "selected"] == [
         "music-1"
     ]
 
-    items = _items()
+    items = _items(Path(project.output))
     for item in items:
         item["recommended"] = False
     publish_board(project.output, project.project_id, items)
@@ -109,7 +126,8 @@ def test_empty_and_duplicate_boards_fail_closed(project) -> None:
         publish_board(project.output, project.project_id, [])
     assert empty.value.code == "empty_curation_board"
 
-    duplicate = _items() + [_items()[0]]
+    duplicate = _items()
+    duplicate = duplicate + [duplicate[0]]
     with pytest.raises(CurationError) as duplicated:
         publish_board(project.output, project.project_id, duplicate)
     assert duplicated.value.code == "duplicate_item_id"
@@ -123,7 +141,7 @@ def test_api_media_path_traversal_is_blocked(
     allowed.write_bytes(b"audio")
     outside = tmp_path / "outside.wav"
     outside.write_bytes(b"audio")
-    items = _items()
+    items = _items(Path(project.output))
     items[0]["local_path"] = str(allowed)
     items[1]["local_path"] = str(outside)
     publish_board(project.output, project.project_id, items)
@@ -143,7 +161,9 @@ def test_api_media_path_traversal_is_blocked(
 
 
 def test_api_decide_roundtrip(project) -> None:
-    publish_board(project.output, project.project_id, _items())
+    publish_board(
+        project.output, project.project_id, _items(Path(project.output))
+    )
     client = TestClient(create_app())
     response = client.post(
         f"/api/v1/curation/{project.project_id}/decide",
@@ -166,7 +186,7 @@ def test_vf_curation_two_turns(project) -> None:
             {
                 "action": "publish",
                 "project_id": project.project_id,
-                "items": _items(),
+                "items": _items(Path(project.output)),
             }
         )
     )

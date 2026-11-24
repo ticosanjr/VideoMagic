@@ -1051,6 +1051,14 @@ export interface CurationItem {
   title: string;
   local_path: string;
   media_type: "audio" | "video" | "image" | "style";
+  media_url: string;
+  poster_url: string;
+  preview_meta: {
+    palette?: string[];
+    fonts?: string[];
+    aspect_ratio?: string;
+    caption_preset?: string;
+  };
   duration_sec: number;
   recommended: boolean;
   reason: string;
