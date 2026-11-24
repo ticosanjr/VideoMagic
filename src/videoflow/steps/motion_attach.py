@@ -68,7 +68,14 @@ def render_callout(
     lines = _wrap(draw, text, font, width - 90)
     y = (height - len(lines) * 58) / 2
     for line in lines:
-        draw.text((48, y), line, font=font, fill=text_color)
+        try:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            if bbox[2] - bbox[0] > width * 4 or bbox[3] - bbox[1] > height * 4:
+                raise ValueError("font metrics are outside the callout")
+            draw.text((48, y), line, font=font, fill=text_color)
+        except (OSError, ValueError, Image.DecompressionBombError):
+            fallback = ImageFont.load_default()
+            draw.text((48, y), line, font=fallback, fill=text_color)
         y += 58
     target.parent.mkdir(parents=True, exist_ok=True)
     image.save(target)

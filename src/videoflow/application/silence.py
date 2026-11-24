@@ -17,11 +17,11 @@ from videoflow.domains.audio.pcm_io import read_wav_mono_float32
 
 PACING_PROFILES: dict[str, dict[str, int]] = {
     "tight": {
-        "min_silence_ms": 220,
-        "max_pause_ms": 250,
-        "pad_before_ms": 60,
-        "pad_after_ms": 90,
-        "qa_dead_air_ms": 550,
+        "min_silence_ms": 180,
+        "max_pause_ms": 200,
+        "pad_before_ms": 55,
+        "pad_after_ms": 80,
+        "qa_dead_air_ms": 500,
     },
     "balanced": {
         "min_silence_ms": 350,
@@ -65,7 +65,7 @@ def resolve_pacing_profile(
     values["qa_dead_air_ms"] = max(
         int(values.get("qa_dead_air_ms") or 0),
         int(round(values["max_pause_ms"] * 1.8)),
-        550,
+        500,
     )
     return values
 

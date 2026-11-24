@@ -130,7 +130,12 @@ def base_steps(transcript: Path, *, shorts: bool = False) -> dict:
             "needs": ["vad", "transcribe"],
             "params": {"enabled": True},
         },
-        {"id": "timeline", "type": "edit.timeline", "needs": ["vad", "retakes"]},
+        {
+            "id": "timeline",
+            "type": "edit.timeline",
+            "needs": ["vad", "retakes"],
+            "params": {"reset": True},
+        },
         {
             "id": "export",
             "type": "export.nle",

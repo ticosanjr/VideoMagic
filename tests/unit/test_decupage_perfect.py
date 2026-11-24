@@ -322,10 +322,11 @@ def test_vf_decupage_run_full_uses_canonical_chain() -> None:
         "ingest",
         "audio.vad",
         "transcribe",
+        "speech.asu",
         "speech.editorial_clean",
         "retakes.cull",
         "decupage.snap",
-        "decupage.timeline",
+        "edit.timeline",
     ]
     assert result["beat_map_path"] == "beat_map.json"
     assert result["flagged_long_cuts"] == []

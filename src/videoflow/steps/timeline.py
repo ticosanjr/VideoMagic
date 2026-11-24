@@ -30,6 +30,7 @@ from videoflow.application.vad import pad_spans
 from videoflow.application.word_cuts import plan_word_cuts
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import JlCutsConfig, ZoomsConfig
+from videoflow.domain.errors import TimelineConflict
 from videoflow.domain.state import InactiveSpan, ProjectState, SampleSpan
 from videoflow.domains.audio.events import detect_audio_events, load_model
 from videoflow.steps.base import BaseStep, StepIO
@@ -104,9 +105,14 @@ class TimelineParams(BaseModel):
     noise_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     transition_frames: int = Field(default=0, ge=0, le=120)
     transition_type: Literal["crossfade", "fade_to_black"] = "crossfade"
+    pacing_profile: Literal["tight", "balanced", "relaxed"] = "tight"
+    min_silence_ms: int | None = Field(default=None, ge=0)
+    max_pause_ms: int | None = Field(default=None, ge=0)
+    qa_dead_air_ms: int | None = Field(default=None, ge=0)
     project_id: str | None = None
     revision: int = Field(default=1, ge=1)
     replace_manual: bool = True
+    reset: bool = False
 
     @model_validator(mode="after")
     def resolve_cut_mode(self) -> TimelineParams:
@@ -196,6 +202,28 @@ class TimelineStep(BaseStep):
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = TimelineParams.model_validate(params)
         media = require_media(context)
+        previous_state = context.state
+        if previous_state is None:
+            existing = context.output / "project_state.json"
+            if existing.is_file():
+                try:
+                    previous_state = ProjectState.model_validate_json(
+                        existing.read_text(encoding="utf-8")
+                    )
+                except (OSError, ValueError):
+                    previous_state = None
+        if (
+            previous_state is not None
+            and previous_state.video_segments
+            and not options.reset
+            and (
+                previous_state.manual_overrides
+                or previous_state.revision > options.revision
+            )
+        ):
+            raise TimelineConflict(
+                "Timeline already has manual edits; pass reset=True to rebuild it."
+            )
         pad_before = (
             options.pad_before_ms
             if options.pad_before_ms is not None
@@ -420,6 +448,14 @@ class TimelineStep(BaseStep):
                 context.duration_samples(),
             )
             context.metadata["timeline_units"] = "vad"
+        safe_spans = context.metadata.get("decupage_safe_spans")
+        if isinstance(safe_spans, list) and safe_spans:
+            speech = [
+                (int(start), int(end))
+                for start, end in safe_spans
+                if int(end) > int(start)
+            ]
+            context.metadata["timeline_units"] = "decupage"
         deliberate_cuts = [
             *context.retake_overlap_cuts,
             *repeat_cuts,
@@ -589,6 +625,7 @@ class TimelineStep(BaseStep):
             project_id=project_id,
             revision=revision,
             media_info=media,
+            overlays=list(previous_state.overlays) if previous_state else [],
             vad_intervals=[
                 SampleSpan(start_sample=start, end_sample=end) for start, end in speech
             ],

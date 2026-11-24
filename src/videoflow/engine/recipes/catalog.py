@@ -56,7 +56,7 @@ _TIMELINE = {
     "id": "timeline",
     "type": "edit.timeline",
     "needs": ["vad", "retakes"],
-    "params": {},
+    "params": {"reset": True},
 }
 _TIMELINE_NO_RETAKES = {**_TIMELINE, "needs": ["vad"]}
 _EXPORT = {
@@ -262,6 +262,7 @@ def _recut_steps(*, with_retakes: bool) -> list[dict[str, object]]:
             ),
             "params": {
                 "cut_mode": "hard",
+                "reset": True,
                 "enable_j_cuts": False,
                 "enable_l_cuts": False,
                 "offset_ms": 200,

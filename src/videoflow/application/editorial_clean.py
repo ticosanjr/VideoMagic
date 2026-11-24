@@ -93,15 +93,15 @@ def clean_editorial(
     semantic: bool = True,
     semantic_block: int = 8,
     semantic_overlap: int = 4,
-    fuzzy_similarity: float = 0.65,
+    fuzzy_similarity: float = 0.52,
     prefix_similarity: float = 0.75,
     max_discard_ratio: float = 0.75,
-    stutter_gap_sec: float = 1.2,
+    stutter_gap_sec: float = 1.5,
     snap_ms: int = 60,
     pad_before_ms: int = 110,
     pad_after_ms: int = 190,
     crossfade_ms: int = 15,
-    second_pass: bool = False,
+    second_pass: bool = True,
 ) -> EditorialCleanResult:
     """Run every editorial pass and return a clean transcript and cut report."""
 
@@ -145,6 +145,22 @@ def clean_editorial(
         prefix_similarity=prefix_similarity,
         max_discard_ratio=max_discard_ratio,
     )
+    fragment_discards: list[int] = []
+    fragment_groups: list[dict[str, Any]] = []
+    if not (semantic and client is not None):
+        fragment_discards, fragment_groups = _disconnected_fragments(
+            working, sample_rate=sample_rate
+        )
+    if fragment_discards:
+        combined = set(fuzzy_discards) | set(fragment_discards)
+        fuzzy_discards = sorted(
+            _limit_discards(working, combined, max_discard_ratio=max_discard_ratio)
+        )
+        fuzzy_groups.extend(
+            group
+            for group in fragment_groups
+            if group["sentence_id"] in set(fuzzy_discards)
+        )
     if second_pass:
         survivors = [item for item in working if item.id not in set(fuzzy_discards)]
         if len(survivors) > 1:
@@ -154,10 +170,14 @@ def clean_editorial(
                 prefix_similarity=prefix_similarity,
                 max_discard_ratio=max_discard_ratio,
             )
-            extra_distant = _distant_retake_groups(
-                survivors,
-                similarity=fuzzy_similarity,
-                max_discard_ratio=max_discard_ratio,
+            extra_distant = (
+                _distant_retake_groups(
+                    survivors,
+                    similarity=fuzzy_similarity,
+                    max_discard_ratio=max_discard_ratio,
+                )
+                if not (semantic and client is not None)
+                else []
             )
             combined = (
                 set(fuzzy_discards)
@@ -422,6 +442,7 @@ def _distant_retake_groups(
         max_window_sentences=25,
         max_gap_sec=420.0,
         min_similarity=similarity,
+        min_prefix_content_words=2,
         max_discard_ratio=max_discard_ratio,
     )
     by_id = {item.id: item for item in sentences}
@@ -500,6 +521,51 @@ def _fuzzy_sentence_discards(
     return sorted(limited), [group for group in groups if group["sentence_id"] in limited]
 
 
+def _disconnected_fragments(
+    sentences: Sequence[Sentence],
+    *,
+    sample_rate: int,
+    pause_ms: int = 300,
+) -> tuple[list[int], list[dict[str, Any]]]:
+    """Drop short unterminated fragments followed by a pause and restart."""
+
+    ordered = sorted(sentences, key=lambda item: (item.start_sample, item.id))
+    pause = max(1, round(pause_ms * sample_rate / 1000))
+    discarded: list[int] = []
+    groups: list[dict[str, Any]] = []
+    for index, sentence in enumerate(ordered[:-1]):
+        text = sentence.text.strip()
+        tokens = token_list(text)
+        if not text or len(tokens) == 0 or len(tokens) > 3:
+            continue
+        if _SENTENCE_END.search(text) or _PROTECTED.search(text):
+            continue
+        following = ordered[index + 1]
+        if following.start_sample - sentence.end_sample < pause:
+            continue
+        if len(token_list(following.text)) < 4:
+            continue
+        if _safe_to_discard(sentence, following, 0.0):
+            continue
+        _ratio, _containment, _prefix = _sentence_similarity(sentence, following)
+        _shared_containment, shared_prefix = _content_match(sentence, following)
+        if not shared_prefix and _shared_containment < 0.55:
+            continue
+        discarded.append(sentence.id)
+        groups.append(
+            {
+                "sentence_id": sentence.id,
+                "keeper_id": following.id,
+                "similarity": 0.0,
+                "prefix": 0.0,
+                "reason": "disconnected fragment",
+                "text": sentence.text,
+                "keeper_text": following.text,
+            }
+        )
+    return discarded, groups
+
+
 def _semantic_candidates(
     sentences: Sequence[Sentence],
     *,
@@ -524,7 +590,10 @@ def _semantic_candidates(
                 if right.start_sample <= left.start_sample:
                     continue
                 similarity, _overlap, prefix = _sentence_similarity(left, right)
-                if similarity < 0.3 and prefix < 0.5:
+                left_content = token_set(left.text, min_length=4) - STOPWORDS
+                right_content = token_set(right.text, min_length=4) - STOPWORDS
+                shared_content = len(left_content & right_content)
+                if similarity < 0.25 and shared_content < 2 and prefix < 0.5:
                     continue
                 key = (left.id, right.id)
                 if key in seen:

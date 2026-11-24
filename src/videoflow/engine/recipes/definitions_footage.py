@@ -190,6 +190,7 @@ _STEPS: list[dict[str, Any]] = [
         "needs": ["vad", "retakes", "llm_cleanup"],
         "params": {
             "cut_mode": "hard",
+            "reset": True,
             "replace_manual": True,
             "use_transcript_spans": True,
             "remove_fillers": True,

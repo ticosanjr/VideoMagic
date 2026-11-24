@@ -74,11 +74,41 @@ def build_beatmap_plan(
                     "linked_sfx": "",
                 }
             )
+    keep_ranges: list[TimeRangeSec] = []
+    remove_ranges: list[TimeRangeSec] = []
+    source_fps = media.fps_num / media.fps_den
+    if state.video_segments:
+        keep_ranges = [
+            TimeRangeSec(
+                start_sec=round(clip.source_in_frame / source_fps, 6),
+                end_sec=round(max(clip.source_in_frame + 1, clip.source_out_frame) / source_fps, 6),
+            )
+            for clip in sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
+        ]
+    if state.inactive_segments:
+        rate = media.audio_sample_rate
+        remove_ranges = [
+            TimeRangeSec(
+                start_sec=round(segment.audio.source_in_sample / rate, 6),
+                end_sec=round(
+                    max(
+                        segment.audio.source_in_sample + 1,
+                        segment.audio.source_out_sample,
+                    )
+                    / rate,
+                    6,
+                ),
+            )
+            for segment in state.inactive_segments
+        ]
     return BeatMapPlan(
         style_id=getattr(style, "style_id", ""),
+        time_basis="source" if keep_ranges or remove_ranges else "edited",
         instructions=instructions,
         captions=captions,
         transitions=transitions,
+        keep_ranges=keep_ranges,
+        remove_ranges=remove_ranges,
     ).model_dump(mode="json")
 
 

@@ -46,7 +46,7 @@ _add_recipe(
             "id": "board",
             "type": "assets.reference_board",
             "needs": ["transcribe"],
-            "params": {},
+            "params": {"reset": True},
         },
         {
             "id": "archetype_gate",
@@ -74,7 +74,7 @@ _add_recipe(
             "id": "timeline",
             "type": "edit.timeline",
             "needs": ["vad", "transcribe", "retakes"],
-            "params": {},
+            "params": {"reset": True},
         },
         {
             "id": "qa",
@@ -170,7 +170,7 @@ _add_recipe(
             "id": "timeline",
             "type": "edit.timeline",
             "needs": ["vad", "transcribe", "retakes"],
-            "params": {},
+            "params": {"reset": True},
         },
         {
             "id": "qa_safezone",
