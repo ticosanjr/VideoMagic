@@ -36,6 +36,8 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         keep_ranges: list[dict[str, Any]] | None = None,
         remove_ranges: list[dict[str, Any]] | None = None,
         sentence_ids: list[int] | None = None,
+        page: int = 1,
+        page_size: int = 30,
         dry_run: bool = False,
         force: bool = False,
     ) -> dict[str, Any]:
@@ -188,7 +190,39 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 split_sec=split_sec,
                 expected_revision=expected_revision,
             )
-        return legacy["vf_get_timeline"](project_id=project_id, job_id=job_id)
+        result = legacy["vf_get_timeline"](project_id=project_id, job_id=job_id)
+        if not isinstance(result, dict) or result.get("ok") is False:
+            return result
+        video = list(result.get("video") or [])
+        audio = list(result.get("audio") or [])
+        size = max(1, min(200, int(page_size or 30)))
+        page_number = max(1, int(page or 1))
+        start = (page_number - 1) * size
+        fps = float(result.get("fps") or 30.0) or 30.0
+        total_duration = sum(
+            float(item.get("timeline_out_frame") or 0)
+            - float(item.get("timeline_in_frame") or 0)
+            for item in video
+            if isinstance(item, dict)
+        ) / fps
+        payload: dict[str, Any] = {
+            "ok": True,
+            "total_clips": len(video),
+            "total_duration_sec": round(total_duration, 3),
+            "page": page_number,
+            "page_size": size,
+            "has_more": start + size < len(video),
+        }
+        payload.update(
+            {
+                key: value
+                for key, value in result.items()
+                if key not in {"video", "audio"}
+            }
+        )
+        payload["video"] = video[start : start + size]
+        payload["audio"] = audio[start : start + size]
+        return payload
 
     @register
     def vf_ingest(

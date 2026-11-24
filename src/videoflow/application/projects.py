@@ -133,20 +133,54 @@ def _sync_workspace(record: ProjectRecord, state: ProjectState) -> None:
     _write_json(folder / "state.json", state.model_dump(mode="json"))
 
 
+class ProjectAmbiguousError(ProjectStateError):
+    """A reference matches more than one registered project."""
+
+    code = "project_ambiguous"
+
+
+def _output_basename(record: ProjectRecord) -> str:
+    return Path(record.output).expanduser().name
+
+
 def resolve_project_ref(project_id: str) -> ProjectRecord:
-    """Resolve a registry slug or the UUID stored in the project state."""
+    """Resolve only project id, slug, state UUID or a unique output folder.
+
+    Project names are deliberately not matched: two channels can both call a
+    project "Demo", and silently picking the first one is worse than failing.
+    """
 
     text = str(project_id or "").strip()
-    if text:
-        payload = _load_record(text)
-        if payload is not None:
-            return ProjectRecord.model_validate(payload)
-        expected = project_uuid(text)
-        for record in list_projects():
-            if record.project_id == text or project_uuid(record.project_id) == expected:
-                return record
-            if record.name == text:
-                return record
+    if not text:
+        raise ProjectStateError("Unknown project: empty reference")
+    payload = _load_record(text)
+    if payload is not None:
+        return ProjectRecord.model_validate(payload)
+    records = list_projects()
+    try:
+        wanted = UUID(text)
+    except ValueError:
+        wanted = None
+    if wanted is not None:
+        uuid_matches = [
+            record for record in records if project_uuid(record.project_id) == wanted
+        ]
+        if len(uuid_matches) == 1:
+            return uuid_matches[0]
+        if len(uuid_matches) > 1:
+            raise ProjectAmbiguousError(f"Ambiguous project reference: {project_id}")
+    matches = {
+        record.project_id: record
+        for record in records
+        if record.project_id == text or _output_basename(record) == text
+    }
+    if len(matches) == 1:
+        return next(iter(matches.values()))
+    if len(matches) > 1:
+        raise ProjectAmbiguousError(
+            f"Ambiguous project reference: {project_id} "
+            f"({', '.join(sorted(matches))})"
+        )
     raise ProjectStateError(f"Unknown project: {project_id}")
 
 
@@ -482,6 +516,7 @@ def clone_project(
 
 
 __all__ = [
+    "ProjectAmbiguousError",
     "ProjectRecord",
     "archive_project",
     "canonical_project_id",

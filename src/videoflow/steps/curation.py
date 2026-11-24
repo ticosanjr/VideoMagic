@@ -58,6 +58,19 @@ class CurationPrepareStep(BaseStep):
                     "required": False,
                 },
             ]
+            artifact_specs = [
+                str(item.get("preview") or "")
+                for item in manifest.get("music", [])
+                if item.get("preview")
+            ] + [
+                str((manifest.get("broll") or {}).get("contact_sheet") or ""),
+                str((manifest.get("sample") or {}).get("path") or ""),
+            ]
+            artifacts = [
+                hilt.artifact_for_path(context.output, spec)
+                for spec in artifact_specs
+                if spec.strip()
+            ]
             request, token = hilt.create_request(
                 context.output,
                 step_id=io.stage,
@@ -66,11 +79,7 @@ class CurationPrepareStep(BaseStep):
                 title="Curation previews",
                 description="Choose music and B-roll before the full render.",
                 questions=questions,
-                artifacts=[
-                    item["preview"] for item in manifest.get("music", []) if item.get("preview")
-                ]
-                + [str((manifest.get("broll") or {}).get("contact_sheet") or "")]
-                + [str((manifest.get("sample") or {}).get("path") or "")],
+                artifacts=artifacts,
                 job_id=str(context.metadata.get("job_id") or ""),
             )
             response = hilt.load_response(context.output, request.interaction_id)

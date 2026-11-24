@@ -119,11 +119,15 @@ def test_style_is_exposed_in_core() -> None:
     assert len(CORE_TOOL_NAMES) == 18
 
 
-def test_canonical_project_id_resolves_slug_uuid_and_name(monkeypatch, tmp_path: Path) -> None:
+def test_canonical_project_id_resolves_slug_uuid_and_output_folder(
+    monkeypatch, tmp_path: Path
+) -> None:
     from videoflow.application.projects import (
+        ProjectStateError,
         canonical_project_id,
         init_project,
         project_uuid,
+        resolve_project_ref,
     )
 
     monkeypatch.setenv("VIDEOWFLOW_HOME", str(tmp_path / "home"))
@@ -135,8 +139,11 @@ def test_canonical_project_id_resolves_slug_uuid_and_name(monkeypatch, tmp_path:
     uuid = str(project_uuid("paula-ep-10"))
     assert canonical_project_id(uuid) == "paula-ep-10"
     assert canonical_project_id("paula-ep-10") == "paula-ep-10"
-    assert canonical_project_id("Episode") == "paula-ep-10"
+    assert canonical_project_id("episode") == "paula-ep-10"
+    assert canonical_project_id("Episode") == "Episode"
     assert canonical_project_id("unknown-project") == "unknown-project"
+    with pytest.raises(ProjectStateError):
+        resolve_project_ref("Episode")
 
 
 def test_guard_canonicalizes_uuid_before_the_tool_body(monkeypatch, tmp_path: Path) -> None:

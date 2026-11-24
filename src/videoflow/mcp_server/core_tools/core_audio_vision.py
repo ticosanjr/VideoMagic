@@ -66,9 +66,49 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     target_lufs=target_lufs,
                     output_name=output_name or "master.wav",
                 )
+            if action == "master":
+                from videoflow.core.context import PipelineContext
+                from videoflow.steps.audio_finalize import (
+                    AudioFinalizeParams,
+                    AudioFinalizeStep,
+                )
+                from videoflow.steps.base import StepIO
+
+                record = get_project(project_id)
+                state = load_project_state(record)
+                output = Path(record.output).expanduser()
+                source = (
+                    Path(state.media_info.source_path).expanduser()
+                    if state.media_info is not None
+                    else Path(record.primary_source or record.output).expanduser()
+                )
+                context = PipelineContext(
+                    source=source,
+                    output=output,
+                    work=output / "work",
+                    exports=output / "exports",
+                    media=state.media_info,
+                    state=state,
+                )
+                AudioFinalizeStep().run(
+                    context,
+                    AudioFinalizeParams(
+                        target_lufs=target_lufs,
+                        target_name=output_name or "final.wav",
+                    ),
+                    StepIO(stage="audio.finalize"),
+                )
+                return {
+                    "ok": True,
+                    "project_id": record.project_id,
+                    "audio_final": context.artifacts.get("audio_final", ""),
+                    "audio_final_mix": context.artifacts.get("audio_final_mix", ""),
+                    "audio_master": context.artifacts.get("audio_master", ""),
+                    "finalize": context.metadata.get("audio_finalize", {}),
+                }
             return error(
                 "unknown_action",
-                "vf_audio supports tts, clean, stems, music, or mix",
+                "vf_audio supports tts, clean, stems, music, mix, or master",
             )
         except VideoFlowError as exc:
             return exc.to_dict()

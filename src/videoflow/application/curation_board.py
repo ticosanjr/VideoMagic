@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
@@ -11,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from videoflow.application.clock import now_iso
 from videoflow.application.files import read_json_dict, write_json_atomic
 from videoflow.domain.errors import VideoFlowError
+from videoflow.runtime import portable_home
 
 CurationCategory = Literal["style", "music", "sfx", "broll", "image", "short", "cut_review"]
 CurationMediaType = Literal["audio", "video", "image", "style"]
@@ -59,6 +61,32 @@ class CurationDecision(BaseModel):
     selected_ids: list[str] = Field(default_factory=list)
     rejected_ids: list[str] = Field(default_factory=list)
     updated_at: str
+
+
+def active_server_path() -> Path:
+    return portable_home() / "active_server.json"
+
+
+def active_server_payload() -> dict[str, Any]:
+    try:
+        payload = json.loads(active_server_path().read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def board_url(project_id: str, *, fallback_port: int = 8765) -> str:
+    """Build the UI URL from the process that is actually serving it."""
+
+    payload = active_server_payload()
+    host = str(payload.get("host") or "127.0.0.1")
+    if host in {"0.0.0.0", "::"}:
+        host = "127.0.0.1"
+    try:
+        port = int(payload.get("port") or fallback_port)
+    except (TypeError, ValueError):
+        port = fallback_port
+    return f"http://{host}:{port}/#curation/{project_id}"
 
 
 def curation_dir(project_dir: str | Path) -> Path:
@@ -298,6 +326,9 @@ def list_pending_boards(
 
 __all__ = [
     "CurationBoard",
+    "active_server_path",
+    "active_server_payload",
+    "board_url",
     "CurationDecision",
     "CurationError",
     "CurationItem",

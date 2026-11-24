@@ -8,6 +8,7 @@ import logging
 import shutil
 import sqlite3
 import threading
+import uuid
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -90,7 +91,23 @@ def _create_schema(connection: sqlite3.Connection) -> None:
     )
     connection.execute(
         "CREATE TABLE IF NOT EXISTS projects ("
-        "project_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL)"
+        "project_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL, "
+        "slug TEXT, name TEXT NOT NULL DEFAULT '', "
+        "output_dir TEXT NOT NULL DEFAULT '', payload_json TEXT)"
+    )
+    project_columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(projects)").fetchall()
+    }
+    for column, definition in (
+        ("slug", "TEXT"),
+        ("name", "TEXT NOT NULL DEFAULT ''"),
+        ("output_dir", "TEXT NOT NULL DEFAULT ''"),
+        ("payload_json", "TEXT"),
+    ):
+        if column not in project_columns:
+            connection.execute(f"ALTER TABLE projects ADD COLUMN {column} {definition}")
+    connection.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug)"
     )
     connection.execute(
         "CREATE TABLE IF NOT EXISTS styles ("
@@ -165,24 +182,88 @@ def upsert_job(job_id: str, payload: dict[str, Any]) -> None:
         _set_error(f"could not persist job {job_id}: {exc}")
 
 
+def _project_values(
+    project_id: str, payload: dict[str, Any]
+) -> tuple[str, str, str, str]:
+    """Extract the indexed project columns from a registry payload."""
+
+    raw_id = str(payload.get("project_id") or project_id)
+    output_dir = str(payload.get("output") or "")
+    name = str(payload.get("name") or "")
+    slug = str(payload.get("slug") or raw_id)
+    if not slug:
+        try:
+            uuid.UUID(raw_id)
+        except ValueError:
+            slug = raw_id
+        else:
+            slug = Path(output_dir).name or raw_id
+    return slug, name, output_dir, json.dumps(payload, sort_keys=True)
+
+
 def upsert_project(project_id: str, payload: dict[str, Any]) -> None:
+    slug, name, output_dir, payload_json = _project_values(project_id, payload)
     try:
         with contextlib.closing(connect()) as connection:
             connection.execute(
-                "INSERT OR REPLACE INTO projects (project_id, payload, updated_at) "
-                "VALUES (?, ?, ?)",
-                (project_id, json.dumps(payload, sort_keys=True), _now()),
+                "INSERT OR REPLACE INTO projects ("
+                "project_id, payload, updated_at, slug, name, output_dir, payload_json"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (project_id, payload_json, _now(), slug, name, output_dir, payload_json),
             )
             connection.commit()
     except sqlite3.Error as exc:
         _set_error(f"could not persist project {project_id}: {exc}")
 
 
+def _import_legacy_projects(connection: sqlite3.Connection) -> None:
+    """Import a legacy ``projects.json`` once, without blocking first reads."""
+
+    path = portable_home() / "projects.json"
+    if not path.is_file():
+        return
+    marker = connection.execute(
+        "SELECT value FROM meta WHERE key = 'projects_imported'"
+    ).fetchone()
+    if marker is not None:
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return
+    entries: list[dict[str, Any]] = []
+    if isinstance(payload, list):
+        entries = [item for item in payload if isinstance(item, dict)]
+    elif isinstance(payload, dict):
+        raw = payload.get("projects")
+        if isinstance(raw, list):
+            entries = [item for item in raw if isinstance(item, dict)]
+        elif isinstance(raw, dict):
+            entries = [item for item in raw.values() if isinstance(item, dict)]
+        elif payload.get("project_id"):
+            entries = [payload]
+    for entry in entries:
+        project_id = str(entry.get("project_id") or entry.get("id") or "")
+        if not project_id:
+            continue
+        slug, name, output_dir, payload_json = _project_values(project_id, entry)
+        connection.execute(
+            "INSERT OR REPLACE INTO projects ("
+            "project_id, payload, updated_at, slug, name, output_dir, payload_json"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (project_id, payload_json, _now(), slug, name, output_dir, payload_json),
+        )
+    connection.execute(
+        "INSERT OR REPLACE INTO meta (key, value) VALUES ('projects_imported', '1')"
+    )
+
+
 def get_project(project_id: str) -> dict[str, Any] | None:
-    if not db_path().is_file():
+    if not db_path().is_file() and not (portable_home() / "projects.json").is_file():
         return None
     try:
         with contextlib.closing(connect()) as connection:
+            _import_legacy_projects(connection)
             row = connection.execute(
                 "SELECT payload FROM projects WHERE project_id = ?", (project_id,)
             ).fetchone()
@@ -208,10 +289,11 @@ def delete_project(project_id: str) -> None:
 
 
 def list_projects() -> list[dict[str, Any]]:
-    if not db_path().is_file():
+    if not db_path().is_file() and not (portable_home() / "projects.json").is_file():
         return []
     try:
         with contextlib.closing(connect()) as connection:
+            _import_legacy_projects(connection)
             rows = connection.execute(
                 "SELECT payload FROM projects ORDER BY updated_at DESC"
             ).fetchall()

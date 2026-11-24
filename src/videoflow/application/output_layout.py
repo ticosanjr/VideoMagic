@@ -46,6 +46,46 @@ def delivery_root() -> Path:
         return Path.cwd() / DELIVERY_ROOT_NAME
 
 
+def _add_candidate(
+    source: Path,
+    items: list[tuple[str, Path]],
+    category: str,
+    path: Path,
+) -> None:
+    if not path.is_file():
+        return
+    try:
+        relative = path.relative_to(source)
+    except ValueError:
+        return
+    item = (category, relative)
+    if item not in items:
+        items.append(item)
+
+
+def _required_candidates(source: Path) -> list[tuple[str, Path]]:
+    """Explicit delivery contract, independent of the generic suffix scan."""
+
+    items: list[tuple[str, Path]] = []
+    for name in ("youtube_master.mp4", "preview_fast.mp4"):
+        _add_candidate(source, items, "exports", source / "exports" / name)
+    exports = source / "exports"
+    if exports.is_dir():
+        for suffix in (".fcpxml", ".xml", ".kdenlive", ".mlt"):
+            for path in sorted(exports.glob(f"*{suffix}")):
+                _add_candidate(source, items, "exports", path)
+        qa = exports / "qa"
+        if qa.is_dir():
+            for path in sorted(qa.rglob("*")):
+                _add_candidate(source, items, "exports", path)
+    batch = source / "shorts" / "batch"
+    if batch.is_dir():
+        for suffix in (".mp4", ".ass"):
+            for path in sorted(batch.glob(f"*{suffix}")):
+                _add_candidate(source, items, "shorts", path)
+    return items
+
+
 def _candidates(source: Path) -> list[tuple[str, Path]]:
     items: list[tuple[str, Path]] = []
     for category in CATEGORIES:
@@ -57,12 +97,13 @@ def _candidates(source: Path) -> list[tuple[str, Path]]:
                 _MEDIA_SUFFIXES | _SIDECAR_SUFFIXES
             ):
                 continue
-            relative = path.relative_to(source)
-            items.append((category, relative))
+            _add_candidate(source, items, category, path)
     # A finalized video may be written directly at the project root.
     for path in source.glob("*.mp4"):
-        if path.is_file():
-            items.append(("videos", Path(path.name)))
+        _add_candidate(source, items, "videos", path)
+    for item in _required_candidates(source):
+        if item not in items:
+            items.append(item)
     return items
 
 

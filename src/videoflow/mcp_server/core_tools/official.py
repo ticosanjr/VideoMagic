@@ -16,6 +16,7 @@ from typing import Any, Literal
 from videoflow.application.curation_board import (
     CurationError,
     auto_select_board,
+    board_url,
     load_board,
     load_decisions,
     publish_board,
@@ -61,12 +62,12 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
             record = get_project(project_id)
             output = Path(record.output).expanduser()
             if action == "publish":
-                board = publish_board(output, project_id, list(items or []))
+                board = publish_board(output, record.project_id, list(items or []))
                 return {
                     "ok": True,
                     "status": board.status,
                     "board_id": board.board_id,
-                    "board_url": f"http://127.0.0.1:8765/#curation/{project_id}",
+                    "board_url": board_url(record.project_id),
                     "item_count": len(board.items),
                     "_next_step": (
                         "Informe board_url ao usuário e aguarde 'pronto' ou "

@@ -7,7 +7,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from videoflow.application.output_layout import collect_outputs, delivery_root
+from videoflow.application.projects import get_project
 from videoflow.core.context import PipelineContext
+from videoflow.domain.errors import VideoFlowError
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.registry import register_step
 
@@ -30,9 +32,16 @@ class DeliveryCollectStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = CollectParams.model_validate(params)
+        requested = options.project_id or str(
+            context.metadata.get("project_id") or context.output.name
+        )
+        try:
+            project_id = get_project(requested).project_id
+        except VideoFlowError:
+            project_id = requested
         result = collect_outputs(
             context.output,
-            project_id=options.project_id or context.output.name,
+            project_id=project_id,
             mode=options.mode,
         )
         context.metadata["delivery_collect"] = result
