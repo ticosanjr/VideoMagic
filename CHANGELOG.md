@@ -1,5 +1,68 @@
 # Changelog
 
+## [4.5.0] - 2026-11-24
+
+Windows 11 nativo, decupagem agressiva, curadoria cross-process, preview
+ultra-rápido e release unificado.
+
+### Added — decupagem e áudio
+
+- Perfis `tight`, `balanced` e `relaxed` com silêncio, pausa, pads e
+  `qa_dead_air_ms` explícitos; overrides por tool.
+- Agrupamento transitivo Union-Find de 2 a N regravações distantes em janela de
+  25 sentenças / 420 s, com guardas de números, ordinais, preços, URLs e fatos
+  únicos.
+- Segundo passe sobre sentenças sobreviventes e teto de descarte em `0.75`.
+- `TARGET_LUFS=-16.0`, `target_lufs` explícito com precedência e `audio.finalize`
+  sobre a timeline editada; auto-finalize no delivery.
+- `audio_source="mix"` por padrão nos exports.
+
+### Added — preview e render
+
+- `mode="preview"` em `vf_export`, `export.video`, `render_master` e delivery
+  bundle: 540p/30 fps, NVENC `p1`/CQ28 ou x264 `ultrafast`/CRF30, AAC 128k,
+  QA off e `preview_fast.mp4` sem tocar em `youtube_master.mp4`.
+- Macro-blocos segmentados renderizados em paralelo, cache por encoder/modo/
+  escala/filter hash e fallback runtime NVENC → x264 com `degraded=true`.
+
+### Added — projetos, jobs e curadoria
+
+- Projetos persistidos em SQLite com leitura direta entre processos e resolução
+  por `project_id`, `slug` ou nome do diretório.
+- Jobs MCP/API visíveis em tempo real na UI via SQLite WAL, incluindo
+  `origin`, `pid` e recuperação de worker interrompido.
+- Curadoria cross-process com board na porta real do processo ativo.
+- Entrega consolidada em `VideoFlow_Output/{videos,exports,shorts,scenes}`.
+
+### Added — MCP, Styles e Workflows
+
+- Bundle JSON único para exportar/importar todos os styles e workflows com
+  validação atômica, BOM UTF-8, IDs seguros e rejeição `422`.
+- `pacing_profile`, `max_pause_ms`, pads e `second_pass` expostos em
+  `vf_decupage`.
+- `feature_matrix` no `doctor` para FFmpeg, filtro, CUDA, NVENC, ASR, Silero,
+  YAMNet, OpenCV, MediaPipe, scene detection e tray.
+
+### Added — Windows e release
+
+- Tray, porta dinâmica com `active_server.json`, GPU local no router/UI e
+  caminhos Windows nativos.
+- FFmpeg 7/8/9 com script de filtro detectado, BOM de legenda, burn validado e
+  tolerância AAC.
+- `scripts/certify_windows_nvidia.py` com doctor, porta ocupada, UI, curadoria
+  cross-process, ASR, decupagem e exports preview/final.
+- CI em push/PR com job Windows; release com gate obrigatório, Linux `tar.zst`,
+  CUDA zip, worker kit, SBOM, `SHA256SUMS` e `manifest.json` unificados.
+- Smoke Windows cobre `/`, asset JS e um job sintético ponta a ponta.
+
+### Validation
+
+- `ruff check src packages tests scripts`: limpo.
+- `pytest -q`: 3040 passed, 1 skipped, 1 xfailed; cobertura 96,79%.
+- `pytest -m media`: 29 passed, 2 skipped.
+- UI: `svelte-check` 0 erros/0 warnings, 55 testes, build concluído.
+- `certify_windows_nvidia.py --help`: exit 0.
+
 ## [4.4.0] - 2026-11-23
 
 Decupagem perfeita, Shorts publicáveis, ergonomia MCP e execução nativa no
