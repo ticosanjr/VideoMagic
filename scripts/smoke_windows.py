@@ -194,8 +194,10 @@ def check_ui_assets(base: str, *, timeout: float) -> str:
     match = re.search(r'(?:src|href)="([^"]+\.js[^"]*)"', html)
     if match is None:
         raise SmokeError(f"the UI HTML has no JavaScript asset: {html[:500]!r}")
+    from urllib.parse import urljoin
+
     path = match.group(1)
-    url = path if path.startswith("http") else base + path
+    url = path if path.startswith("http") else urljoin(base + "/", path)
     with urllib.request.urlopen(url, timeout=timeout) as response:
         status = int(response.status)
         asset = response.read()

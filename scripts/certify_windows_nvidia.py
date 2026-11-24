@@ -286,8 +286,14 @@ def check_server_and_ui(
         match = re.search(r'(?:src|href)="([^"]+\.js[^"]*)"', html)
         if match is None:
             raise CertifyError("the UI HTML has no JavaScript asset")
+        from urllib.parse import urljoin
+
         match_path = match.group(1)
-        asset_url = match_path if match_path.startswith("http") else base + match_path
+        asset_url = (
+            match_path
+            if match_path.startswith("http")
+            else urljoin(base + "/", match_path)
+        )
         status, asset = http(asset_url, timeout=timeout)
         if status != 200 or len(asset) < 100:
             raise CertifyError(f"UI asset {match_path} did not load")
