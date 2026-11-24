@@ -35,9 +35,6 @@ def main(argv: list[str] | None = None) -> int:
     }
     args.json_out.parent.mkdir(parents=True, exist_ok=True)
     args.json_out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    (result.path.with_name(f"{result.path.name}.sha256")).write_text(
-        f"{checksum}  {result.path.name}\n", encoding="utf-8"
-    )
     print(json.dumps(payload, indent=2))
     return 0
 

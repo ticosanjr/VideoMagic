@@ -297,3 +297,15 @@ def test_video_only_keeps_the_one_frame_tolerance() -> None:
     report = _media_report(10.04, with_audio=False)
     _check_expected(report, expected)
     assert any(item["code"] == "duration_mismatch" for item in report.errors)
+
+
+def test_ffmpeg_supports_filter_complex_script_reports_probe_failure(monkeypatch) -> None:
+    from videoflow.adapters.ffmpeg import helpers
+
+    def unsupported(_binary: str) -> str:
+        raise helpers.FilterScriptUnsupportedError("unsupported")
+
+    monkeypatch.setattr(helpers, "probe_filter_script_flag", unsupported)
+    assert helpers.ffmpeg_supports_filter_complex_script("ffmpeg") is False
+    monkeypatch.setattr(helpers, "probe_filter_script_flag", lambda _binary: "-/filter_complex")
+    assert helpers.ffmpeg_supports_filter_complex_script("ffmpeg") is True

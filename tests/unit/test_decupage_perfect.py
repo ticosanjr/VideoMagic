@@ -331,6 +331,106 @@ def test_vf_decupage_run_full_uses_canonical_chain() -> None:
     assert result["flagged_long_cuts"] == []
 
 
+def test_vf_decupage_can_confirm_no_semantic_discards(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from videoflow.mcp_server.core_tools import official
+    from videoflow.mcp_server.core_tools.official import register_official_tools
+
+    captured = {}
+
+    def register(fn):
+        captured[fn.__name__] = fn
+        return fn
+
+    def noop(**kwargs):
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        official,
+        "get_project",
+        lambda _project_id: SimpleNamespace(output="/tmp/vf-missing-project"),
+    )
+    monkeypatch.setattr(
+        official,
+        "load_project_state",
+        lambda _record: SimpleNamespace(
+            pipeline=SimpleNamespace(
+                metadata={
+                    "editorial_clean": {
+                        "semantic_status": "delegated",
+                        "semantic_candidates": [{"earlier": 0, "later": 1}],
+                    }
+                }
+            )
+        ),
+    )
+    register_official_tools(
+        register,
+        {
+            "vf_beatmap_plan": lambda **kwargs: {
+                "ok": True,
+                "path": "beat_map.json",
+                "plan": {"schema_version": 2},
+            },
+            "vf_run": lambda **kwargs: {"ok": True, "job": {"status": "succeeded"}},
+            "vf_transcript_query": noop,
+            "vf_shorts_batch": noop,
+            "vf_qa_final": noop,
+            "vf_job": noop,
+        },
+    )
+    result = captured["vf_decupage"](
+        action="run_full",
+        project_id="paula",
+        confirm_no_semantic_discards=True,
+    )
+    assert result["semantic_discards_confirmed"] is True
+    assert "pending_semantic_review" not in result
+
+
+def test_vf_decupage_discard_sentences_delegates_to_the_timeline_tool() -> None:
+    from videoflow.mcp_server.core_tools.official import register_official_tools
+
+    captured = {}
+    calls: dict[str, object] = {}
+
+    def register(fn):
+        captured[fn.__name__] = fn
+        return fn
+
+    def fake_timeline(**kwargs):
+        calls.update(kwargs)
+        return {"ok": True, "discarded_sentence_ids": kwargs["sentence_ids"]}
+
+    def noop(**kwargs):
+        return {"ok": True}
+
+    register_official_tools(
+        register,
+        {
+            "vf_timeline": fake_timeline,
+            "vf_transcript_query": noop,
+            "vf_shorts_batch": noop,
+            "vf_qa_final": noop,
+            "vf_job": noop,
+        },
+    )
+    result = captured["vf_decupage"](
+        action="discard_sentences",
+        project_id="paula",
+        sentence_ids=[2, 5],
+    )
+    assert result["ok"] is True
+    assert calls == {
+        "action": "discard_sentences",
+        "project_id": "paula",
+        "sentence_ids": [2, 5],
+    }
+
+
 def test_captions_load_words_from_transcript_clean(tmp_path: Path) -> None:
     context = _context(tmp_path)
     path = context.output / "transcript" / "transcript_clean.json"

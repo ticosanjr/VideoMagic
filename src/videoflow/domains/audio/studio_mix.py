@@ -147,7 +147,7 @@ def mix_and_master_track(
     voice_path: str,
     music_path: str | None = None,
     sfx_events: Sequence[dict[str, Any]] | None = None,
-    target_lufs: float = -15.5,
+    target_lufs: float = -16.0,
     output_name: str = "master.wav",
 ) -> dict[str, Any]:
     """Duck music under the voice, place SFX, and master with loudnorm."""
@@ -255,7 +255,7 @@ def build_mix_graph(
     *,
     has_music: bool,
     sfx_count: int,
-    target_lufs: float = -15.5,
+    target_lufs: float = -16.0,
     sfx_starts: Sequence[float] | None = None,
     sfx_gains: Sequence[float] | None = None,
 ) -> str:

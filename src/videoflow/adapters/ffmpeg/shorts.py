@@ -798,7 +798,7 @@ class ShortsMixin:
                     "copy",
                     "-af",
                     (
-                        "loudnorm=I=-15.5:TP=-2.0:LRA=9,"
+                        "loudnorm=I=-16.0:TP=-2.0:LRA=9,"
                         f"apad=whole_dur={padded_duration:.6f},"
                         f"atrim=0:{padded_duration:.6f}"
                     ),

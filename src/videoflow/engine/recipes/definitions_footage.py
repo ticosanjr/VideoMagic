@@ -470,7 +470,7 @@ _STEPS: list[dict[str, Any]] = [
         "id": "audio_master",
         "type": "audio.master",
         "needs": ["ingest"],
-        "params": {"target_lufs": -15.5},
+        "params": {"target_lufs": -16.0},
     },
     {
         "id": "audio_compose",
@@ -488,13 +488,13 @@ _STEPS: list[dict[str, Any]] = [
         "id": "audio_mix",
         "type": "audio.mix",
         "needs": ["audio_master", "audio_compose", "sfx_synthesize"],
-        "params": {"music_gain": 0.20, "duck_music": True, "target_lufs": -15.5},
+        "params": {"music_gain": 0.20, "duck_music": True, "target_lufs": -16.0},
     },
     {
         "id": "audio_qa",
         "type": "audio.qa",
         "needs": ["audio_mix"],
-        "params": {"target_lufs": -15.5},
+        "params": {"target_lufs": -16.0},
     },
     {
         "id": "export_video",

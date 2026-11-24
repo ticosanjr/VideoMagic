@@ -120,7 +120,7 @@ def _dead_air_limit_ms(state: Any) -> int:
                 continue
             if value > 0:
                 return value
-    return 700
+    return 550
 
 
 def cut_leak_seconds(metadata: Any) -> float:

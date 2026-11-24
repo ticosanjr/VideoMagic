@@ -132,7 +132,7 @@ def test_qa_dead_air_reads_the_pacing_profile() -> None:
         pipeline=PipelineState(metadata={"qa_dead_air_ms": 550}),
     )
     assert _dead_air_limit_ms(state) == 550
-    assert _dead_air_limit_ms(ProjectState()) == 700
+    assert _dead_air_limit_ms(ProjectState()) == 550
 
 
 def test_export_defaults_share_the_mix_audio_source() -> None:

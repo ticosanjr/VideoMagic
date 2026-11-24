@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-EVIDENCE = ROOT / "docs" / "qa-evidence" / "windows-nvidia-cert"
+EVIDENCE = ROOT / "docs" / "qa-evidence"
 DROPPED_ENV = {
     "PYTHONPATH",
     "PYTHONHOME",
@@ -248,6 +248,19 @@ def check_doctor(binary: Path, env: dict[str, str], timeout: float) -> dict[str,
     return payload
 
 
+def check_tray(binary: Path, env: dict[str, str], timeout: float) -> dict[str, Any]:
+    completed = run(binary, ["tray", "--check"], env=env, timeout=timeout, check=False)
+    try:
+        payload = json.loads(completed.stdout)
+    except ValueError as exc:
+        raise CertifyError(
+            f"tray --check did not return JSON: {completed.stderr[-800:]}"
+        ) from exc
+    if completed.returncode != 0 or not payload.get("available"):
+        raise CertifyError(f"tray backend is unavailable: {payload}")
+    return payload
+
+
 def check_server_and_ui(
     binary: Path,
     env: dict[str, str],
@@ -317,6 +330,10 @@ def recipe_payload(mode: str) -> dict[str, Any]:
     for step in steps:
         if step.get("type") == "audio.vad":
             step.setdefault("params", {})["min_silence_ms"] = 220
+        if step.get("type") == "transcribe":
+            step.setdefault("params", {}).update(
+                {"mode": "auto", "device": "cuda"}
+            )
         if step.get("type") == "speech.editorial_clean":
             step.setdefault("params", {}).update(
                 {"second_pass": True, "max_discard_ratio": 0.75}
@@ -442,6 +459,14 @@ def main(argv: list[str] | None = None) -> int:
         doctor = check_doctor(binary, env, args.timeout)
         report["version"] = str(doctor.get("version") or "")
         report["steps"].append({"name": "doctor", "status": "passed"})
+        tray = check_tray(binary, env, args.timeout)
+        report["steps"].append(
+            {
+                "name": "tray",
+                "status": "passed",
+                "detail": str(tray.get("backend") or tray.get("reason") or ""),
+            }
+        )
         server = check_server_and_ui(binary, env, home, args.timeout)
         report["steps"].append(
             {

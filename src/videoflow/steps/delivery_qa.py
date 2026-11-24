@@ -40,7 +40,7 @@ class PackageParams(BaseModel):
     targets: list[str] = Field(default_factory=list)
     dialect: str = Field(default="1.10", pattern="^(1\\.9|1\\.10)$")
     mp4_profile: str = "youtube_h264"
-    mp4_loudness_lufs: float | None = -16.5
+    mp4_loudness_lufs: float | None = -16.0
 
 
 @register_step

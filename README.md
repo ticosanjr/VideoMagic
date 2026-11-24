@@ -163,7 +163,7 @@ See [docs/manuals/portable.md](docs/manuals/portable.md).
 - `scripts/certify_windows_nvidia.py` drives the published Windows binary
   through doctor, port fallback, UI assets, cross-process curation, ASR,
   decupage, and preview/final exports, then writes evidence to
-  `docs/qa-evidence/windows-nvidia-cert/`.
+  `docs/qa-evidence/windows-nvidia-cert.json` and `.md`.
 
 ## Implemented
 

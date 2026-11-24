@@ -26,7 +26,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         duration_sec: float = 12.0,
         type: str = "music",
         music_path: str = "",
-        target_lufs: float = -15.5,
+        target_lufs: float = -16.0,
         output_name: str = "",
     ) -> dict[str, Any]:
         """TTS, voice cleanup, stems, music/Foley, or a mastered mix."""

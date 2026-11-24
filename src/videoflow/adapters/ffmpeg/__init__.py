@@ -30,6 +30,7 @@ from videoflow.adapters.ffmpeg.helpers import (
     _require_int,
     _seconds_to_samples,
     build_filter_complex_args,
+    ffmpeg_supports_filter_complex_script,
     parse_silence,
     probe_filter_script_flag,
 )
@@ -63,6 +64,7 @@ __all__ = [
     "_filter_script_args",
     "_first_stream",
     "build_filter_complex_args",
+    "ffmpeg_supports_filter_complex_script",
     "probe_filter_script_flag",
     "_frame_count",
     "_frame_rate",

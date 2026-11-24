@@ -12,4 +12,5 @@
   HTTP automatically.
 - Full physical certification on Windows/NVIDIA hardware requires running
   `scripts/certify_windows_nvidia.py --binary videoflow.exe --video footage.mp4`
-  on the target machine; the script writes evidence under `docs/qa-evidence/`.
+  on the target machine; the script writes
+  `docs/qa-evidence/windows-nvidia-cert.json` and `.md`.

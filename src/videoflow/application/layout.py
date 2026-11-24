@@ -76,8 +76,8 @@ def pack_project_layout(
             output=Path(record.output),
             audio_source="master",
             ass_path=resolve_subtitle_track(Path(record.output)),
-            loudness_lufs=-16.5,
-            true_peak_db=-1.0,
+            loudness_lufs=-16.0,
+            true_peak_db=-2.0,
             cfr=True,
             cache_dir=Path(record.output) / "render" / "segments",
         )

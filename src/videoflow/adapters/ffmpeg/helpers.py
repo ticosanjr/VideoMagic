@@ -104,6 +104,16 @@ def probe_filter_script_flag(ffmpeg_bin: str) -> str:
     )
 
 
+def ffmpeg_supports_filter_complex_script(ffmpeg_bin: str) -> bool:
+    """Whether this FFmpeg accepts a filter graph from a script file."""
+
+    try:
+        probe_filter_script_flag(ffmpeg_bin)
+    except FilterScriptUnsupportedError:
+        return False
+    return True
+
+
 def build_filter_complex_args(
     graph: str,
     script_path: Path,

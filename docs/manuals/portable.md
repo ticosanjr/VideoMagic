@@ -274,8 +274,8 @@ videoflow-data/
 
 - Override with `VIDEOWFLOW_HOME`.
 - The secret name is still `VIDEOWFLOW_LLM_API_KEY`.
-- A project's own `.videoflow/` directory is not used by `run`; `run` writes the
-  portable project layout shown above.
+- A project's own `.videoflow/` directory is not used by recipe runs; recipes
+  write the portable project layout shown above.
 
 ## 6. FFmpeg bundling and licensing
 

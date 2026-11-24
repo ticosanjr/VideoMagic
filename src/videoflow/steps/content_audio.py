@@ -31,7 +31,7 @@ class AudioMasterParams(BaseModel):
     denoise_db: int = Field(default=12, ge=0, le=40)
     noise_floor_db: int = Field(default=-30, ge=-80, le=0)
     loudnorm: bool = True
-    target_lufs: float = Field(default=-15.5, ge=-30.0, le=-5.0)
+    target_lufs: float = Field(default=-16.0, ge=-30.0, le=-5.0)
     true_peak_db: float = Field(default=-1.5, ge=-9.0, le=0.0)
     sample_rate: int = Field(default=48000, ge=8000, le=192000)
     platform: Literal["youtube", "tiktok", "reels", "shorts", "podcast"] = "youtube"
@@ -41,7 +41,7 @@ class AudioMasterParams(BaseModel):
 class AudioQaParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target_lufs: float = Field(default=-15.5, ge=-30.0, le=-5.0)
+    target_lufs: float = Field(default=-16.0, ge=-30.0, le=-5.0)
     tolerance_lu: float = Field(default=1.5, ge=0.0, le=10.0)
     max_true_peak_db: float = Field(default=-1.5, ge=-20.0, le=0.0)
 

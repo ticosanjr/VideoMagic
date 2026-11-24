@@ -505,7 +505,7 @@ _add_recipe(
             ],
         },
         "drift_offset_ms": {"type": "number", "default": 0.0},
-        "target_loudness_lufs": {"type": "number", "default": -15.5},
+        "target_loudness_lufs": {"type": "number", "default": -16.0},
         "true_peak_db": {"type": "number", "default": -1.5},
         "asset_dir": {"type": "string", "default": ""},
         "music_path": {"type": "string", "default": ""},

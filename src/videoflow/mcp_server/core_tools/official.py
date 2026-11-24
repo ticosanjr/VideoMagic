@@ -122,23 +122,31 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
 
     @register
     def vf_decupage(
-        action: Literal["plan", "run_full"] = "plan",
+        action: Literal["plan", "run_full", "discard_sentences"] = "plan",
         project_id: str = "",
         style_id: str = "",
         instructions: str = "",
+        sentence_ids: list[int] | None = None,
         pacing_profile: Literal["tight", "balanced", "relaxed"] = "tight",
         max_pause_ms: int | None = None,
         min_silence_ms: int | None = None,
         pad_before_ms: int | None = None,
         pad_after_ms: int | None = None,
         second_pass: bool = True,
+        confirm_no_semantic_discards: bool = False,
         wait: bool = True,
         timeout_sec: float = 1800.0,
     ) -> dict[str, Any]:
-        """[DOES] Plan a beat map or run the canonical safe decupage chain.
+        """[DOES] Plan a beat map, run the decupage chain, or discard sentences.
         [REQUIRES] ``project_id`` and, for run_full, an ingested project.
         [RETURNS] Beat-map plan or job with flagged long cuts and next action.
         """
+        if action == "discard_sentences":
+            return tools["vf_timeline"](
+                action="discard_sentences",
+                project_id=project_id,
+                sentence_ids=sentence_ids or [],
+            )
         if action == "plan":
             return tools["vf_beatmap_plan"](
                 project_id=project_id,
@@ -220,14 +228,17 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
         if isinstance(report, dict):
             candidates = report.get("semantic_candidates") or []
             if report.get("semantic_status") == "delegated" and candidates:
-                result["pending_semantic_review"] = True
-                result["semantic_candidates"] = candidates
-                result["_next_step"] = (
-                    "Analise os pares em semantic_candidates e chame "
-                    "vf_decupage(action='discard_sentences', sentence_ids=[...]) "
-                    "antes de exportar"
-                )
-                return result
+                if not confirm_no_semantic_discards:
+                    result["pending_semantic_review"] = True
+                    result["semantic_candidates"] = candidates
+                    result["_next_step"] = (
+                        "Analise os pares em semantic_candidates e chame "
+                        "vf_decupage(action='discard_sentences', sentence_ids=[...]) "
+                        "ou confirme com confirm_no_semantic_discards=True "
+                        "antes de exportar"
+                    )
+                    return result
+                result["semantic_discards_confirmed"] = True
         result["pacing_profile"] = pacing_profile
         result["pacing"] = dict(pacing)
         result["_next_step"] = (
