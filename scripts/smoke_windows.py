@@ -187,13 +187,13 @@ def http_json(url: str, *, timeout: float = 2.0) -> tuple[int, dict[str, object]
 def check_ui_assets(base: str, *, timeout: float) -> str:
     with urllib.request.urlopen(f"{base}/", timeout=timeout) as response:
         html = response.read().decode("utf-8", errors="replace")
-    if "_app/immutable" not in html and "<div id=" not in html:
-        raise SmokeError("GET / did not return the built UI")
+    if "<html" not in html.casefold() or "VideoFlow" not in html:
+        raise SmokeError(f"GET / did not return the built UI: {html[:300]!r}")
     import re
 
     match = re.search(r'(?:src|href)="([^"]+\.js[^"]*)"', html)
     if match is None:
-        raise SmokeError("the UI HTML has no JavaScript asset")
+        raise SmokeError(f"the UI HTML has no JavaScript asset: {html[:500]!r}")
     path = match.group(1)
     url = path if path.startswith("http") else base + path
     with urllib.request.urlopen(url, timeout=timeout) as response:
