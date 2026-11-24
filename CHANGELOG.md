@@ -1,5 +1,96 @@
 # Changelog
 
+## [4.6.0] - 2026-11-24
+
+Correções de causa-raiz nos 44 sintomas reportados: NVENC e PCM, duração do
+export, curadoria visual, decupagem agressiva, contratos MCP, paths/clones e
+inicialização 1-clique no Windows.
+
+### Fixed — render, áudio e overlays
+
+- Flags NVENC passam a vir exclusivamente de `probe_nvenc()`, sem `-spatial_aq`
+  hardcoded; `fullscreen` entra como âncora válida de overlay.
+- `domains/audio/pcm_io.py` é o leitor único de WAV 16/24/32-bit com decodificação
+  alinhada a frames; silêncio, alinhamento, análise não-fala e finalização de
+  áudio usam o mesmo leitor.
+- `audio.finalize` lê `loudnorm` de stdout ou stderr, expõe ducking/music gain em
+  dB e resolve `audio_source` de mix/final/master no render.
+
+### Fixed — export, NLE e QA
+
+- Render segmentado preserva a duração da timeline no fps de saída, sem
+  sobrescrever 60 fps por 30 fps.
+- `resolve_render_profile()` centraliza precedência de preview/draft/fps e
+  `draft_scale` chega ao `vf_export` e ao delivery bundle.
+- `qa_mode` aceita `none`/`off`, `review.json` é escrito em `needs_review` e os
+  nomes canônicos de NLE são resolvidos em `exports/` e na raiz do projeto.
+
+### Fixed — curadoria e mídia
+
+- Cards de curadoria resolvem e validam `local_path`, geram poster de vídeo,
+  preview MP3 leve para WAV 24-bit/pesado e expõem `media_url`/`poster_url`.
+- Streaming HTTP com MIME explícito e `Range`; `scene_id` e `local_path` são
+  preservados nas decisões.
+- UI renderiza cards de imagem, vídeo, áudio e estilo com retry inline.
+
+### Changed — decupagem
+
+- `vf_decupage(action="run_full")` executa
+  `ingest → audio.vad → transcribe → speech.asu → speech.editorial_clean →
+  retakes.cull → decupage.snap → edit.timeline`.
+- `edit.timeline` aceita `TimelineParams` de pacing, consome spans seguros do
+  snap, preserva overlays e exige `reset=True` para sobrescrever edição manual.
+- Perfil `tight` passa a `min_silence_ms=180`, `max_pause_ms=200`,
+  `pad_before_ms=55`, `pad_after_ms=80` e `qa_dead_air_ms=500`.
+- Limpeza remove palavras repetidas em janela de 1.5 s, fragmentos desconexos de
+  até 3 palavras e candidatos semânticos fracos.
+- Segundo passe e agrupamento de retakes distantes ativos por padrão com
+  `min_similarity=0.52` e `min_prefix_content_words=2`.
+- Beatmap preenche `keep_ranges`/`remove_ranges` e usa `time_basis="source"`
+  quando há ranges.
+
+### Fixed — contratos MCP, paths e clones
+
+- Toda ação desconhecida em `vf_project`, `vf_timeline`, `vf_ingest`, `vf_media`,
+  `vf_audio`, `vf_vision`, `vf_assets`, `vf_font`, `vf_job` e `vf_exec` retorna
+  `ok: False`, `error_code: "unknown_action"` e `valid_actions`.
+- `vf_audio(action="music")` aceita `music_path`; `vf_media(action="search")` é
+  alias de busca stock/keyless; `vf_ingest(action="probe")` retorna metadados do
+  `ffprobe`.
+- Instalação/remoção de modelos invalida o cache de capability e o próximo
+  `transcribe` enxerga o modelo sem restart.
+- Workspace e `project_dir` nunca produzem `projects/projects/<slug>`.
+- Clones criam `demo-copy`, `demo-copy-2`, … automaticamente, hardlinkam `work`
+  e `assets`, reescrevem caminhos internos e não quebram o projeto original.
+- Vídeo keyless cai em Wikimedia Commons (`filetype:video`) e Internet Archive
+  (`mediatype:movies`) sem Pexels/Pixabay; SFX sem Freesound/VF_SFX_DIR usa o
+  sintetizador procedural e grava WAV real em `assets/sfx/`.
+
+### Added — inicialização 1-clique
+
+- `videoflow`/`videoflow.exe` sem subcomando abre o tray com navegador ou sobe
+  `serve` headless quando não há display.
+- `bootstrap_runtime` baixa Silero VAD e Faster-Whisper small em uma única thread
+  daemon, registra progresso em `jobs` com `origin="bootstrap"` e falha offline
+  sem derrubar UI/MCP.
+- `--no-auto-download` (e `VIDEOWFLOW_NO_AUTO_DOWNLOAD=1`) desativam downloads.
+- `serve` e o tray escolhem a próxima porta livre com `pick_available_port(...,
+  span=100)`, gravam `active_server.json` com a porta real e nunca abortam por
+  porta ocupada.
+- `videoflow restart` inicia processo destacado, encerra o PID antigo com
+  timeout rígido de 5 s e retorna após `/health` em até 15 s.
+- Spec PyInstaller inclui `pystray._win32`, `PIL.Image`, `PIL.ImageDraw`,
+  `bootstrap_runtime` e `pcm_io`; o smoke Windows ocupa a porta, valida o
+  fallback, `/`, `/api/v1/curation/boards` e o download desativado.
+
+### Validation
+
+- `ruff check src packages tests scripts`: limpo.
+- `pytest -q`: 3092 passed, 1 skipped, 1 xfailed; cobertura 96,79%.
+- `pytest -m media`: 29 passed, 2 skipped.
+- Fase P2-1: 64 passed.
+- UI: `svelte-check` 0 erros/0 warnings, 55 testes, build concluído.
+
 ## [4.5.0] - 2026-11-24
 
 Windows 11 nativo, decupagem agressiva, curadoria cross-process, preview

@@ -1,6 +1,6 @@
 [project]
 name = "videoflow"
-version = "4.5.0"
+version = "4.6.0"
 description = "Local, non-destructive video pre-edit pipeline controlled through MCP."
 readme = "README.md"
 requires-python = ">=3.11"
