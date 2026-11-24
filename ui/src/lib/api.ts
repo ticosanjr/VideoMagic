@@ -1123,6 +1123,46 @@ export async function listStyles(): Promise<StyleSummary[]> {
   return response.styles ?? [];
 }
 
+export interface CatalogBundleEntry {
+  id: string;
+  markdown_content: string;
+}
+
+export interface CatalogBundle {
+  schema_version: number;
+  exported_at: string;
+  styles: CatalogBundleEntry[];
+  workflows: CatalogBundleEntry[];
+}
+
+export interface CatalogImportResult {
+  ok: boolean;
+  imported_styles: number;
+  skipped_styles: number;
+  imported_workflows: number;
+  skipped_workflows: number;
+  synced: boolean;
+}
+
+export async function exportCatalogBundle(): Promise<CatalogBundle> {
+  return request<CatalogBundle>("/api/v1/system/opencode/bundle/export");
+}
+
+export async function importCatalogBundle(
+  bundle: CatalogBundle,
+  overwrite = true,
+  workspaceDir = ""
+): Promise<CatalogImportResult> {
+  return request<CatalogImportResult>("/api/v1/system/opencode/bundle/import", {
+    method: "POST",
+    body: JSON.stringify({
+      bundle,
+      overwrite,
+      workspace_dir: workspaceDir
+    })
+  });
+}
+
 export interface WorkflowSummary {
   workflow_id: string;
   name: string;

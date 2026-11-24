@@ -3,11 +3,15 @@
   import {
     deleteStyle,
     duplicateStyle,
+    exportCatalogBundle,
     getStyle,
+    importCatalogBundle,
     listFormats,
     listStyles,
+    listWorkflows,
     restoreStyle,
     saveStyleMarkdown,
+    type CatalogBundle,
     type OutputFormat,
     type StyleSummary
   } from "$lib/api";
@@ -23,14 +27,70 @@
   let busy = $state(false);
   let error = $state("");
   let notice = $state("");
+  let workflowCount = $state(0);
+  let overwrite = $state(true);
+  let fileInput = $state<HTMLInputElement | null>(null);
 
   async function load() {
     try {
-      styles = await listStyles();
-      formats = await listFormats();
+      const [styleList, workflows, formatList] = await Promise.all([
+        listStyles(),
+        listWorkflows(),
+        listFormats()
+      ]);
+      styles = styleList;
+      workflowCount = workflows.length;
+      formats = formatList;
       if (!selected && styles.length) await open(styles[0].style_id);
     } catch (reason) {
       error = reason instanceof Error ? reason.message : String(reason);
+    }
+  }
+
+  function feedback(reason: unknown): string {
+    return reason instanceof Error ? reason.message : String(reason);
+  }
+
+  async function exportAll() {
+    busy = true;
+    error = "";
+    try {
+      const bundle = await exportCatalogBundle();
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], {
+        type: "application/json"
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "videoflow-styles-workflows.json";
+      link.click();
+      URL.revokeObjectURL(url);
+      notice = `Exported ${bundle.styles.length} styles and ${bundle.workflows.length} workflows.`;
+    } catch (reason) {
+      error = feedback(reason);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function importAll(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    busy = true;
+    error = "";
+    try {
+      const text = (await file.text()).replace(/^\uFEFF/, "");
+      const bundle = JSON.parse(text) as CatalogBundle;
+      const result = await importCatalogBundle(bundle, overwrite, "");
+      const skipped = result.skipped_styles + result.skipped_workflows;
+      notice = `Imported ${result.imported_styles} styles and ${result.imported_workflows} workflows (${skipped} skipped).`;
+      input.value = "";
+      await load();
+    } catch (reason) {
+      error = feedback(reason);
+    } finally {
+      busy = false;
     }
   }
 
@@ -132,6 +192,16 @@
     <p class="vf-label text-sky-300/80">Setup · Styles</p>
     <h2 class="mt-1 text-[length:var(--vf-text-xl)] font-semibold text-white">Style catalog</h2>
     <p class="mt-1 text-[length:var(--vf-text-xs)] text-neutral-400">Edit the Markdown style, duplicate it, or delete custom styles. Presets and MCP agents read the same catalog.</p>
+    <p class="mt-2 text-[length:var(--vf-text-xs)] text-neutral-500">{styles.length} styles · {workflowCount} workflows</p>
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+      <button type="button" disabled={busy} onclick={() => void exportAll()} class="rounded-lg border border-sky-400/25 bg-sky-500/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-sky-100 disabled:opacity-40">Export all (JSON)</button>
+      <button type="button" disabled={busy} onclick={() => fileInput?.click()} class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-200 disabled:opacity-40">Import all (JSON)</button>
+      <input bind:this={fileInput} type="file" accept=".json,application/json" class="hidden" onchange={importAll} />
+      <label class="flex items-center gap-2 text-[length:var(--vf-text-xs)] text-neutral-400">
+        <input type="checkbox" bind:checked={overwrite} />
+        Overwrite existing
+      </label>
+    </div>
   </div>
   {#if error}<p class="rounded-lg border border-rose-400/20 bg-rose-950/30 px-3 py-2 text-[length:var(--vf-text-xs)] text-rose-200">{error}</p>{/if}
   {#if notice}<p class="rounded-lg border border-emerald-400/20 bg-emerald-950/30 px-3 py-2 text-[length:var(--vf-text-xs)] text-emerald-200">{notice}</p>{/if}

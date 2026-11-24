@@ -6,9 +6,15 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from videoflow.application import workflow_service
+from videoflow.application.catalog_bundle import (
+    InvalidCatalogBundleError,
+    export_catalog_bundle,
+    import_catalog_bundle,
+)
 from videoflow.application.storage import atomic_write_text
 from videoflow.bootstrap import templates_dir
 from videoflow.domain.errors import VideoFlowError
@@ -41,6 +47,12 @@ class WorkflowDuplicateRequest(BaseModel):
 class WorkflowSyncRequest(BaseModel):
     workspace_dir: str = Field(min_length=1)
     overwrite: bool = False
+
+
+class CatalogBundleImportRequest(BaseModel):
+    bundle: dict[str, Any]
+    overwrite: bool = True
+    workspace_dir: str = ""
 
 
 class AgentsFileRequest(BaseModel):
@@ -131,6 +143,33 @@ def register_workflow_routes(app: FastAPI) -> None:
             )
         except VideoFlowError as exc:
             return exc.to_dict()
+
+    @app.get("/api/v1/system/opencode/bundle/export")
+    def bundle_export(download: bool = False) -> Any:
+        payload = export_catalog_bundle().model_dump(mode="json")
+        if not download:
+            return payload
+        return JSONResponse(
+            content=payload,
+            headers={
+                "Content-Disposition": (
+                    'attachment; filename="videoflow-styles-workflows.json"'
+                )
+            },
+        )
+
+    @app.post("/api/v1/system/opencode/bundle/import")
+    def bundle_import(request: CatalogBundleImportRequest) -> Any:
+        try:
+            return import_catalog_bundle(
+                request.bundle,
+                overwrite=request.overwrite,
+                workspace_dir=_workspace(request.workspace_dir) or "",
+            )
+        except InvalidCatalogBundleError as exc:
+            return JSONResponse(status_code=422, content=exc.to_dict())
+        except VideoFlowError as exc:
+            return JSONResponse(status_code=422, content=exc.to_dict())
 
     @app.get("/api/v1/system/opencode/agents")
     def agents_get(workspace_dir: str) -> dict[str, object]:
