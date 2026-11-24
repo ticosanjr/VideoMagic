@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from videoflow.adapters.ffmpeg import FILTER_COMPLEX_SCRIPT_FLAG
 from videoflow.application.short_composition.plan import resolve_draft
 from videoflow.application.short_composition.planner import deterministic_draft
 from videoflow.application.short_composition.render import (
@@ -153,7 +154,7 @@ def test_commands_build_tokens_and_final_audio() -> None:
     assert len(commands.segments) == 3
     assert commands.concat_names[0] == "seg_0001.mp4"
     first = commands.segments[0]
-    assert "-filter_complex_script" in first["argv"]
+    assert FILTER_COMPLEX_SCRIPT_FLAG in first["argv"]
     assert "__SCRIPT_1__" in first["argv"]
     assert commands.final_filter.count("ass=") == 1
     assert "fontsdir='/home/u/.videoflow/assets/fonts'" in commands.final_filter
@@ -173,8 +174,8 @@ class _FakeRunner:
 
     def __call__(self, argv: list[str], cwd: Path) -> None:
         self.calls.append(list(argv))
-        if "-filter_complex_script" in argv:
-            script = Path(argv[argv.index("-filter_complex_script") + 1])
+        if FILTER_COMPLEX_SCRIPT_FLAG in argv:
+            script = Path(argv[argv.index(FILTER_COMPLEX_SCRIPT_FLAG) + 1])
             self.scripts[script] = script.read_text(encoding="utf-8")
         output = Path(argv[-1])
         if not output.is_absolute():

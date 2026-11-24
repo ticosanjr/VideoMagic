@@ -423,7 +423,7 @@ def test_mp4_overlay_z_order(tmp_path: Path, monkeypatch) -> None:
             calls.append(list(args))
             Path(args[-1]).write_bytes(b"mp4")
 
-    monkeypatch.setattr(mp4, "_duration_gate_enabled", lambda adapter: False)
+    monkeypatch.setattr(mp4, "_duration_gate_enabled", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(
         "videoflow.application.overlay_geometry.asset_dimensions",
         lambda *args, **kwargs: (100, 50),

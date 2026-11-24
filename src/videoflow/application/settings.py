@@ -460,7 +460,7 @@ def load_settings() -> AppSettings:
         settings = AppSettings()
     else:
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
             settings = AppSettings.model_validate(migrate_settings(payload))
         except (OSError, ValueError, TypeError) as exc:
             _set_error(f"settings.json is invalid; using defaults: {exc}")

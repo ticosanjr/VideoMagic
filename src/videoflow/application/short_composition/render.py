@@ -11,7 +11,11 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from videoflow.adapters.ffmpeg.helpers import escape_ffmpeg_filter_path
+from videoflow.adapters.ffmpeg.helpers import (
+    FILTER_COMPLEX_SCRIPT_FLAG,
+    escape_ffmpeg_filter_path,
+    probe_filter_script_flag,
+)
 from videoflow.application.short_composition.geometry import (
     CANVAS_HEIGHT,
     CANVAS_WIDTH,
@@ -523,7 +527,7 @@ def build_commands(
             ]
         argv.extend(
             [
-                "-filter_complex_script",
+                FILTER_COMPLEX_SCRIPT_FLAG,
                 f"__SCRIPT_{index}__",
                 "-map",
                 "[v]",
@@ -650,7 +654,7 @@ def build_commands(
         ]
     final_argv.extend(
         [
-            "-filter_complex_script",
+            FILTER_COMPLEX_SCRIPT_FLAG,
             "__SCRIPT_FINAL__",
             "-map",
             "[v]",
@@ -717,6 +721,9 @@ def execute_commands(
     work.mkdir(parents=True, exist_ok=True)
     tokens = commands.input_tokens()
     run = runner or _run
+    filter_script_flag = (
+        FILTER_COMPLEX_SCRIPT_FLAG if runner is not None else probe_filter_script_flag(ffmpeg)
+    )
     cache_root = Path(segment_cache).expanduser() if segment_cache is not None else None
     if cache_root is not None:
         cache_root.mkdir(parents=True, exist_ok=True)
@@ -752,9 +759,9 @@ def execute_commands(
         argv = [str(item) for item in segment["argv"]]  # type: ignore[union-attr]
         argv[0] = ffmpeg
         argv = [
-            _replace_tokens(item, tokens).replace(
-                f"__SCRIPT_{index}__", str(script_path)
-            )
+            _replace_tokens(item, tokens)
+            .replace(FILTER_COMPLEX_SCRIPT_FLAG, filter_script_flag)
+            .replace(f"__SCRIPT_{index}__", str(script_path))
             for item in argv
         ]
         run(argv, work)
@@ -808,9 +815,10 @@ def execute_commands(
     final_argv = [str(item) for item in commands.final_argv]
     final_argv[0] = ffmpeg
     final_argv = [
-        _replace_tokens(item, tokens).replace("__CONCAT__", str(concat_path)).replace(
-            "__SCRIPT_FINAL__", str(final_script)
-        )
+        _replace_tokens(item, tokens)
+        .replace(FILTER_COMPLEX_SCRIPT_FLAG, filter_script_flag)
+        .replace("__CONCAT__", str(concat_path))
+        .replace("__SCRIPT_FINAL__", str(final_script))
         for item in final_argv
     ]
     if check_cancel is not None:

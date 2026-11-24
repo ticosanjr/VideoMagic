@@ -96,13 +96,13 @@ class RunMixin:
     def _capture(
         self, args: list[str], *, timeout: int = DEFAULT_TIMEOUT_SECONDS
     ) -> tuple[str, str]:
-        run_args, script_dir = _filter_script_args(args)
+        binary = _pkg().find_binary(args[0])
+        if binary is None:
+            raise IngestError(
+                f"{args[0]} is not available. Place it next to the executable."
+            )
+        run_args, script_dir = _filter_script_args(args, ffmpeg_bin=binary)
         try:
-            binary = _pkg().find_binary(run_args[0])
-            if binary is None:
-                raise IngestError(
-                    f"{run_args[0]} is not available. Place it next to the executable."
-                )
             if self.cancel_event is not None and self.cancel_event.is_set():
                 raise JobCancelledError("Cancelled")
             self._emit("debug", "$ " + " ".join([Path(binary).name, *run_args[1:]]))

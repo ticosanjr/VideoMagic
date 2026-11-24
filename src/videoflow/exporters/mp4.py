@@ -35,6 +35,37 @@ from videoflow.exporters.common import (
 )
 
 
+class SubtitleBurnError(ExportError):
+    """The caller requested burned captions but the ASS track is unusable."""
+
+    code = "subtitle_burn_failed"
+
+
+def _resolve_burn_subtitles(
+    ass_path: Path | None,
+    burn_subtitles: bool | None,
+) -> Path | None:
+    """Validate and normalise the ASS burn request.
+
+    ``None`` keeps the historical behaviour: a provided ``ass_path`` is burned
+    and an absent one is not. An explicit ``True`` is fail-closed so a missing
+    or empty file can never produce a "successful" export without captions.
+    """
+
+    if burn_subtitles is None:
+        burn_subtitles = ass_path is not None
+    if not burn_subtitles:
+        return None
+    if ass_path is None:
+        raise SubtitleBurnError("burn_subtitles requested without an ASS subtitle track")
+    path = Path(ass_path).expanduser()
+    if not path.is_file():
+        raise SubtitleBurnError(f"ASS subtitle track is missing: {path}")
+    if path.stat().st_size <= 0:
+        raise SubtitleBurnError(f"ASS subtitle track is empty: {path}")
+    return path
+
+
 def _zoom_expression(keyframes: Sequence[Any], span: int) -> str:
     """Piecewise-linear zoom expression for zoompan's ``on`` counter."""
 
@@ -344,8 +375,10 @@ def timeline_render_frames(state: ProjectState) -> int:
     return max(1, total)
 
 
-def _validate_delivery(path: Path, adapter: Any | None = None) -> None:
-    if not _duration_gate_enabled(adapter):
+def _validate_delivery(
+    path: Path, adapter: Any | None = None, *, qa_mode: str = "fast"
+) -> None:
+    if not _duration_gate_enabled(adapter, qa_mode):
         return
     from videoflow.adapters.ffmpeg import FFmpegAdapter
 
@@ -366,9 +399,11 @@ def _validate_delivery(path: Path, adapter: Any | None = None) -> None:
         )
 
 
-def _duration_gate_enabled(adapter: Any | None) -> bool:
+def _duration_gate_enabled(adapter: Any | None, qa_mode: str = "fast") -> bool:
     """Fakes used in unit tests do not write decodable MP4 files."""
 
+    if str(qa_mode or "fast").strip().lower() == "off":
+        return False
     return adapter is None or isinstance(adapter, FFmpegAdapter)
 
 
@@ -778,11 +813,14 @@ def _export_mp4_segmented(
     audio_filters: Sequence[str] | None = None,
     video_filters: Sequence[str] | None = None,
     ass_path: Path | None = None,
+    burn_subtitles: bool | None = None,
+    qa_mode: str = "fast",
     progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,
     cache_dir: Path | None = None,
     fps: int | None = None,
 ) -> Path:
+    ass_path = _resolve_burn_subtitles(ass_path, burn_subtitles)
     media, video_map, audio_map = require_timeline(state)
     video = sorted(state.video_segments, key=lambda item: item.timeline_in_frame)
     if len(video) != len(audio_map) or len(video_map) != len(video):
@@ -920,7 +958,7 @@ def _export_mp4_segmented(
         )
         report = (
             _integrity_report(state, combined, fps_override=fps)
-            if _duration_gate_enabled(adapter)
+            if _duration_gate_enabled(adapter, qa_mode)
             else None
         )
         if report is not None and not report.ok:
@@ -960,8 +998,12 @@ def _export_mp4_segmented(
                     str(repaired),
                 ]
             )
-            report = _integrity_report(state, repaired, fps_override=fps)
-            if not report.ok:
+            report = (
+                _integrity_report(state, repaired, fps_override=fps)
+                if _duration_gate_enabled(adapter, qa_mode)
+                else None
+            )
+            if report is not None and not report.ok:
                 raise ExportError(
                     f"{destination.name} failed the duration gate after CFR repair: {report.reason}"
                 )
@@ -970,7 +1012,7 @@ def _export_mp4_segmented(
         if not has_video_finishing:
             shutil.move(str(combined), str(destination))
             _write_export_layout(state, destination)
-            _validate_delivery(destination, adapter)
+            _validate_delivery(destination, adapter, qa_mode=qa_mode)
             if progress is not None:
                 progress(100)
             return destination
@@ -1030,6 +1072,7 @@ def _export_mp4_segmented(
             audio_filters=None,
             video_filters=video_filters,
             ass_path=ass_path,
+            qa_mode=qa_mode,
             progress=wrapped,
             scale_height=None,
             fps=fps,
@@ -1056,6 +1099,8 @@ def export_mp4(
     audio_filters: Sequence[str] | None = None,
     video_filters: Sequence[str] | None = None,
     ass_path: Path | None = None,
+    burn_subtitles: bool | None = None,
+    qa_mode: str = "fast",
     progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,
     cache_dir: Path | None = None,
@@ -1063,6 +1108,7 @@ def export_mp4(
 ) -> Path:
     """Render the validated main timeline to an H.264/AAC MP4 atomically."""
 
+    ass_path = _resolve_burn_subtitles(ass_path, burn_subtitles)
     media = state.media_info
     if media is None:
         raise ExportError("Project has no media")
@@ -1088,6 +1134,7 @@ def export_mp4(
             audio_filters=audio_filters,
             video_filters=video_filters,
             ass_path=ass_path,
+            qa_mode=qa_mode,
             progress=progress,
             scale_height=scale_height,
             cache_dir=cache_dir,
@@ -1110,13 +1157,14 @@ def export_mp4(
             audio_filters=audio_filters,
             video_filters=video_filters,
             ass_path=ass_path,
+            qa_mode=qa_mode,
             progress=progress,
             scale_height=scale_height,
             fps=fps,
         )
         report = (
             _integrity_report(state, temporary, fps_override=fps)
-            if _duration_gate_enabled(adapter)
+            if _duration_gate_enabled(adapter, qa_mode)
             else None
         )
         if report is not None and not report.ok:
@@ -1136,13 +1184,14 @@ def export_mp4(
                 audio_filters=audio_filters,
                 video_filters=video_filters,
                 ass_path=ass_path,
+                qa_mode=qa_mode,
                 progress=progress,
                 scale_height=scale_height,
                 fps=fps,
             )
             report = (
                 _integrity_report(state, temporary, fps_override=fps)
-                if _duration_gate_enabled(adapter)
+                if _duration_gate_enabled(adapter, qa_mode)
                 else None
             )
         if report is not None and not report.ok:
@@ -1152,7 +1201,7 @@ def export_mp4(
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
-    _validate_delivery(destination, adapter)
+    _validate_delivery(destination, adapter, qa_mode=qa_mode)
     return destination
 
 
@@ -1172,11 +1221,15 @@ def _render_classic_mp4(
     audio_filters: Sequence[str] | None = None,
     video_filters: Sequence[str] | None = None,
     ass_path: Path | None = None,
+    burn_subtitles: bool | None = None,
+    qa_mode: str = "fast",
     progress: Callable[[int], None] | None = None,
     scale_height: int | None = None,
     fps: int | None = None,
 ) -> Path:
     """Render the classic single-pass graph to ``output_path``."""
+
+    ass_path = _resolve_burn_subtitles(ass_path, burn_subtitles)
 
     media = state.media_info
     if media is None:
@@ -1334,5 +1387,5 @@ def _render_classic_mp4(
         renderer.render(command)
     if not destination.is_file():
         raise ExportError(f"FFmpeg did not write {destination.name}")
-    _validate_delivery(destination, adapter)
+    _validate_delivery(destination, adapter, qa_mode=qa_mode)
     return destination

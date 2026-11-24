@@ -4,6 +4,7 @@
 
 
 import contextlib
+import functools
 import hashlib
 import json
 import os
@@ -22,7 +23,7 @@ from typing import Any
 from uuid import uuid4
 
 from videoflow.application.music import music_filter
-from videoflow.domain.errors import IngestError, JobCancelledError
+from videoflow.domain.errors import IngestError, JobCancelledError, VideoFlowError
 from videoflow.domain.state import MediaInfo
 from videoflow.domain.timebase import Rounding, Timebase
 from videoflow.runtime import find_binary
@@ -36,8 +37,94 @@ _SILENCE_END = re.compile(r"silence_end:\s*([0-9.]+)")
 
 
 
-def _filter_script_args(args: list[str]) -> tuple[list[str], Path | None]:
-    """Move a large filter graph to ``-filter_complex_script``.
+FILTER_COMPLEX_SCRIPT_FLAG = "-filter_complex_script"
+
+
+class FilterScriptUnsupportedError(VideoFlowError):
+    """The FFmpeg build accepts neither filter-script spelling."""
+
+    code = "ffmpeg_unsupported_filter_script"
+
+
+def _supports_filter_script(ffmpeg_bin: str, flag: str) -> bool:
+    """Prove one filter-script flag with a tiny real encode."""
+
+    graph = "[0:v]null[out]"
+    with tempfile.TemporaryDirectory(prefix="vf-filter-probe-") as raw:
+        script = Path(raw) / "graph.txt"
+        script.write_text(graph, encoding="utf-8")
+        try:
+            completed = subprocess.run(
+                [
+                    ffmpeg_bin,
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=c=black:s=16x16:d=0.1",
+                    flag,
+                    str(script),
+                    "-map",
+                    "[out]",
+                    "-frames:v",
+                    "1",
+                    "-f",
+                    "null",
+                    "-",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+    return completed.returncode == 0
+
+
+@functools.lru_cache(maxsize=64)
+def probe_filter_script_flag(ffmpeg_bin: str) -> str:
+    """Return the filter-script flag supported by this FFmpeg build.
+
+    FFmpeg 7.1/8/9 removed ``-filter_complex_script`` in favour of the generic
+    ``-/filter_complex`` file form. FFmpeg 6 and early 7.x still need the old
+    spelling. The probe runs a real one-frame encode so a build that only lists
+    the option but cannot use it is rejected too.
+    """
+
+    binary = str(ffmpeg_bin or "ffmpeg")
+    for flag in ("-/filter_complex", FILTER_COMPLEX_SCRIPT_FLAG):
+        if _supports_filter_script(binary, flag):
+            return flag
+    raise FilterScriptUnsupportedError(
+        "FFmpeg supports neither '-/filter_complex' nor "
+        "'-filter_complex_script'; update the bundled FFmpeg."
+    )
+
+
+def build_filter_complex_args(
+    graph: str,
+    script_path: Path,
+    *,
+    ffmpeg_bin: str,
+    inline_limit: int = 6000,
+) -> list[str]:
+    """Return safe filter_complex arguments for FFmpeg 6/7/8/9."""
+
+    if len(graph) <= inline_limit:
+        return ["-filter_complex", graph]
+    target = Path(script_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(graph, encoding="utf-8")
+    return [probe_filter_script_flag(ffmpeg_bin), str(target)]
+
+
+def _filter_script_args(
+    args: list[str], *, ffmpeg_bin: str = ""
+) -> tuple[list[str], Path | None]:
+    """Move a large filter graph to the FFmpeg version's script flag.
 
     Linux ``ARG_MAX`` is easy to exceed with a thousand-clip graph. Keeping the
     graph in a temporary file also makes FFmpeg error messages readable.
@@ -54,13 +141,17 @@ def _filter_script_args(args: list[str]) -> tuple[list[str], Path | None]:
         return args, None
     directory = Path(tempfile.mkdtemp(prefix="vf-filter-"))
     path = directory / "graph.txt"
-    path.write_text(graph, encoding="utf-8")
-    updated = [
-        *args[:index],
-        "-filter_complex_script",
-        str(path),
-        *args[index + 2 :],
-    ]
+    try:
+        replacement = build_filter_complex_args(
+            graph,
+            path,
+            ffmpeg_bin=ffmpeg_bin or args[0],
+            inline_limit=4096,
+        )
+    except BaseException:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+    updated = [*args[:index], *replacement, *args[index + 2 :]]
     return updated, directory
 
 

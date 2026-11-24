@@ -430,13 +430,15 @@ def test_export_mp4_applies_audio_color_and_title_filters(tmp_path: Path) -> Non
     state = state_with_two_clips()
     assert state.media_info is not None
     state.media_info = state.media_info.model_copy(update={"source_path": str(source)})
+    ass = tmp_path / "titles.ass"
+    ass.write_text("[Script Info]\n", encoding="utf-8")
     destination = export_mp4(
         state,
         tmp_path / "render.mp4",
         adapter=FakeAdapter(),
         audio_filters=["loudnorm=I=-16:TP=-1.5:LRA=11"],
         video_filters=["eq=contrast=1.1"],
-        ass_path=tmp_path / "titles.ass",
+        ass_path=ass,
     )
     assert destination.is_file()
     graph = captured[0][captured[0].index("-filter_complex") + 1]

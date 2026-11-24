@@ -159,6 +159,10 @@ def _check_expected(report: MediaReport, expected: ExpectedMedia) -> None:
         tolerance = 1.0 / 30.0 + 1e-6
         if expected.fps_num and expected.fps_den:
             tolerance = expected.fps_den / expected.fps_num + 1e-6
+        if audio:
+            # AAC priming/padding is 1024-2048 samples; at 60 fps that is
+            # larger than one video frame and must not fail the duration gate.
+            tolerance = max(tolerance, 0.045)
         if abs(float(format_sec) - float(expected.duration_sec)) > tolerance:
             _add_error(
                 report,

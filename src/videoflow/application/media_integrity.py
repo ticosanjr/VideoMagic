@@ -144,6 +144,7 @@ def validate_integrity(
     expected = max(0.0, float(expected_sec))
     base_tolerance = (1.0 / fps) if fps > 0 else 0.001
     frame_tolerance = max(base_tolerance, base_tolerance * max(1, int(tolerance_frames)))
+    audio_tolerance = max(frame_tolerance, 0.045)
     format_sec = _seconds((payload.get("format") or {}).get("duration"))
     video = _first_stream(payload, "video")
     audio = _first_stream(payload, "audio")
@@ -160,7 +161,8 @@ def validate_integrity(
         value = video_sec if name == "video" else audio_sec
         if value is None:
             continue
-        passed = abs(value - expected) <= frame_tolerance + 1e-6
+        tolerance = audio_tolerance if name == "audio" else frame_tolerance
+        passed = abs(value - expected) <= tolerance + 1e-6
         criteria[f"{name}_duration"] = passed
         if not passed:
             reasons.append(f"{name} duration drift {value - expected:+.6f}s > 1 frame")

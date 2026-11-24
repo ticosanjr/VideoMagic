@@ -559,7 +559,7 @@ def test_export_mp4_classic_duration_fallback(tmp_path: Path, monkeypatch) -> No
     ok = type("Report", (), {"ok": True, "reason": ""})()
     bad = type("Report", (), {"ok": False, "reason": "drift"})()
     reports = iter([bad, ok])
-    monkeypatch.setattr(mp4, "_duration_gate_enabled", lambda adapter: True)
+    monkeypatch.setattr(mp4, "_duration_gate_enabled", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(mp4, "_integrity_report", lambda *args, **kwargs: next(reports))
     mp4.export_mp4(state, tmp_path / "out.mp4", adapter=FakeRenderer())
     assert len(calls) == 2

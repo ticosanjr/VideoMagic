@@ -94,8 +94,15 @@ def test_rounded_mask_is_cached(tmp_path: Path, monkeypatch) -> None:
     assert first.parent == mask_root()
 
 
-def test_filter_script_avoids_arg_max() -> None:
+def test_filter_script_avoids_arg_max(monkeypatch) -> None:
     from videoflow.adapters.ffmpeg import _filter_script_args
+    from videoflow.adapters.ffmpeg import helpers as ffmpeg_helpers
+
+    monkeypatch.setattr(
+        ffmpeg_helpers,
+        "probe_filter_script_flag",
+        lambda _binary: "-filter_complex_script",
+    )
 
     small, small_dir = _filter_script_args(["ffmpeg", "-filter_complex", "null"])
     assert small_dir is None and "null" in small
@@ -393,7 +400,7 @@ def test_segmented_repair_path(tmp_path: Path, monkeypatch) -> None:
     bad = type("Report", (), {"ok": False, "reason": "drift"})()
     good = type("Report", (), {"ok": True, "reason": ""})()
     reports = iter([bad, good])
-    monkeypatch.setattr(mp4, "_duration_gate_enabled", lambda adapter: True)
+    monkeypatch.setattr(mp4, "_duration_gate_enabled", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(mp4, "_integrity_report", lambda *args, **kwargs: next(reports))
     result = mp4.export_mp4(state, tmp_path / "repaired.mp4", adapter=FakeRenderer())
     assert result.is_file()
