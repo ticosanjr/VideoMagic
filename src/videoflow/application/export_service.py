@@ -123,6 +123,10 @@ def export_timeline(
         elif target == "edl":
             artifacts[target] = export_edl(state, destination)
         else:
+            project_root = (
+                directory.parent if directory.name == "exports" else directory
+            )
+            final_mix = project_root / "audio" / "final_mix.wav"
             artifacts[target] = export_mp4(
                 state,
                 destination,
@@ -132,6 +136,7 @@ def export_timeline(
                 loudness_lufs=mp4_loudness_lufs,
                 true_peak_db=mp4_true_peak_db,
                 cfr=mp4_cfr,
+                audio_master=final_mix if final_mix.is_file() else None,
                 progress=((lambda value, name=target: progress(name, value)) if progress else None),
                 cache_dir=cache_dir,
             )

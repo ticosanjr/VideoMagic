@@ -241,3 +241,16 @@ def test_no_local_gpu_falls_back_to_cpu(monkeypatch) -> None:
     assert plan.device == "cpu"
     assert plan.compute_type == "int8"
     assert plan.compute_type == "int8"
+
+
+def test_explicit_model_size_selects_that_checkpoint() -> None:
+    settings = _settings(quality_profile="balanced")
+    options = _options(model_size="medium")
+    options.model_fields_set = {"model_size"}
+    plan = resolve_asr_plan(
+        settings,
+        options,
+        installed={"faster-whisper-medium": True},
+    )
+    assert plan.model_id == "faster-whisper-medium"
+    assert plan.model_size == "medium"

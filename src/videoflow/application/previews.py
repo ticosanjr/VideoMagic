@@ -52,11 +52,15 @@ def preview_key(job: Any) -> str:
         state_bytes = b""
         fallback = f"{artifact.resolve()}|{stat.st_size}|{stat.st_mtime_ns}"
     ass_path = job.output / "titles.ass"
+    final_mix = job.output / "audio" / "final_mix.wav"
     payload = {
         "version": PREVIEW_CACHE_VERSION,
         "audio_filters": audio_filters(job),
         "video_filters": video_filters(job),
         "ass_mtime": str(ass_path.stat().st_mtime_ns if ass_path.is_file() else 0),
+        "final_mix_mtime": str(
+            final_mix.stat().st_mtime_ns if final_mix.is_file() else 0
+        ),
         "height": proxy_height(),
         "fallback": fallback,
     }
@@ -151,6 +155,7 @@ def preview_inputs(job: Any) -> dict[str, object]:
     payload: dict[str, object] = {
         "state": stat_signature(state_path),
         "audio": stat_signature(job.output / "audio" / "master-filters.json"),
+        "final_mix": stat_signature(job.output / "audio" / "final_mix.wav"),
         "video": stat_signature(job.output / "color" / "filters.json"),
         "ass": stat_signature(ass_path),
         "height": proxy_height(),

@@ -274,32 +274,39 @@ def resolve_asr_plan(
         profile = "balanced"
 
     explicit_model = str(getattr(options, "model_id", "") or "").strip()
-    candidates = {
-        "fast": (
-            "faster-whisper-small",
-            "faster-whisper-base",
-            "faster-whisper-tiny",
-        ),
-        "balanced": (
-            (
-                "faster-whisper-large-v3-turbo",
-                "faster-whisper-large-v3",
-                "faster-whisper-medium",
-                "faster-whisper-small",
-            )
-            if local_gpu
-            else (
+    fields_set = getattr(options, "model_fields_set", set())
+    explicit_size = ""
+    if "model_size" in fields_set:
+        explicit_size = str(getattr(options, "model_size", "") or "").strip()
+    if explicit_size:
+        candidates = (f"faster-whisper-{explicit_size}",)
+    else:
+        candidates = {
+            "fast": (
                 "faster-whisper-small",
                 "faster-whisper-base",
                 "faster-whisper-tiny",
-            )
-        ),
-        "quality": (
-            "faster-whisper-large-v3",
-            "faster-whisper-large-v3-turbo",
-            "faster-whisper-medium",
-        ),
-    }.get(profile, ())
+            ),
+            "balanced": (
+                (
+                    "faster-whisper-large-v3-turbo",
+                    "faster-whisper-large-v3",
+                    "faster-whisper-medium",
+                    "faster-whisper-small",
+                )
+                if local_gpu
+                else (
+                    "faster-whisper-small",
+                    "faster-whisper-base",
+                    "faster-whisper-tiny",
+                )
+            ),
+            "quality": (
+                "faster-whisper-large-v3",
+                "faster-whisper-large-v3-turbo",
+                "faster-whisper-medium",
+            ),
+        }.get(profile, ())
     model_id = _first_installed(candidates, installed_models)
     if (
         not model_id
@@ -389,3 +396,4 @@ def resolve_asr_plan(
         ),
         fallback_reason=fallback or gpu_fallback,
     )
+

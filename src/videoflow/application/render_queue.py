@@ -58,6 +58,7 @@ def _inputs_signature(job: Any) -> dict[str, object]:
     return {
         "state": stat_signature(state_path),
         "audio": stat_signature(job.output / "audio" / "master-filters.json"),
+        "final_mix": stat_signature(job.output / "audio" / "final_mix.wav"),
         "video": stat_signature(job.output / "color" / "filters.json"),
         "ass": stat_signature(ass_path),
         "audio_filters": audio_filters,
@@ -163,6 +164,11 @@ class RenderQueue:
                     audio_filters=audio_filters,
                     video_filters=video_filters,
                     ass_path=ass_path if ass_path.is_file() else None,
+                    audio_master=(
+                        job.output / "audio" / "final_mix.wav"
+                        if (job.output / "audio" / "final_mix.wav").is_file()
+                        else None
+                    ),
                     progress=frame_progress,
                     cache_dir=job.output / "render" / "segments",
                 )
