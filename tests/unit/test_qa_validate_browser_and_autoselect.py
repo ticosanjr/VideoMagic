@@ -7,8 +7,9 @@ from pathlib import Path
 import pytest
 
 from videoflow.application.curation_board import auto_select_board, publish_board
-from videoflow.application.overlay_geometry import PixelBox, collisions
+from videoflow.application.overlay_geometry import PixelBox, caption_box, collisions
 from videoflow.application.projects import init_project
+from videoflow.domain.config import CaptionStyle
 from videoflow.domain.errors import VideoFlowError
 from videoflow.domain.state import MediaInfo, OverlayClip, ProjectState
 from videoflow.domains.vision import browser
@@ -88,6 +89,19 @@ def _state_with_overlay(z: int, *, anchor: str = "fullscreen") -> ProjectState:
             )
         ],
     )
+
+
+def test_caption_box_keeps_the_short_safe_zone_center() -> None:
+    vertical = caption_box(CaptionStyle(), 1080, 1920)
+    assert vertical.x == 140
+    assert vertical.width == 800
+    assert vertical.x + vertical.width // 2 == 540
+    assert vertical.y + vertical.height // 2 == pytest.approx(1340, abs=2)
+
+    square = caption_box(CaptionStyle(), 1080, 1350)
+    assert square.x == 140
+    assert square.width == 800
+    assert square.bottom == 1350 - 189
 
 
 def test_fullscreen_broll_behind_captions_is_not_a_collision() -> None:

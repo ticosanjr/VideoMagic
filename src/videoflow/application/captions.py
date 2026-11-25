@@ -88,6 +88,7 @@ def caption_safe_zone(width: int, height: int, layout: str = "") -> dict[str, ob
             "pos": (width // 2, vertical.get(key, 1340)),
             "wrap_style": 0,
             "max_chars": 18,
+            "short_safe": True,
         }
     if width == 1080 and height == 1350:
         return {
@@ -98,6 +99,7 @@ def caption_safe_zone(width: int, height: int, layout: str = "") -> dict[str, ob
             "pos": None,
             "wrap_style": 0,
             "max_chars": 18,
+            "short_safe": True,
         }
     if width > height:
         return {

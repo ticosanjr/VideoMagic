@@ -255,7 +255,16 @@ def caption_box(
     font = max(8, int(getattr(style, "font_size", 72)))
     height = _even(font * 1.30 * max(1, min(4, max_lines)))
     zone = caption_safe_zone(canvas_w, canvas_h)
-    if int(zone["margin_r"]) > int(zone["margin_l"]):
+    if zone.get("short_safe"):
+        width = _even(canvas_w - int(zone["margin_l"]) - int(zone["margin_r"]))
+        x = int(zone["margin_l"])
+        pos = zone.get("pos")
+        if isinstance(pos, tuple):
+            center_y = float(pos[1])
+            y = round(center_y - height / 2)
+        else:
+            y = round(canvas_h - int(zone["margin_v"]) - height)
+    elif int(zone["margin_r"]) > int(zone["margin_l"]):
         width = _even(canvas_w - int(zone["margin_l"]) - int(zone["margin_r"]))
         pos = zone.get("pos")
         if isinstance(pos, tuple):
