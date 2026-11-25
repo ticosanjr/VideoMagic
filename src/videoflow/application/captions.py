@@ -82,21 +82,21 @@ def caption_safe_zone(width: int, height: int, layout: str = "") -> dict[str, ob
     if width == 1080 and height == 1920:
         return {
             "alignment": 5,
-            "margin_l": 60,
-            "margin_r": 160,
+            "margin_l": 140,
+            "margin_r": 140,
             "margin_v": 0,
-            "pos": (500, vertical.get(key, 1340)),
-            "wrap_style": 2,
+            "pos": (width // 2, vertical.get(key, 1340)),
+            "wrap_style": 0,
             "max_chars": 18,
         }
     if width == 1080 and height == 1350:
         return {
             "alignment": 2,
-            "margin_l": 60,
-            "margin_r": 160,
+            "margin_l": 140,
+            "margin_r": 140,
             "margin_v": 189,
             "pos": None,
-            "wrap_style": 2,
+            "wrap_style": 0,
             "max_chars": 18,
         }
     if width > height:

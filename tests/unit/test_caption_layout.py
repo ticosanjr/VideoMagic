@@ -17,8 +17,9 @@ def test_vertical_captions_use_short_safe_zone() -> None:
     )
     style_row = next(line for line in ass.splitlines() if line.startswith("Style:"))
     assert style_row.split(",")[-2] == "0"
-    assert "\\pos(500,1340)" in ass
-    assert "WrapStyle: 2" in ass
+    assert "\\pos(540,1340)" in ass
+    assert "WrapStyle: 0" in ass
+    assert style_row.split(",")[-4:-2] == ["140", "140"]
 
 
 def test_longform_captions_use_lower_margin() -> None:
@@ -40,7 +41,7 @@ def test_short_safe_zone_overrides_custom_position() -> None:
         width=1080,
         height=1920,
     )
-    assert "\\pos(500,1340)" in ass
+    assert "\\pos(540,1340)" in ass
 
 
 def test_overlapping_caption_events_are_trimmed_or_merged() -> None:

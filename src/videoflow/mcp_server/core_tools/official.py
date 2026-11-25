@@ -27,7 +27,6 @@ from videoflow.domain.errors import VideoFlowError
 from videoflow.mcp_server.context import error
 
 ALIASES: dict[str, str] = {
-    "vf_shorts": "vf_shorts_batch",
     "vf_qa": "vf_qa_final",
     "vf_jobs": "vf_job",
 }
@@ -271,6 +270,60 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
             "curation board or inspect decupage/report.json before exporting."
         )
         return result
+
+    @register
+    def vf_shorts(
+        project_id: str,
+        action: Literal["batch", "select", "plan"] = "batch",
+        clips: list[dict[str, Any]] | None = None,
+        time_basis: Literal["edited", "source"] = "edited",
+        burn_subtitles: bool = True,
+        wait: bool = True,
+    ) -> dict[str, Any]:
+        """[DOES] Batch-render Shorts or select/plan them from the timeline.
+        [ACTIONS] batch, select, plan.
+        [REQUIRES] ``project_id``; ``clips`` for batch rendering.
+        [RETURNS] Job payload with rendered Short paths or the selected plan.
+        """
+        if action in {"select", "plan"}:
+            steps = ["shorts.select"] if action == "select" else [
+                "shorts.select",
+                "shorts.score",
+            ]
+            return tools["vf_run"](
+                project_id=project_id,
+                steps=steps,
+                params={},
+                wait=wait,
+            )
+        if action != "batch":
+            return error(
+                "invalid_shorts_action",
+                "action must be batch, select, or plan",
+            )
+        if not clips:
+            return error(
+                "shorts_clips_required",
+                "Pass at least one clip for action=batch",
+            )
+        prepared: list[dict[str, Any]] = []
+        for clip in clips:
+            if not isinstance(clip, dict):
+                continue
+            item = dict(clip)
+            item.setdefault("time_basis", time_basis)
+            item.setdefault("burn_subtitles", burn_subtitles)
+            prepared.append(item)
+        if not prepared:
+            return error(
+                "shorts_clips_required",
+                "clips must contain at least one object",
+            )
+        return tools["vf_shorts_batch"](
+            project_id=project_id,
+            clips=prepared,
+            wait=wait,
+        )
 
     @register
     def vf_session_brief(project_id: str) -> dict[str, Any]:

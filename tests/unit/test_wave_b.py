@@ -54,7 +54,7 @@ def test_ass_wrap_tags_dedup_and_shift() -> None:
         CaptionLine(start=1.0, end=2.0, text="resultado final"),
     ]
     ass = build_ass_lines(lines, style=style, width=1080, height=1920)
-    assert "WrapStyle: 2" in ass
+    assert "WrapStyle: 0" in ass
     assert "\\c&H" in ass
     assert "\\\\c&H" not in ass
     assert ass.count("[Events]") == 1

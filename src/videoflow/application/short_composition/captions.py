@@ -397,7 +397,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{family},{int(font_size)},{_ass_color(primary_color)},{_ass_color(highlight_color)},{_ass_color(outline_color)},{_ass_color(outline_color, 0.5)},-1,0,0,0,100,100,0,0,1,{int(outline_width)},{int(shadow)},5,40,40,0,1
+Style: Default,{family},{int(font_size)},{_ass_color(primary_color)},{_ass_color(highlight_color)},{_ass_color(outline_color)},{_ass_color(outline_color, 0.5)},-1,0,0,0,100,100,0,0,1,{int(outline_width)},{int(shadow)},5,140,140,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

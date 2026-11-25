@@ -160,7 +160,7 @@ def test_karaoke_ass_uses_word_timings_and_style() -> None:
     assert "&H80332211" in ass
     assert "{\\kf100}Hello" in ass
     assert "{\\kf100}world." in ass
-    assert "\\pos(500,1340)" in ass
+    assert "\\pos(540,1340)" in ass
 
 
 def test_caption_lines_support_proportional_fallback() -> None:

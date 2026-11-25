@@ -101,6 +101,7 @@ class ShortsMixin:
         crop_focus_x: float = 0.5,
         crop_focus_y: float = 0.5,
         crop_keyframes: Sequence[tuple[float, float]] | None = None,
+        source_crop: tuple[int, int, int, int] | None = None,
         split_screen: bool = False,
         split_screen_zoom: float = 1.0,
         split_screen_focus_left: float = 0.5,
@@ -218,20 +219,32 @@ class ShortsMixin:
                     )
                     from videoflow.application.crop import crop_filter
 
-                    if len(piece_keyframes) > 1:
+                    if source_crop is not None:
+                        crop_w, crop_h, crop_x, crop_y = (
+                            int(value) for value in source_crop
+                        )
+                        base = (
+                            f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y},"
+                            f"scale={width}:{height},setsar=1"
+                        )
+                    elif len(piece_keyframes) > 1:
                         expression = _crop_expression(piece_keyframes)
                         # The expression contains commas from if()/lerp(); quote the
                         # whole x value so FFmpeg does not split it into filters.
                         crop_x = f"'round(({expression})*(iw-ow))'"
                         crop_y = f"round((ih-oh)*{max(0.0, min(1.0, crop_focus_y)):.6f})"
                         crop = f"crop={width}:{height}:{crop_x}:{crop_y}"
+                        base = (
+                            f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+                            f"{crop},setsar=1"
+                        )
                     else:
                         focus = piece_keyframes[0][1] if piece_keyframes else crop_focus_x
                         crop = crop_filter(width, height, fx=focus, fy=crop_focus_y)
-                    base = (
-                        f"scale={width}:{height}:force_original_aspect_ratio=increase,"
-                        f"{crop},setsar=1"
-                    )
+                        base = (
+                            f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+                            f"{crop},setsar=1"
+                        )
                     if layout_mode == "fullscreen_punchin":
                         scale = max(1.01, min(1.10, float(punch_in_scale)))
                         base += (

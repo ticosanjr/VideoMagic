@@ -16,6 +16,8 @@ from videoflow.adapters.ffmpeg.helpers import (
 from videoflow.application.brand_kit import load_brand_kit
 from videoflow.application.caption_presets import apply_preset
 from videoflow.application.captions import build_ass_lines, caption_lines
+from videoflow.application.crop import crop_box
+from videoflow.application.face_track import detect_face_median_x
 from videoflow.application.projects import get_project, load_project_state
 from videoflow.application.shorts import short_dimensions, slugify
 from videoflow.application.shorts_tighten import tighten_clip
@@ -84,6 +86,7 @@ class ShortsClipSpec(BaseModel):
     outro_duration_sec: float = Field(default=2.0, ge=0.0, le=30.0)
     corner_radius: int = Field(default=0, ge=0)
     crop_keyframes: list[tuple[float, float]] = Field(default_factory=list)
+    crop_focus_x: float | None = Field(default=None, ge=0.0, le=1.0)
     face_center_lock: bool = False
     caption_preset: str = ""
     music_path: str = ""
@@ -296,10 +299,51 @@ def run_shorts_batch(
             for item in (entry.get("crop_keyframes") or [])
             if isinstance(item, (list, tuple)) and len(item) >= 2
         ]
-        focus = keyframes[len(keyframes) // 2][1] if keyframes else 0.5
-        if not keyframes:
-            duration = sum(piece_end - piece_start for piece_start, piece_end in pieces) / rate
+        duration = sum(piece_end - piece_start for piece_start, piece_end in pieces) / rate
+        context_source = _source_path(state, record, spec.source_id)
+        source_media = state.source_media(spec.source_id) if spec.source_id else media
+        source_width = max(2, int(getattr(source_media, "width", media.width) or media.width))
+        source_height = max(2, int(getattr(source_media, "height", media.height) or media.height))
+        face: dict[str, Any] = {}
+        source_crop: tuple[int, int, int, int] | None = None
+        crop_x: int | None = None
+        crop_y: int | None = None
+        crop_w: int | None = None
+        crop_h: int | None = None
+        manual_focus = spec.crop_focus_x is not None
+        if manual_focus:
+            focus = float(spec.crop_focus_x or 0.0)
             keyframes = [(0.0, focus), (round(duration, 3), focus)]
+        elif not keyframes or spec.face_center_lock:
+            face = detect_face_median_x(
+                context_source,
+                start_sample / rate,
+                end_sample / rate,
+                samples=7,
+            )
+            box = crop_box(source_width, source_height, aspect=aspect, fx=0.5, fy=0.5)
+            crop_w, crop_h = box.width, box.height
+            cx = face.get("cx_median")
+            if cx is not None:
+                crop_x = max(
+                    0,
+                    min(
+                        source_width - crop_w,
+                        round(float(cx) * source_width - crop_w / 2),
+                    ),
+                )
+            else:
+                crop_x = box.x
+            crop_y = box.y
+            focus = (
+                crop_x / (source_width - crop_w)
+                if source_width > crop_w
+                else 0.5
+            )
+            keyframes = [(0.0, focus), (round(duration, 3), focus)]
+            source_crop = (crop_w, crop_h, crop_x, crop_y)
+        else:
+            focus = keyframes[len(keyframes) // 2][1]
         target = directory / f"{slugify(title, index)}.mp4"
         intro = entry.get("intro_path") or brand.get("cta") or ""
         intro_path: Path | None = None
@@ -355,7 +399,6 @@ def run_shorts_batch(
                 f"Shorts batch clip {index} is {expected_duration:.3f}s, "
                 f"above max_sec={spec.max_sec:.3f}"
             )
-        context_source = _source_path(state, record, spec.source_id)
         font_dir = (
             prepare_isolated_fonts_dir(
                 record.output,
@@ -376,6 +419,7 @@ def run_shorts_batch(
             crop_focus_x=focus,
             crop_focus_y=0.5,
             crop_keyframes=keyframes,
+            source_crop=source_crop,
             cutout=layout in {"cutout", "rounded_window", "headline_card"},
             layout_mode=layout,
             split_screen=layout == "split_screen_50_50",
@@ -472,6 +516,19 @@ def run_shorts_batch(
                 "timeline_start_sec": round(timeline_start, 3),
                 "timeline_end_sec": round(timeline_end, 3),
                 "crop_keyframes": [[round(t, 3), round(x, 4)] for t, x in keyframes],
+                "crop_x": crop_x,
+                "crop_y": crop_y,
+                "crop_w": crop_w,
+                "crop_h": crop_h,
+                "crop_focus_x": round(float(focus), 6),
+                "face_cx_median": face.get("cx_median"),
+                "face_cy_median": face.get("cy_median"),
+                "face_detections": int(face.get("detections") or 0),
+                "face_samples": int(face.get("samples") or 0),
+                "face_backend": str(face.get("backend") or "manual"),
+                "face_fallback_center": bool(
+                    face.get("face_fallback_center", False)
+                ),
                 "source": str(context_source),
                 "fps": 30,
                 "warnings": warnings,

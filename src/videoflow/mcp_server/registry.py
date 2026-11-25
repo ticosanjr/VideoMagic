@@ -268,7 +268,7 @@ TOOL_SPECS: tuple[ToolSpec, ...] = (
     ),
     ToolSpec(
         "vf_shorts",
-        "Batch-render Shorts with per-clip style, crop, intro, and music.",
+        "Batch-render, select, or plan Shorts with style, crop, intro, and music.",
         "shorts",
     ),
     ToolSpec(
@@ -391,8 +391,9 @@ TOOL_DOCSTRINGS: dict[str, str] = {
     ),
     "vf_shorts": (
         "[DOES] Batch-render Shorts with style, crop, intro, and music.\n"
-        "[REQUIRES] ``project_id`` and clip or source ranges.\n"
-        "[RETURNS] Job payload with rendered Short paths."
+        "[ACTIONS] batch, select, plan.\n"
+        "[REQUIRES] ``project_id`` and clip or source ranges for batch.\n"
+        "[RETURNS] Job payload with rendered Short paths or selected plan."
     ),
     "vf_audio": (
         "[DOES] Run TTS, cleanup, stems, music, Foley, and mastering.\n"
