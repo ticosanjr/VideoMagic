@@ -632,6 +632,7 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
         width: int = 0,
         height: int = 0,
         draft_scale: float = 1.0,
+        qa_mode: str = "fast",
     ) -> dict[str, Any]:
         """Start a timeline or preview render job."""
 
@@ -655,6 +656,7 @@ def register_agent_tools(register: Any, ctx: Any) -> None:
                     "width": width,
                     "height": height,
                     "draft_scale": draft_scale,
+                    "qa_mode": qa_mode,
                 },
                 queue=True,
                 project_id=record.project_id,

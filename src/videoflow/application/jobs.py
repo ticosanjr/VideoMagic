@@ -1126,7 +1126,8 @@ class JobManager:
         with contextlib.suppress(Exception):
             loudness = adapter.measure_loudness(destination)
         final_qa: dict[str, Any] = {}
-        if kind != "preview":
+        qa_mode = str(job.options.get("qa_mode") or "fast").strip().lower()
+        if kind != "preview" and qa_mode not in {"off", "none", "skip"}:
             from videoflow.application.qa_final import audit_final
 
             final_qa = audit_final(

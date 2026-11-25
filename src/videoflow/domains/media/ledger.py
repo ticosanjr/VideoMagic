@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import time
 from collections.abc import Iterable
@@ -24,6 +25,64 @@ def _expired(value: object) -> bool:
     if deadline.tzinfo is None:
         deadline = deadline.replace(tzinfo=UTC)
     return deadline < datetime.now(UTC)
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _approved_keys(payload: dict[str, Any], root: Path) -> set[str]:
+    keys: set[str] = set()
+    for record in payload.get("assets", []):
+        if not isinstance(record, dict):
+            continue
+        if not (
+            record.get("approved")
+            or str(record.get("license_status") or "") in {"clear", "cc0"}
+        ):
+            continue
+        for key in ("asset_id", "sha256", "path", "local_path", "title"):
+            value = str(record.get(key) or "").strip()
+            if value:
+                keys.add(value)
+        keys.update(_record_paths(record, root))
+    return keys
+
+
+def _record_keys(record: dict[str, Any], root: Path | None = None) -> set[str]:
+    keys = {
+        str(record.get(key) or "").strip()
+        for key in ("asset_id", "sha256", "path", "local_path", "title")
+        if str(record.get(key) or "").strip()
+    }
+    keys.update(_record_paths(record, root))
+    return keys
+
+
+def is_asset_approved(
+    output: Path,
+    identifier: str = "",
+    *,
+    sha256: str = "",
+    path: str = "",
+) -> bool:
+    """Whether an asset is explicitly approved in the project ledger."""
+
+    root = Path(output).expanduser()
+    payload = read_ledger(root)
+    approved = _approved_keys(payload, root)
+    wanted = {
+        str(identifier or "").strip(),
+        str(sha256 or "").strip(),
+        str(path or "").strip(),
+        Path(str(path or "")).name,
+    }
+    wanted.discard("")
+    return bool(wanted & approved)
 
 
 def _blocked(record: dict[str, Any]) -> bool:
@@ -183,7 +242,11 @@ def _workspace_blockers(
         else:
             status = "clear"
         item = {
+            "asset_id": asset.asset_id,
+            "sha256": asset.sha256,
             "title": asset.path,
+            "path": asset.path,
+            "local_path": asset.path,
             "license_status": status,
             "license": asset.license,
             "page_url": asset.url,
@@ -219,7 +282,13 @@ def license_blockers(
             or bool(_record_paths(record, Path(output)) & referenced)
         )
     ]
-    return [*ledger, *_workspace_blockers(output, referenced)]
+    approved = _approved_keys(payload, Path(output))
+    workspace = [
+        item
+        for item in _workspace_blockers(output, referenced)
+        if not (_record_keys(item, Path(output)) & approved)
+    ]
+    return [*ledger, *workspace]
 
 
 def mark_approved(output: Path, *, approval_id: str, reviewer: str = "") -> Path:

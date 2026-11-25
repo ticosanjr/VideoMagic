@@ -41,7 +41,12 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         max_duration: float = 5.0,
         license_filter: str = "cc0",
     ) -> dict[str, Any]:
-        """Fetch, animate, audit, or approve stock/media and licenses."""
+        """Fetch, animate, audit, or approve stock/media and licenses.
+
+        [ACTIONS] search, fetch_stock_images, fetch_stock_broll, rip_video_segment,
+        fetch_sfx, image_to_broll_motion, generate_music_or_sfx, list,
+        license_audit, approve_license.
+        """
 
         try:
             from videoflow.domains.media import fetch_tools

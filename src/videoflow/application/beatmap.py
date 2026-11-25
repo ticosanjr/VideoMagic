@@ -28,6 +28,7 @@ from videoflow.domain.state import (
 )
 from videoflow.domain.timebase import Rounding
 from videoflow.domains.media import license_blockers
+from videoflow.domains.media.ledger import is_asset_approved
 
 
 class BeatmapCut(BaseModel):
@@ -249,7 +250,9 @@ def _validate_asset(value: str, output: Path, blocked: set[str], report: Beatmap
     if not path.is_file():
         report.conflicts.append(f"missing asset: {value}")
         return path
-    if str(path) in blocked or path.name in blocked:
+    if (str(path) in blocked or path.name in blocked) and not is_asset_approved(
+        output, path.name, path=str(path)
+    ):
         report.conflicts.append(f"license-blocked asset: {value}")
     return path
 

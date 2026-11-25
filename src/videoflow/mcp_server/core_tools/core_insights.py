@@ -6,7 +6,7 @@ from typing import Any
 
 from videoflow.application.projects import get_project, load_project_state
 from videoflow.domain.errors import VideoFlowError
-from videoflow.mcp_server.context import error
+from videoflow.mcp_server.context import error, unknown_action
 
 
 def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
@@ -79,7 +79,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             if text_query and text_query not in sentence.text.casefold():
                 continue
             selected.append(sentence)
-        page_size = max(1, min(int(limit), 200))
+        page_size = max(1, min(int(limit), 500))
         offset = max(0, int(cursor))
         page = selected[offset : offset + page_size]
         items = []
@@ -102,7 +102,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     for word in sentence.words
                 ]
             items.append(item)
-        next_cursor = offset + page_size if offset + page_size < len(selected) else None
+        next_cursor = offset + len(items) if offset + len(items) < len(selected) else None
         result: dict[str, Any] = {
             "ok": True,
             "project_id": project_id,
@@ -115,6 +115,46 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         if source_id:
             result["warning"] = "source_id is not attached to transcript sentences yet"
         return result
+
+    @register
+    def vf_transcript(
+        action: str = "query",
+        project_id: str = "",
+        query: str = "",
+        source_id: str = "",
+        start_sec: float = 0.0,
+        end_sec: float = 0.0,
+        sentence_range: str = "",
+        include_words: bool = False,
+        limit: int = 500,
+        cursor: int = 0,
+    ) -> dict[str, Any]:
+        """Query all transcript sentences or return the edited editorial map."""
+
+        if action == "query":
+            return vf_transcript_query(
+                project_id=project_id,
+                query=query,
+                source_id=source_id,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                sentence_range=sentence_range,
+                include_words=include_words,
+                limit=limit,
+                cursor=cursor,
+            )
+        if action == "editorial_map":
+            from videoflow.application.transcript import build_editorial_map
+
+            try:
+                record = get_project(project_id)
+                state = load_project_state(record)
+                payload = build_editorial_map(state, project_dir=record.output)
+                payload["project_id"] = project_id
+                return payload
+            except VideoFlowError as exc:
+                return exc.to_dict()
+        return unknown_action("vf_transcript", action, ("query", "editorial_map"))
 
     @register
     def vf_gpu_preflight(require_gpu: bool = False) -> dict[str, Any]:

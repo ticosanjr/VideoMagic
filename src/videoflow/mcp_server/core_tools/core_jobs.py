@@ -134,7 +134,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         step_params: dict[str, dict[str, Any]] | None = None,
         resume: bool = True,
         wait: bool = True,
-        timeout_sec: float = 1800.0,
+        timeout_sec: float = 600.0,
     ) -> dict[str, Any]:
         """Run an ordered linear chain of catalog steps sharing one context."""
 
@@ -200,7 +200,10 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             "job": _job_payload(job),
         }
         if wait:
-            response["wait"] = _wait(manager, project_id, str(job.job_id), timeout_sec)
+            waited = _wait(manager, project_id, str(job.job_id), timeout_sec)
+            response["wait"] = waited
+            if isinstance(waited.get("job"), dict):
+                response["job"] = waited["job"]
         return response
 
     @register

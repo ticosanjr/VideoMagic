@@ -8,8 +8,11 @@ duplicate overlap, and split on punctuation or long pauses.
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
 
 from videoflow.domain.state import Sentence, WordTiming
 
@@ -182,3 +185,155 @@ def normalize_transcript(
                 )
             )
     return output
+
+
+def _load_scene_manifest(state: Any, project_dir: Path | None = None) -> Any:
+    from videoflow.domain.scenes import ScenesManifest
+
+    for payload in (
+        state.pipeline.metadata.get("scenes_manifest"),
+        None,
+    ):
+        if isinstance(payload, dict):
+            try:
+                return ScenesManifest.model_validate(payload)
+            except ValueError:
+                pass
+    artifact = str(state.pipeline.artifacts.get("scenes_manifest") or "")
+    candidates: list[Path] = []
+    if artifact:
+        candidate = Path(artifact).expanduser()
+        if not candidate.is_absolute() and project_dir is not None:
+            candidate = project_dir / candidate
+        candidates.append(candidate)
+    if project_dir is not None and project_dir.is_dir():
+        candidates.extend(
+            sorted(
+                project_dir.rglob("scenes_manifest.json"),
+                key=lambda item: item.stat().st_mtime,
+                reverse=True,
+            )
+        )
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            return ScenesManifest.model_validate(payload)
+        except (OSError, ValueError):
+            continue
+    return None
+
+
+def build_editorial_map(
+    state: Any,
+    *,
+    project_dir: str | Path = "",
+) -> dict[str, Any]:
+    """Return 15–30 s edited-timeline blocks with speech, layout, and keyframe."""
+
+    from videoflow.application.time_map import (
+        TimeMapError,
+        source_range_to_timeline,
+        timeline_to_source_sec,
+    )
+
+    media = state.media_info
+    rate = media.audio_sample_rate if media is not None else 48_000
+    discarded = set(state.pipeline.discard_sentence_ids)
+    items: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    for sentence in sorted(state.transcript, key=lambda item: (item.start_sample, item.id)):
+        if sentence.id in discarded:
+            continue
+        start = sentence.start_sample / max(1, rate)
+        end = sentence.end_sample / max(1, rate)
+        try:
+            ranges = source_range_to_timeline(state, start, end)
+        except (TimeMapError, ValueError):
+            continue
+        if not ranges:
+            continue
+        items.append(
+            {
+                "sentence_id": sentence.id,
+                "text": sentence.text,
+                "edited_start_sec": min(item[0] for item in ranges),
+                "edited_end_sec": max(item[1] for item in ranges),
+            }
+        )
+    items.sort(key=lambda item: (item["edited_start_sec"], item["sentence_id"]))
+    blocks: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    for item in items:
+        if not current:
+            current = [item]
+            continue
+        if item["edited_end_sec"] - current[0]["edited_start_sec"] <= 30.0:
+            current.append(item)
+        else:
+            blocks.append(current)
+            current = [item]
+    if current:
+        blocks.append(current)
+
+    root = Path(project_dir).expanduser() if str(project_dir or "").strip() else None
+    manifest = _load_scene_manifest(state, root)
+    if manifest is None:
+        warnings.append("scenes_manifest missing; layout is UNKNOWN and B-roll is blocked.")
+    scenes = list(getattr(manifest, "scenes", []) or [])
+    result: list[dict[str, Any]] = []
+    for index, block in enumerate(blocks, start=1):
+        start = round(min(item["edited_start_sec"] for item in block), 3)
+        end = round(max(item["edited_end_sec"] for item in block), 3)
+        layout = "UNKNOWN"
+        protected = True
+        scene_id = ""
+        keyframe_path = ""
+        hints: list[str] = []
+        if scenes:
+            try:
+                source_mid = timeline_to_source_sec(state, (start + end) / 2)
+            except (TimeMapError, ValueError):
+                source_mid = None
+            if source_mid is not None:
+                scene = next(
+                    (
+                        item
+                        for item in scenes
+                        if item.start_sec <= source_mid <= item.end_sec
+                    ),
+                    None,
+                )
+                if scene is not None:
+                    layout = scene.layout_type
+                    scene_id = scene.scene_id
+                    keyframe_path = scene.keyframe_path
+                    hints = list(scene.editing_hints)
+                    protected = layout in {
+                        "SCREEN_SHARE_PIP",
+                        "SCREEN_SHARE_FULL",
+                        "DUAL_CANVAS_OBS",
+                    } or "PROTECT_FROM_BROLL" in hints
+        result.append(
+            {
+                "block_id": f"EM_{index:04d}",
+                "edited_start_sec": start,
+                "edited_end_sec": end,
+                "duration_sec": round(max(0.0, end - start), 3),
+                "text": " ".join(item["text"].strip() for item in block if item["text"].strip()),
+                "sentence_ids": [item["sentence_id"] for item in block],
+                "layout_type": layout,
+                "scene_id": scene_id,
+                "protected_from_broll": protected,
+                "editing_hints": hints,
+                "keyframe_path": keyframe_path,
+            }
+        )
+    return {
+        "ok": True,
+        "count": len(result),
+        "blocks": result,
+        "warnings": warnings,
+        "time_basis": "edited",
+    }

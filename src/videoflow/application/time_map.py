@@ -67,6 +67,23 @@ def _seconds(value: float) -> Fraction:
     return Fraction(str(max(0.0, float(value))))
 
 
+def compact_time_map(state: ProjectState) -> list[list[float]]:
+    """Return ``[[source_in, source_out, edited_in, edited_out], ...]`` in seconds."""
+
+    ranges: list[list[float]] = []
+    for entry in build_time_map(state):
+        fps = entry.fps_num / max(1, entry.fps_den)
+        ranges.append(
+            [
+                round(entry.source_in_frame / fps, 6),
+                round(entry.source_out_frame / fps, 6),
+                round(entry.timeline_in_frame / fps, 6),
+                round(entry.timeline_out_frame / fps, 6),
+            ]
+        )
+    return ranges
+
+
 def source_to_timeline_sec(
     state: ProjectState,
     source_sec: float,

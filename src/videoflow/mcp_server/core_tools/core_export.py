@@ -9,7 +9,7 @@ from typing import Any, Literal
 from videoflow.application.projects import get_project, load_project_state
 from videoflow.domain.errors import VideoFlowError
 from videoflow.mcp_server.agent_helpers import _job_payload
-from videoflow.mcp_server.context import error
+from videoflow.mcp_server.context import error, unknown_action
 
 from .core_shared import (
     _fps_int,
@@ -93,7 +93,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         )
         mp4 = (bundle.get("files") or {}).get("mp4") or {}
         path = Path(str(mp4.get("path") or ""))
-        if mode == "preview" or qa_mode in {"off", "none"}:
+        if mode == "preview" or qa_mode in {"off", "none", "skip"}:
             qa_mode = "off"
         if not draft and qa_mode != "off" and path.is_file():
             from videoflow.application.qa_final import audit_final
@@ -149,7 +149,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         height: int = 0,
         draft_scale: float = 1.0,
         wait: bool = False,
-        timeout_sec: float = 1800.0,
+        timeout_sec: float = 600.0,
         direction: str = "pull",
         nle: str = "fcpxml",
         path: str = "",
@@ -162,24 +162,33 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         allow_slow_cpu_fallback: bool = True,
         mode: Literal["final", "preview"] = "final",
     ) -> dict[str, Any]:
-        """Render a bundle, start a draft render, validate exports, or run an NLE roundtrip."""
+        """Render a bundle/mp4, start a draft render, validate exports, or run an NLE roundtrip.
+
+        [ACTIONS] bundle, render, mp4, validate, roundtrip.
+        """
 
         if burn_subtitles is not None:
             captions = burn_subtitles
-        if action == "render":
+        if action in {"render", "mp4"}:
+            render_kind = "preview" if mode == "preview" and kind == "timeline" else kind
             response = legacy["vf_render_start"](
                 project_id=project_id,
-                kind=kind,
+                kind=render_kind,
                 crf=crf,
                 preset=preset,
                 width=width,
                 height=height,
                 draft_scale=draft_scale,
+                qa_mode=qa_mode,
             )
+            response["action"] = action
             if wait and response.get("ok"):
                 new_job_id = str((response.get("job") or {}).get("job_id") or "")
                 if new_job_id:
-                    response["wait"] = _wait(manager, project_id, new_job_id, timeout_sec)
+                    waited = _wait(manager, project_id, new_job_id, timeout_sec)
+                    response["wait"] = waited
+                    if isinstance(waited.get("job"), dict):
+                        response["job"] = waited["job"]
             return response
         if action == "validate":
             return legacy["vf_validate_exports"](project_id=project_id, job_id=job_id)
@@ -192,18 +201,19 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 apply=apply,
             )
         if action != "bundle":
-            return error(
-                "unknown_action",
-                "vf_export supports bundle, render, validate, or roundtrip",
+            return unknown_action(
+                "vf_export",
+                action,
+                ("bundle", "render", "mp4", "validate", "roundtrip"),
             )
         if audio_source not in {"mix", "master", "timeline"}:
             return error("invalid_audio_source", "audio_source must be mix, master, or timeline")
-        if qa_mode in {"none", "off"}:
+        if qa_mode in {"none", "off", "skip"}:
             qa_mode = "off"
         if qa_mode not in {"fast", "full", "off"}:
             return error(
                 "invalid_qa_mode",
-                "qa_mode must be fast, full, off, or none",
+                "qa_mode must be fast, full, off, none, or skip",
             )
         if mode not in {"final", "preview"}:
             return error("invalid_mode", "mode must be final or preview")

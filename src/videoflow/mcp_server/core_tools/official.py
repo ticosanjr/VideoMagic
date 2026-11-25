@@ -27,7 +27,6 @@ from videoflow.domain.errors import VideoFlowError
 from videoflow.mcp_server.context import error
 
 ALIASES: dict[str, str] = {
-    "vf_transcript": "vf_transcript_query",
     "vf_shorts": "vf_shorts_batch",
     "vf_qa": "vf_qa_final",
     "vf_jobs": "vf_job",
@@ -137,7 +136,7 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
         second_pass: bool = True,
         confirm_no_semantic_discards: bool = False,
         wait: bool = True,
-        timeout_sec: float = 1800.0,
+        timeout_sec: float = 600.0,
     ) -> dict[str, Any]:
         """[DOES] Plan a beat map, run the decupage chain, or discard sentences.
         [REQUIRES] ``project_id`` and, for run_full, an ingested project.

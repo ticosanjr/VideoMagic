@@ -37,18 +37,39 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         remove_ranges: list[dict[str, Any]] | None = None,
         sentence_ids: list[int] | None = None,
         page: int = 1,
-        page_size: int = 30,
+        page_size: int = 100,
         dry_run: bool = False,
         force: bool = False,
     ) -> dict[str, Any]:
         """Read, edit, discard sentences, or apply a declarative beatmap."""
 
-        if action not in {"get", "discard_sentences", "apply_beatmap", "edit"}:
+        if action not in {
+            "get",
+            "discard_sentences",
+            "apply_beatmap",
+            "edit",
+            "time_map",
+        }:
             return unknown_action(
                 "vf_timeline",
                 action,
-                ("get", "edit", "discard_sentences", "apply_beatmap"),
+                ("get", "edit", "discard_sentences", "apply_beatmap", "time_map"),
             )
+        if action == "time_map":
+            from videoflow.application.time_map import compact_time_map
+
+            try:
+                state = load_project_state(get_project(project_id))
+                ranges = compact_time_map(state)
+            except VideoFlowError as exc:
+                return exc.to_dict()
+            return {
+                "ok": True,
+                "project_id": project_id,
+                "count": len(ranges),
+                "time_map": ranges,
+                "format": "[source_in, source_out, edited_in, edited_out]",
+            }
         if action == "discard_sentences":
             if not sentence_ids:
                 return error("sentence_ids_required", "sentence_ids is required")
@@ -201,7 +222,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
             return result
         video = list(result.get("video") or [])
         audio = list(result.get("audio") or [])
-        size = max(1, min(200, int(page_size or 30)))
+        size = max(1, min(500, int(page_size or 100)))
         page_number = max(1, int(page or 1))
         start = (page_number - 1) * size
         fps = float(result.get("fps") or 30.0) or 30.0

@@ -29,7 +29,10 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
         target_lufs: float = -16.0,
         output_name: str = "",
     ) -> dict[str, Any]:
-        """TTS, voice cleanup, stems, music/Foley, or a mastered mix."""
+        """TTS, voice cleanup, stems, music/Foley, or a mastered mix.
+
+        [ACTIONS] tts, clean, stems, music, mix, master.
+        """
 
         from videoflow.domains.audio import studio
 
