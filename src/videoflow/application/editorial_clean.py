@@ -29,10 +29,11 @@ from typing import Any
 
 from videoflow.application.spans import merge_spans
 from videoflow.application.text import STOPWORDS, normalize_text, token_list, token_set
-from videoflow.domain.state import Sentence, WordTiming
+from videoflow.domain.state import ProjectState, Sentence, WordTiming
 
 __all__ = [
     "EditorialCleanResult",
+    "build_decupage_review_packet",
     "clean_editorial",
 ]
 
@@ -96,7 +97,7 @@ def clean_editorial(
     fuzzy_similarity: float = 0.52,
     prefix_similarity: float = 0.75,
     max_discard_ratio: float = 0.75,
-    stutter_gap_sec: float = 1.5,
+    stutter_gap_sec: float = 1.2,
     snap_ms: int = 60,
     pad_before_ms: int = 110,
     pad_after_ms: int = 190,
@@ -293,6 +294,78 @@ def clean_editorial(
         cuts=tuple(snapped_cuts),
         report=report,
     )
+
+
+def build_decupage_review_packet(state: ProjectState) -> dict[str, Any]:
+    """Return every sentence with retake suspicion flags for OpenCode review."""
+
+    media = state.media_info
+    rate = media.audio_sample_rate if media is not None else 48_000
+    discarded = set(state.pipeline.discard_sentence_ids)
+    report = state.pipeline.metadata.get("editorial_clean")
+    report = report if isinstance(report, dict) else {}
+    pairs: dict[int, list[dict[str, Any]]] = {}
+    for key, reason in (
+        ("fuzzy_discards", "fuzzy_retake"),
+        ("semantic_discards", "semantic_retake"),
+        ("semantic_candidates", "semantic_candidate"),
+    ):
+        for item in report.get(key) or []:
+            if not isinstance(item, dict):
+                continue
+            try:
+                sentence_id = int(item.get("sentence_id"))
+                keeper_id = int(item.get("keeper_id"))
+            except (TypeError, ValueError):
+                continue
+            pair = {
+                "sentence_id": sentence_id,
+                "keeper_id": keeper_id,
+                "similarity": float(item.get("similarity") or 0.0),
+                "prefix_similarity": float(
+                    item.get("prefix_similarity") or item.get("prefix") or 0.0
+                ),
+                "reason": str(item.get("reason") or reason),
+            }
+            pairs.setdefault(sentence_id, []).append({**pair, "role": "earlier"})
+            pairs.setdefault(keeper_id, []).append({**pair, "role": "keeper"})
+    sentences: list[dict[str, Any]] = []
+    lines: list[str] = []
+    for sentence in sorted(state.transcript, key=lambda item: (item.start_sample, item.id)):
+        sentence_pairs = pairs.get(sentence.id, [])
+        flags: list[str] = []
+        if sentence.id in discarded:
+            flags.append("DISCARDED")
+        if sentence_pairs:
+            flags.append("SUSPECT_RETAKE")
+        item = {
+            "id": sentence.id,
+            "start_sec": round(sentence.start_sample / max(1, rate), 3),
+            "end_sec": round(sentence.end_sample / max(1, rate), 3),
+            "text": sentence.text,
+            "flags": flags,
+            "retake_pairs": sentence_pairs,
+        }
+        sentences.append(item)
+        prefix = f"[{sentence.id}]"
+        if flags:
+            prefix += " " + " ".join(f"[{flag}]" for flag in flags)
+        lines.append(f"{prefix} {sentence.text}")
+    return {
+        "ok": True,
+        "project_id": str(state.project_id),
+        "schema_version": 1,
+        "count": len(sentences),
+        "discarded_sentence_ids": sorted(discarded),
+        "suspect_retake_ids": sorted(pairs),
+        "sentences": sentences,
+        "text": "\n".join(lines),
+        "_next_step": (
+            "Read every sentence and call vf_decupage(action='discard_sentences', "
+            "sentence_ids=[...]) with the exact retake ids; never discard a unique "
+            "sentence."
+        ),
+    }
 
 
 def _normal_token(value: str) -> str:

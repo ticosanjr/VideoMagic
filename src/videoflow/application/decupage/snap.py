@@ -22,6 +22,66 @@ from videoflow.domain.decupage import (
 from videoflow.domain.state import MediaInfo
 
 
+def _protect_words_in_spans(
+    spans: list[tuple[int, int]],
+    *,
+    asus: list[Asu],
+    blocked_spans: list[tuple[int, int]],
+    rate: int,
+    pad_before_ms: float,
+    pad_after_ms: float,
+    duration: int,
+) -> list[tuple[int, int]]:
+    """Expand active spans so a kept word can never be cut at its edge.
+
+    Padding stops at a noise or deliberate-cut boundary. A 75/115 ms guard
+    must not silently bridge a removal that the plan intentionally keeps.
+    """
+
+    if not spans:
+        return spans
+    pad_before = _samples(rate, max(0.0, float(pad_before_ms)))
+    pad_after = _samples(rate, max(0.0, float(pad_after_ms)))
+    blocked = sorted(blocked_spans)
+    protected: list[tuple[int, int]] = []
+    for asu in asus:
+        for word in asu.words:
+            if float(getattr(word, "p", 0.0)) < 0.40:
+                continue
+            midpoint = (word.start_sample + word.end_sample) // 2
+            if any(start <= midpoint <= end for start, end in blocked):
+                continue
+            start = max(0, word.start_sample - pad_before)
+            end = min(duration, word.end_sample + pad_after)
+            if end > start:
+                protected.append((start, end))
+    if not protected:
+        return spans
+    guarded: list[tuple[int, int]] = []
+    for start, end in spans:
+        relevant = [
+            (word_start, word_end)
+            for word_start, word_end in protected
+            if word_end > start and word_start < end
+        ]
+        if not relevant:
+            guarded.append((start, end))
+            continue
+        new_start = min(start, min(item[0] for item in relevant))
+        new_end = max(end, max(item[1] for item in relevant))
+        if new_start < start:
+            for _blocked_start, blocked_end in blocked:
+                if blocked_end <= start and blocked_end > new_start:
+                    new_start = max(new_start, blocked_end)
+        if new_end > end:
+            for blocked_start, _blocked_end in blocked:
+                if blocked_start >= end and blocked_start < new_end:
+                    new_end = min(new_end, blocked_start)
+        if new_end > new_start:
+            guarded.append((new_start, new_end))
+    return merge_spans(guarded)
+
+
 def build_plan(
     media: MediaInfo,
     asus: list[Asu],
@@ -30,17 +90,17 @@ def build_plan(
     profile: dict[str, Any],
     noise_events: list[dict[str, Any]],
     review_flags: list[dict[str, str]],
-    pre_roll_ms: float = 70.0,
-    post_roll_ms: float = 110.0,
+    pre_roll_ms: float = 75.0,
+    post_roll_ms: float = 115.0,
     start_search_left_ms: float = 100.0,
     start_search_right_ms: float = 20.0,
     end_search_left_ms: float = 20.0,
     end_search_right_ms: float = 130.0,
-    min_cut_gap_ms: float = 180.0,
+    min_cut_gap_ms: float = 140.0,
     crossfade_ms: float = 18.0,
     min_clip_ms: float = 120.0,
-    pre_roll_floor_ms: float = 90.0,
-    post_roll_floor_ms: float = 150.0,
+    pre_roll_floor_ms: float = 75.0,
+    post_roll_floor_ms: float = 115.0,
     base_spans: list[tuple[int, int]] | None = None,
     flagged_long_cuts: list[dict[str, Any]] | None = None,
 ) -> DecupagePlan:
@@ -82,30 +142,9 @@ def build_plan(
     ends = [end for _start, end in base] + [end for _start, end in source_cuts]
     ordered_starts = sorted(set(starts))
     ordered_ends = sorted(set(ends))
-    pre_floor = _samples(rate, max(0.0, float(pre_roll_floor_ms)))
-    post_floor = _samples(rate, max(0.0, float(post_roll_floor_ms)))
     snapped: list[tuple[int, int, float | None, bool]] = []
     for start, end in base:
         original_start, original_end = start, end
-        span_words = [
-            word
-            for asu in asus
-            for word in asu.words
-            if start
-            <= (word.start_sample + word.end_sample) // 2
-            <= end
-            and not any(
-                cut_start
-                <= (word.start_sample + word.end_sample) // 2
-                <= cut_end
-                for cut_start, cut_end in source_cuts
-            )
-        ]
-        if span_words:
-            first_word = min(word.start_sample for word in span_words)
-            last_word = max(word.end_sample for word in span_words)
-            start = min(start, max(0, first_word - pre_floor))
-            end = max(end, min(duration, last_word + post_floor))
         for cut_start, cut_end in source_cuts:
             if cut_end <= original_start:
                 start = max(start, cut_end)
@@ -172,6 +211,15 @@ def build_plan(
         else:
             merged.append((start, end))
 
+    merged = _protect_words_in_spans(
+        merged,
+        asus=asus,
+        blocked_spans=[*source_cuts, *noise, *trim_spans],
+        rate=rate,
+        pad_before_ms=pre_roll_floor_ms,
+        pad_after_ms=post_roll_floor_ms,
+        duration=duration,
+    )
     timebase = media.timebase()
     active: list[DecupageSpan] = []
     for start, end in merged:

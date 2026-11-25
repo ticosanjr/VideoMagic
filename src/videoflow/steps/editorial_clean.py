@@ -31,7 +31,7 @@ class EditorialCleanParams(BaseModel):
     fuzzy_similarity: float = Field(default=0.52, ge=0.0, le=1.0)
     prefix_similarity: float = Field(default=0.75, ge=0.0, le=1.0)
     max_discard_ratio: float = Field(default=0.75, ge=0.05, le=0.9)
-    stutter_gap_sec: float = Field(default=1.5, ge=0.0, le=5.0)
+    stutter_gap_sec: float = Field(default=1.2, ge=0.0, le=5.0)
     snap_ms: int = Field(default=60, ge=0, le=250)
     pad_before_ms: int = Field(default=110, ge=0, le=500)
     pad_after_ms: int = Field(default=190, ge=0, le=500)

@@ -90,13 +90,13 @@ def _state(tmp_path: Path) -> ProjectState:
 def test_timeline_params_accepts_pacing_fields() -> None:
     params = TimelineParams(
         pacing_profile="tight",
-        min_silence_ms=180,
-        max_pause_ms=200,
-        qa_dead_air_ms=500,
+        min_silence_ms=260,
+        max_pause_ms=260,
+        qa_dead_air_ms=650,
         reset=True,
     )
     assert params.pacing_profile == "tight"
-    assert params.max_pause_ms == 200
+    assert params.max_pause_ms == 260
 
 
 def test_run_full_orders_speech_asu_before_decupage_and_uses_timeline() -> None:
@@ -147,8 +147,8 @@ def test_run_full_orders_speech_asu_before_decupage_and_uses_timeline() -> None:
     ]
     step_params = calls["step_params"]
     assert step_params["edit.timeline"]["reset"] is True
-    assert step_params["edit.timeline"]["max_pause_ms"] == 200
-    assert step_params["decupage.snap"]["min_cut_gap_ms"] == 200
+    assert step_params["edit.timeline"]["max_pause_ms"] == 260
+    assert step_params["decupage.snap"]["min_cut_gap_ms"] == 140
 
 
 def test_beatmap_plan_fills_keep_and_remove_ranges(tmp_path: Path) -> None:

@@ -50,6 +50,9 @@ class SessionCullStep(BaseStep):
         if context.media is None:
             raise StateNotReadyError("Session cull requires media info")
         state = context.state
+        original_video = list(state.video_segments)
+        original_audio = list(state.audio_segments)
+        original_culls = list(state.retake_culls)
         rate = context.media.audio_sample_rate
         fps = context.media.fps_num / context.media.fps_den
         discard = options.discard_sentence_ids or list(context.discard_sentence_ids)
@@ -99,22 +102,35 @@ class SessionCullStep(BaseStep):
                 )
                 audio.append(clip)
                 audio_cursor += duration
-        if not video or not audio:
-            raise StateNotReadyError("Session cull removed every clip")
+        restored_all = not video or not audio
+        if restored_all:
+            video = original_video
+            audio = original_audio
+            warning = (
+                "Session cull would remove every clip; restored the original "
+                "timeline instead (cull_guard_restored_all)."
+            )
+            context.warnings.append(warning)
         updated = state.model_copy(
             update={
                 "video_segments": video,
                 "audio_segments": audio,
-                "retake_culls": list(discard),
+                "retake_culls": original_culls if restored_all else list(discard),
             }
         )
         context.state = updated
         report = {
-            "discarded_sentences": len(discard),
-            "cut_spans": [list(item) for item in cut_samples],
+            "discarded_sentences": 0 if restored_all else len(discard),
+            "requested_discarded_sentences": len(discard),
+            "cut_spans": [] if restored_all else [list(item) for item in cut_samples],
             "video_segments": len(video),
             "audio_segments": len(audio),
+            "restored_all": restored_all,
+            "warning": "cull_guard_restored_all" if restored_all else "",
         }
         context.metadata["session_cull_report"] = report
         context.hashes["session.cull"] = digest_payload(report)
-        io.report(100, f"Session cull: {len(video)} clip(s) remain")
+        if restored_all:
+            io.report(100, "Session cull guard restored the original timeline")
+        else:
+            io.report(100, f"Session cull: {len(video)} clip(s) remain")

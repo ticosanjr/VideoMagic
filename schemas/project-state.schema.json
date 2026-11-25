@@ -2354,15 +2354,15 @@
           "type": "string"
         },
         "max_scale": {
-          "default": 1.5,
-          "maximum": 4.0,
+          "default": 1.08,
+          "maximum": 1.08,
           "minimum": 1.0,
           "title": "Max Scale",
           "type": "number"
         },
         "min_scale": {
           "default": 1.0,
-          "maximum": 4.0,
+          "maximum": 1.08,
           "minimum": 1.0,
           "title": "Min Scale",
           "type": "number"
@@ -2393,8 +2393,8 @@
           "type": "boolean"
         },
         "punch_in_scale": {
-          "default": 1.15,
-          "maximum": 4.0,
+          "default": 1.06,
+          "maximum": 1.08,
           "minimum": 1.0,
           "title": "Punch In Scale",
           "type": "number"

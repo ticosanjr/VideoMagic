@@ -31,7 +31,7 @@
     },
     "zooms": {
       "mode": "alternate_cuts",
-      "punch_in_scale": 1.15,
+      "punch_in_scale": 1.06,
       "anchor_point": "upper_third"
     }
   }

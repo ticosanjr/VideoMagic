@@ -130,15 +130,15 @@ def test_zooms_alternate_and_respect_manual_and_face_fallback() -> None:
         jl=JlCutsConfig(enable_j_cuts=False),
         zooms=ZoomsConfig(
             mode="alternate_cuts",
-            punch_in_scale=1.2,
+            punch_in_scale=1.08,
             anchor_point="face_detect",
             progressive_zoom=True,
         ),
     )
     assert result.video_segments[0].transform.scale == 1.0
-    assert result.video_segments[1].transform.scale == 1.2
+    assert result.video_segments[1].transform.scale == 1.08
     assert result.video_segments[1].transform.type == "slow_zoom_in"
-    assert [item.scale for item in result.video_segments[1].transform.keyframes] == [1.0, 1.2]
+    assert [item.scale for item in result.video_segments[1].transform.keyframes] == [1.0, 1.08]
     assert any("face detection" in warning for warning in result.warnings)
 
 

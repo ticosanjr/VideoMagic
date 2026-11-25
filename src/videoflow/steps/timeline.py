@@ -52,9 +52,9 @@ class TimelineParams(BaseModel):
     handle_check: bool = True
 
     zoom_mode: Literal["alternate_cuts", "topic_change", "manual_rules"] = "alternate_cuts"
-    zoom_min_scale: float = Field(default=1.0, ge=1.0, le=4.0)
-    zoom_max_scale: float = Field(default=1.5, ge=1.0, le=4.0)
-    punch_in_scale: float = Field(default=1.15, ge=1.0, le=4.0)
+    zoom_min_scale: float = Field(default=1.0, ge=1.0, le=1.08)
+    zoom_max_scale: float = Field(default=1.08, ge=1.0, le=1.08)
+    punch_in_scale: float = Field(default=1.06, ge=1.0, le=1.08)
     anchor_point: Literal["center", "upper_third", "face_detect"] = "upper_third"
     progressive_zoom: bool = False
     pan_direction: Literal["none", "left_to_right", "right_to_left"] = "none"

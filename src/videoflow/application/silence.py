@@ -17,18 +17,20 @@ from videoflow.domains.audio.pcm_io import read_wav_mono_float32
 
 PACING_PROFILES: dict[str, dict[str, int]] = {
     "tight": {
-        "min_silence_ms": 180,
-        "max_pause_ms": 200,
-        "pad_before_ms": 55,
-        "pad_after_ms": 80,
-        "qa_dead_air_ms": 500,
+        "min_silence_ms": 260,
+        "max_pause_ms": 260,
+        "pad_before_ms": 75,
+        "pad_after_ms": 115,
+        "qa_dead_air_ms": 650,
+        "min_cut_gap_ms": 140,
     },
     "balanced": {
-        "min_silence_ms": 350,
-        "max_pause_ms": 420,
+        "min_silence_ms": 380,
+        "max_pause_ms": 400,
         "pad_before_ms": 90,
         "pad_after_ms": 130,
-        "qa_dead_air_ms": 800,
+        "qa_dead_air_ms": 900,
+        "min_cut_gap_ms": 200,
     },
     "relaxed": {
         "min_silence_ms": 550,
@@ -36,6 +38,7 @@ PACING_PROFILES: dict[str, dict[str, int]] = {
         "pad_before_ms": 120,
         "pad_after_ms": 170,
         "qa_dead_air_ms": 1200,
+        "min_cut_gap_ms": 260,
     },
 }
 
@@ -48,6 +51,7 @@ def resolve_pacing_profile(
     pad_before_ms: int | None = None,
     pad_after_ms: int | None = None,
     qa_dead_air_ms: int | None = None,
+    min_cut_gap_ms: int | None = None,
 ) -> dict[str, int]:
     """Resolve one pacing profile with explicit per-run overrides."""
 
@@ -59,6 +63,7 @@ def resolve_pacing_profile(
         ("pad_before_ms", pad_before_ms),
         ("pad_after_ms", pad_after_ms),
         ("qa_dead_air_ms", qa_dead_air_ms),
+        ("min_cut_gap_ms", min_cut_gap_ms),
     ):
         if value is not None:
             values[name] = max(0, int(value))

@@ -19,7 +19,7 @@ from videoflow.domain.transcript import parse_srt, parse_srt_file
 
 def test_zoom_scale_window_is_validated() -> None:
     with pytest.raises(ValueError, match="min_scale exceeds max_scale"):
-        ZoomsConfig(min_scale=2.0, max_scale=1.0)
+        ZoomsConfig(min_scale=1.08, max_scale=1.0)
 
 
 def test_shorts_window_rejects_inverted_clip_counts() -> None:

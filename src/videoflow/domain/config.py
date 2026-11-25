@@ -134,9 +134,9 @@ class JlCutsConfig(StrictModel):
 
 class ZoomsConfig(StrictModel):
     mode: ZoomMode = "alternate_cuts"
-    min_scale: float = Field(default=1.0, ge=1.0, le=4.0)
-    max_scale: float = Field(default=1.5, ge=1.0, le=4.0)
-    punch_in_scale: float = Field(default=1.15, ge=1.0, le=4.0)
+    min_scale: float = Field(default=1.0, ge=1.0, le=1.08)
+    max_scale: float = Field(default=1.08, ge=1.0, le=1.08)
+    punch_in_scale: float = Field(default=1.06, ge=1.0, le=1.08)
     anchor_point: AnchorPoint = "upper_third"
     progressive_zoom: bool = False
     pan_direction: PanDirection = "none"

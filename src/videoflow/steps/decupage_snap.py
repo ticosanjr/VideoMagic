@@ -29,19 +29,19 @@ from videoflow.steps.registry import register_step
 class SnapParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    pre_roll_ms: float = Field(default=55.0, ge=0.0, le=500.0)
-    post_roll_ms: float = Field(default=80.0, ge=0.0, le=500.0)
+    pre_roll_ms: float = Field(default=75.0, ge=0.0, le=500.0)
+    post_roll_ms: float = Field(default=115.0, ge=0.0, le=500.0)
     start_search_left_ms: float = Field(default=100.0, ge=0.0, le=500.0)
     start_search_right_ms: float = Field(default=20.0, ge=0.0, le=200.0)
     end_search_left_ms: float = Field(default=20.0, ge=0.0, le=200.0)
     end_search_right_ms: float = Field(default=130.0, ge=0.0, le=500.0)
-    min_cut_gap_ms: float = Field(default=200.0, ge=0.0, le=1000.0)
+    min_cut_gap_ms: float = Field(default=140.0, ge=0.0, le=1000.0)
     crossfade_ms: float = Field(default=18.0, ge=10.0, le=50.0)
     min_clip_ms: float = Field(default=120.0, ge=1.0, le=2000.0)
-    pre_roll_floor_ms: float = Field(default=55.0, ge=0.0, le=500.0)
-    post_roll_floor_ms: float = Field(default=80.0, ge=0.0, le=500.0)
+    pre_roll_floor_ms: float = Field(default=75.0, ge=0.0, le=500.0)
+    post_roll_floor_ms: float = Field(default=115.0, ge=0.0, le=500.0)
     pacing_profile: str = "tight"
-    qa_dead_air_ms: int = Field(default=500, ge=0, le=5000)
+    qa_dead_air_ms: int = Field(default=650, ge=0, le=5000)
 
 
 def _overlap_samples(

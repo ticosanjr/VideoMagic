@@ -27,7 +27,7 @@
     },
     "zooms": {
       "mode": "alternate_cuts",
-      "punch_in_scale": 1.25
+      "punch_in_scale": 1.08
     },
     "shorts": {
       "target_duration_min_sec": 30,

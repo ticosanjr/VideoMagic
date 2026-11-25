@@ -31,8 +31,9 @@ def _sentence(identifier: int, text: str, start_ms: int, end_ms: int) -> Sentenc
 
 
 def test_pacing_profiles_are_explicit_and_overridable() -> None:
-    assert PACING_PROFILES["tight"]["qa_dead_air_ms"] == 500
-    assert PACING_PROFILES["balanced"]["max_pause_ms"] == 420
+    assert PACING_PROFILES["tight"]["qa_dead_air_ms"] == 650
+    assert PACING_PROFILES["tight"]["min_cut_gap_ms"] == 140
+    assert PACING_PROFILES["balanced"]["max_pause_ms"] == 400
     assert PACING_PROFILES["relaxed"]["pad_after_ms"] == 170
     resolved = resolve_pacing_profile(
         "balanced",
@@ -43,7 +44,8 @@ def test_pacing_profiles_are_explicit_and_overridable() -> None:
     assert resolved["max_pause_ms"] == 300
     assert resolved["pad_before_ms"] == 70
     assert resolved["pad_after_ms"] == 100
-    assert resolved["qa_dead_air_ms"] >= 500
+    assert resolved["qa_dead_air_ms"] >= 650
+    assert resolved["min_cut_gap_ms"] == 200
 
 
 def test_paraphrase_is_discarded_without_an_external_llm() -> None:
@@ -132,7 +134,7 @@ def test_qa_dead_air_reads_the_pacing_profile() -> None:
         pipeline=PipelineState(metadata={"qa_dead_air_ms": 500}),
     )
     assert _dead_air_limit_ms(state) == 500
-    assert _dead_air_limit_ms(ProjectState()) == 500
+    assert _dead_air_limit_ms(ProjectState()) == 650
 
 
 def test_export_defaults_share_the_mix_audio_source() -> None:

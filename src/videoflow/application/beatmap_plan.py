@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from videoflow.application.spans import merge_spans
 from videoflow.domain.state import ProjectState
 
 
@@ -101,6 +102,55 @@ def build_beatmap_plan(
             )
             for segment in state.inactive_segments
         ]
+    if not keep_ranges and not remove_ranges:
+        rate = media.audio_sample_rate
+        duration_samples = max(
+            1,
+            round(media.duration_frames * rate * media.fps_den / media.fps_num),
+        )
+        source_spans: list[tuple[int, int]] = []
+        raw_safe = state.pipeline.metadata.get("decupage_safe_spans")
+        if isinstance(raw_safe, list):
+            for item in raw_safe:
+                try:
+                    start, end = int(item[0]), int(item[1])
+                except (TypeError, ValueError, IndexError):
+                    continue
+                if end > start:
+                    source_spans.append((max(0, start), min(duration_samples, end)))
+        if not source_spans and state.vad_intervals:
+            source_spans = [
+                (max(0, item.start_sample), min(duration_samples, item.end_sample))
+                for item in state.vad_intervals
+                if item.end_sample > item.start_sample
+            ]
+        if source_spans:
+            kept = merge_spans(source_spans)
+            keep_ranges = [
+                TimeRangeSec(
+                    start_sec=round(start / rate, 6),
+                    end_sec=round(min(duration_samples, end) / rate, 6),
+                )
+                for start, end in kept
+                if end > start
+            ]
+            cursor = 0
+            for start, end in kept:
+                if start > cursor:
+                    remove_ranges.append(
+                        TimeRangeSec(
+                            start_sec=round(cursor / rate, 6),
+                            end_sec=round(start / rate, 6),
+                        )
+                    )
+                cursor = max(cursor, end)
+            if cursor < duration_samples:
+                remove_ranges.append(
+                    TimeRangeSec(
+                        start_sec=round(cursor / rate, 6),
+                        end_sec=round(duration_samples / rate, 6),
+                    )
+                )
     return BeatMapPlan(
         style_id=getattr(style, "style_id", ""),
         time_basis="source" if keep_ranges or remove_ranges else "edited",

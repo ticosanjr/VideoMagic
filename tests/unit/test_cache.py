@@ -77,7 +77,7 @@ def test_canonicalize_types() -> None:
 
 def test_params_from_model_round_trip_into_the_hash() -> None:
     dumped = params_from_model(ZoomsConfig())
-    assert dumped["punch_in_scale"] == 1.15
+    assert dumped["punch_in_scale"] == 1.06
     direct = module_hash(
         module="zooms",
         module_version="0.1.0",

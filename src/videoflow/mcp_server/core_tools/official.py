@@ -122,7 +122,9 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
 
     @register
     def vf_decupage(
-        action: Literal["plan", "run_full", "discard_sentences"] = "plan",
+        action: Literal[
+            "plan", "run_full", "discard_sentences", "review_packet"
+        ] = "plan",
         project_id: str = "",
         style_id: str = "",
         instructions: str = "",
@@ -147,6 +149,20 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
                 project_id=project_id,
                 sentence_ids=sentence_ids or [],
             )
+        if action == "review_packet":
+            from videoflow.application.editorial_clean import (
+                build_decupage_review_packet,
+            )
+
+            try:
+                record = get_project(project_id)
+                state = load_project_state(record)
+                packet = build_decupage_review_packet(state)
+                packet["project_id"] = project_id
+                packet["action"] = "review_packet"
+                return packet
+            except VideoFlowError as exc:
+                return exc.to_dict()
         if action == "plan":
             return tools["vf_beatmap_plan"](
                 project_id=project_id,
@@ -194,7 +210,7 @@ def register_official_tools(register: Any, tools: dict[str, Any]) -> None:
                     "post_roll_ms": pacing["pad_after_ms"],
                     "pre_roll_floor_ms": pacing["pad_before_ms"],
                     "post_roll_floor_ms": pacing["pad_after_ms"],
-                    "min_cut_gap_ms": pacing["max_pause_ms"],
+                    "min_cut_gap_ms": pacing["min_cut_gap_ms"],
                     "pacing_profile": pacing_profile,
                     "qa_dead_air_ms": pacing["qa_dead_air_ms"],
                 },
