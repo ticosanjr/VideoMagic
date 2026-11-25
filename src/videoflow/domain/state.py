@@ -229,6 +229,9 @@ class OverlayClip(StrictModel):
     layout: str = "fullscreen"
     ken_burns: bool = False
     transformative_crop: bool = False
+    motion: Literal["none", "zoom_in", "zoom_out", "pan_left", "pan_right"] = "zoom_in"
+    zoom_from: float = Field(default=1.0, ge=1.0, le=4.0)
+    zoom_to: float = Field(default=1.06, ge=1.0, le=4.0)
     transition_in: str = ""
     transition_out: str = ""
     transition_frames: int = Field(default=6, ge=0, le=120)

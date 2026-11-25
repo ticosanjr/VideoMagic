@@ -249,3 +249,19 @@ def test_delivery_bundle_preview_keeps_youtube_master(tmp_path: Path) -> None:
 
 def test_default_mode_is_final() -> None:
     assert VideoExportParams().mode == "final"
+
+
+def test_export_report_marks_the_nvenc_device(tmp_path: Path) -> None:
+    report: dict[str, object] = {}
+    export_mp4(
+        _state(tmp_path),
+        tmp_path / "nvenc.mp4",
+        adapter=RecordingAdapter(),
+        mode="preview",
+        encoder="h264_nvenc",
+        qa_mode="off",
+        report=report,
+    )
+    assert report["encoder"] == "h264_nvenc"
+    assert report["device"] == "local_cuda"
+    assert report["execution_node"] == "local_cuda"

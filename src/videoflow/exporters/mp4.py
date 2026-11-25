@@ -1249,6 +1249,11 @@ def export_mp4(
     chosen = encoder or video_encoder()
     outcome = report if report is not None else {}
     outcome.setdefault("encoder", chosen)
+    outcome.setdefault("device", "local_cuda" if chosen == "h264_nvenc" else "cpu")
+    outcome.setdefault(
+        "execution_node",
+        "local_cuda" if chosen == "h264_nvenc" else "local",
+    )
     outcome.setdefault("degraded", False)
     options = {
         "adapter": adapter,
@@ -1282,6 +1287,8 @@ def export_mp4(
             raise
         outcome.update(
             encoder="libx264",
+            device="cpu",
+            execution_node="local",
             degraded=True,
             degraded_reason="nvenc_runtime_fallback",
         )
@@ -1515,11 +1522,31 @@ def _render_classic_mp4(
                 overlay_inputs.extend(
                     ["-stream_loop", "-1", "-t", f"{duration:.6f}", "-i", str(path)]
                 )
+            box = overlay_box(overlay, media.width, media.height)
             overlay_filters: list[str] = []
             if overlay.transformative_crop:
                 overlay_filters.append("crop=trunc(iw*0.9/2)*2:trunc(ih*0.9/2)*2")
             overlay_filters.append(f"scale=trunc(iw*{overlay.width_ratio:.4f}/2)*2:-2")
-            if overlay.ken_burns:
+            motion = str(getattr(overlay, "motion", "zoom_in") or "zoom_in")
+            zoom_from = float(getattr(overlay, "zoom_from", 1.0) or 1.0)
+            zoom_to = float(getattr(overlay, "zoom_to", 1.06) or 1.06)
+            if overlay.kind == "image" and motion in {"zoom_in", "zoom_out"}:
+                start_zoom, end_zoom = (
+                    (zoom_from, zoom_to)
+                    if motion == "zoom_in"
+                    else (zoom_to, zoom_from)
+                )
+                frames = max(1, int(overlay.duration_frames))
+                zoom_expr = (
+                    f"min(max({start_zoom:.4f}+"
+                    f"({end_zoom:.4f}-{start_zoom:.4f})*on/{frames},1.0),4.0)"
+                )
+                overlay_filters.append(
+                    f"zoompan=z='{zoom_expr}':d=1:"
+                    "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+                    f"s={box.width}x{box.height}:fps={max(1, int(fps or source_fps))}"
+                )
+            elif overlay.ken_burns:
                 overlay_filters.append(
                     "zoompan=z='min(zoom+0.0004,1.08)':d=1:"
                     "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
@@ -1542,7 +1569,6 @@ def _render_classic_mp4(
             overlay_chains = [
                 f"[{input_index}:v]{','.join(overlay_filters)}[{label}]"
             ]
-            box = overlay_box(overlay, media.width, media.height)
             x = max(0, min(max(0, media.width - box.width), box.x))
             y = max(0, min(max(0, media.height - box.height), box.y))
             start = overlay.start_frame / source_fps

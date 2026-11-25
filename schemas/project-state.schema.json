@@ -936,6 +936,18 @@
           "title": "Margin Y",
           "type": "integer"
         },
+        "motion": {
+          "default": "zoom_in",
+          "enum": [
+            "none",
+            "zoom_in",
+            "zoom_out",
+            "pan_left",
+            "pan_right"
+          ],
+          "title": "Motion",
+          "type": "string"
+        },
         "opacity": {
           "default": 1.0,
           "maximum": 1.0,
@@ -993,6 +1005,20 @@
           "minimum": 0,
           "title": "Z",
           "type": "integer"
+        },
+        "zoom_from": {
+          "default": 1.0,
+          "maximum": 4.0,
+          "minimum": 1.0,
+          "title": "Zoom From",
+          "type": "number"
+        },
+        "zoom_to": {
+          "default": 1.06,
+          "maximum": 4.0,
+          "minimum": 1.0,
+          "title": "Zoom To",
+          "type": "number"
         }
       },
       "required": [

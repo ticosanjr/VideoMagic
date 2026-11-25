@@ -29,6 +29,9 @@ def add_overlay(
     transition_in: str = "fade",
     transition_out: str = "fade",
     transition_frames: int = 6,
+    motion: str = "zoom_in",
+    zoom_from: float = 1.0,
+    zoom_to: float = 1.06,
 ) -> dict[str, Any]:
     record = get_project(project_id)
     state = load_project_state(record)
@@ -60,6 +63,9 @@ def add_overlay(
         transition_in=transition_in,
         transition_out=transition_out,
         transition_frames=max(0, min(120, int(transition_frames))),
+        motion=motion,  # type: ignore[arg-type]
+        zoom_from=max(1.0, min(4.0, float(zoom_from))),
+        zoom_to=max(1.0, min(4.0, float(zoom_to))),
     )
     updated = state.model_copy(update={"overlays": [*state.overlays, overlay]})
     saved = save_project_state(
@@ -94,6 +100,9 @@ def update_overlay(
     opacity: float | None = None,
     transition_in: str | None = None,
     transition_out: str | None = None,
+    motion: str | None = None,
+    zoom_from: float | None = None,
+    zoom_to: float | None = None,
 ) -> dict[str, Any]:
     record = get_project(project_id)
     state = load_project_state(record)
@@ -134,6 +143,12 @@ def update_overlay(
         updates["transition_in"] = transition_in
     if transition_out is not None:
         updates["transition_out"] = transition_out
+    if motion is not None:
+        updates["motion"] = motion
+    if zoom_from is not None:
+        updates["zoom_from"] = max(1.0, min(4.0, float(zoom_from)))
+    if zoom_to is not None:
+        updates["zoom_to"] = max(1.0, min(4.0, float(zoom_to)))
     updated_clip = OverlayClip.model_validate(
         {**current.model_dump(mode="python"), **updates}
     )

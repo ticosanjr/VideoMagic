@@ -81,6 +81,9 @@ class BeatmapOverlay(BaseModel):
     ] = "fullscreen"
     ken_burns: bool = False
     transformative_crop: bool = False
+    motion: Literal["none", "zoom_in", "zoom_out", "pan_left", "pan_right"] = "zoom_in"
+    zoom_from: float = Field(default=1.0, ge=1.0, le=4.0)
+    zoom_to: float = Field(default=1.06, ge=1.0, le=4.0)
 
 
 class BeatmapTransition(BaseModel):
@@ -362,6 +365,9 @@ def _overlay_from(entry: BeatmapOverlay, index: int, path: Path) -> OverlayClip:
         layout=entry.layout,
         ken_burns=entry.ken_burns,
         transformative_crop=entry.transformative_crop,
+        motion=entry.motion,
+        zoom_from=entry.zoom_from,
+        zoom_to=entry.zoom_to,
     )
 
 
@@ -556,7 +562,11 @@ def apply_beatmap(
             )
             raise BeatmapError("destructive edit requires force=true", report=report)
 
-    overlays = list(state.overlays)
+    overlays = [
+        overlay
+        for overlay in state.overlays
+        if not overlay.overlay_id.startswith("beatmap-")
+    ]
     for entry in [*options.broll, *options.overlays]:
         path = _validate_asset(entry.path, output, blocked, report)
         if path.is_file():
