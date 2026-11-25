@@ -93,6 +93,12 @@ class InternetArchiveClient(HttpClient):
                         "title": doc.get("title"),
                         "creator": creator,
                         "duration": duration,
+                        "size_bytes": chosen.get("size") or 0,
+                        "description": str(
+                            metadata.get("metadata", {}).get("description")
+                            or doc.get("description")
+                            or ""
+                        ),
                     },
                     suggested_filename=f"archive-{identifier}{suffix}",
                 )

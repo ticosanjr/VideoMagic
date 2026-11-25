@@ -142,6 +142,18 @@
     return item.poster_url || "";
   }
 
+  function clockLabel(seconds: number): string {
+    const value = Math.max(0, Math.round(seconds));
+    const minutes = Math.floor(value / 60);
+    const rest = value % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+  }
+
+  function rangeLabel(item: CurationItem): string {
+    if (item.start_sec == null || item.end_sec == null) return "";
+    return `${clockLabel(item.start_sec)}–${clockLabel(item.end_sec)}`;
+  }
+
   function previewSrc(item: CurationItem): string {
     const retry = previewRetries[item.item_id] ?? 0;
     return retry ? `${mediaUrl(item)}?retry=${retry}` : mediaUrl(item);
@@ -315,6 +327,18 @@
                   <span class="rounded-full border border-sky-400/20 bg-sky-400/10 px-1.5 py-0.5 text-[length:var(--vf-text-2xs)] text-sky-100">Recommended</span>
                 {/if}
               </div>
+
+              {#if item.start_sec != null && item.end_sec != null}
+                <p class="mt-2 inline-flex rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-0.5 font-mono text-[length:var(--vf-text-2xs)] text-sky-100">
+                  {rangeLabel(item)}
+                </p>
+              {/if}
+              {#if item.spoken_context}
+                <p class="mt-1 line-clamp-2 text-[length:var(--vf-text-2xs)] italic text-neutral-300">“{item.spoken_context}”</p>
+              {/if}
+              {#if item.note}
+                <p class="mt-1 line-clamp-2 text-[length:var(--vf-text-2xs)] text-amber-200/80">{item.note}</p>
+              {/if}
 
               {#if item.media_type === "style"}
                 <div class="mt-3 rounded-lg border border-white/10 bg-black/20 p-2">

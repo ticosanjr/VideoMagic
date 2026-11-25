@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import subprocess
 import time
 from collections.abc import Iterable
@@ -121,6 +122,115 @@ def _download_youtube(
     return files[0], start, end
 
 
+def _probe_video(path: Path) -> tuple[float, int, bool]:
+    binary = find_binary("ffprobe")
+    if binary is None:
+        return 0.0, 0, False
+    completed = subprocess.run(
+        [
+            binary,
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    if completed.returncode != 0:
+        return 0.0, 0, False
+    try:
+        payload = json.loads(completed.stdout or "{}")
+    except ValueError:
+        return 0.0, 0, False
+    streams = payload.get("streams") or []
+    video = next(
+        (item for item in streams if item.get("codec_type") == "video"),
+        {},
+    )
+    has_audio = any(item.get("codec_type") == "audio" for item in streams)
+    try:
+        duration = float((payload.get("format") or {}).get("duration") or 0.0)
+    except (TypeError, ValueError):
+        duration = 0.0
+    try:
+        height = int(video.get("height") or 0)
+    except (TypeError, ValueError):
+        height = 0
+    return max(0.0, duration), height, has_audio
+
+
+def trim_stock_video(
+    path: Path | str,
+    *,
+    max_duration_sec: float = 12.0,
+    clip_sec: float = 8.0,
+    max_height: int = 1080,
+    destination: Path | str | None = None,
+) -> Path:
+    """Trim a long or oversized stock clip to a light 1080p excerpt."""
+
+    source = Path(path).expanduser()
+    duration, height, has_audio = _probe_video(source)
+    if duration <= max_duration_sec and height <= max_height:
+        return source
+    ffmpeg = find_binary("ffmpeg")
+    if ffmpeg is None:
+        return source
+    target = (
+        Path(destination).expanduser()
+        if destination is not None
+        else source.with_name(f"{source.stem}-clip{int(round(clip_sec))}.mp4")
+    )
+    start = 2.0 if duration > max_duration_sec else 0.0
+    if duration > 0:
+        start = max(0.0, min(start, max(0.0, duration - clip_sec)))
+    command = [
+        ffmpeg,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-ss",
+        f"{start:.3f}",
+        "-i",
+        str(source),
+        "-t",
+        f"{max(0.1, clip_sec):.3f}",
+        "-vf",
+        f"scale='min({int(max_height)},iw)':-2,fps=30",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+    ]
+    if has_audio:
+        command.extend(["-map", "0:v:0", "-map", "0:a:0", "-c:a", "aac", "-b:a", "128k"])
+    else:
+        command.append("-an")
+    command.extend(["-movflags", "+faststart", str(target)])
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    if completed.returncode != 0 or not target.is_file():
+        target.unlink(missing_ok=True)
+        return source
+    return target
+
+
 def download_asset(
     candidate: AssetCandidate,
     destination: Path,
@@ -151,6 +261,8 @@ def download_asset(
             allow_external_services=allow_external_services,
             allowed_external_hosts=allowed_external_hosts,
         )
+    if candidate.kind == "video":
+        path = trim_stock_video(path)
     data = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):

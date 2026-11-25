@@ -89,6 +89,8 @@ class WikimediaClient(HttpClient):
                         "width": info.get("width"),
                         "height": info.get("height"),
                         "duration": duration,
+                        "size_bytes": info.get("size") or 0,
+                        "description": _commons_value(meta, "ImageDescription"),
                     },
                     suggested_filename=(
                         f"wikimedia-{page.get('pageid', 'video')}{suffix}"
@@ -156,6 +158,8 @@ class WikimediaClient(HttpClient):
                         "creator": creator,
                         "width": info.get("width"),
                         "height": info.get("height"),
+                        "size_bytes": info.get("size") or 0,
+                        "description": _commons_value(meta, "ImageDescription"),
                     },
                     suggested_filename=f"wikimedia-{page.get('pageid', 'image')}{suffix}",
                 )

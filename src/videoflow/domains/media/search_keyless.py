@@ -12,6 +12,7 @@ import httpx
 
 from videoflow.application.secrets import get_secret
 from videoflow.application.settings import AppSettings
+from videoflow.application.text import STOPWORDS, token_list, token_set
 from videoflow.domain.errors import CapabilityUnavailableError, SearchError
 from videoflow.domains.media.models import AssetCandidate, _candidate
 from videoflow.runtime import find_binary
@@ -19,6 +20,75 @@ from videoflow.runtime import find_binary
 from .search_base import _check_provider
 
 _HTML = re.compile(r"<[^>]+>")
+_MAX_STOCK_DURATION_SEC = 120.0
+_MAX_STOCK_BYTES = 80 * 1024 * 1024
+
+
+def _int_value(value: object) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _duration_value(value: object) -> float:
+    text = str(value or "").strip()
+    if not text:
+        return 0.0
+    if ":" in text:
+        try:
+            parts = [float(item) for item in text.split(":")]
+        except ValueError:
+            return 0.0
+        seconds = 0.0
+        for part in parts:
+            seconds = seconds * 60 + part
+        return max(0.0, seconds)
+    try:
+        return max(0.0, float(text))
+    except ValueError:
+        return 0.0
+
+
+def _relevance_score(query: str, *texts: object) -> float:
+    wanted = token_set(query) - STOPWORDS
+    if not wanted:
+        return 1.0
+    found: set[str] = set()
+    for text in texts:
+        found.update(token_set(str(text or "")) - STOPWORDS)
+    return len(wanted & found) / len(wanted)
+
+
+def _filter_stock(candidates: list[AssetCandidate], query: str) -> list[AssetCandidate]:
+    """Drop long, heavy, or semantically unrelated stock candidates."""
+
+    kept: list[AssetCandidate] = []
+    for candidate in candidates:
+        if (
+            candidate.kind == "video"
+            and candidate.provider != "youtube"
+            and candidate.duration_sec > _MAX_STOCK_DURATION_SEC
+        ):
+            continue
+        try:
+            size_bytes = int(candidate.metadata.get("size_bytes") or 0)
+        except (TypeError, ValueError):
+            size_bytes = 0
+        if size_bytes > _MAX_STOCK_BYTES:
+            continue
+        if candidate.kind == "video":
+            score = _relevance_score(
+                query,
+                candidate.title,
+                candidate.metadata.get("description"),
+                candidate.metadata.get("tags"),
+            )
+            if score < 0.35:
+                continue
+            candidate.metadata["relevance_score"] = round(score, 3)
+        kept.append(candidate)
+    return kept
 
 
 def _openverse(
@@ -61,9 +131,14 @@ def _openverse(
                     license_text=str(item.get("license") or ""),
                     license_url=str(item.get("license_url") or ""),
                     creator=str(item.get("creator") or ""),
+                    metadata={
+                        "size_bytes": _int_value(item.get("filesize")),
+                        "description": str(item.get("description") or ""),
+                        "tags": item.get("tags") or [],
+                    },
                 )
             )
-    return results[:limit]
+    return _filter_stock(results, query)[:limit]
 
 
 def _wikimedia(
@@ -126,9 +201,17 @@ def _wikimedia(
                 license_text=license_text,
                 license_url=license_url,
                 creator=artist,
+                metadata={
+                    "size_bytes": _int_value(info.get("size")),
+                    "description": _HTML.sub(
+                        "", str((ext.get("ImageDescription") or {}).get("value") or "")
+                    ),
+                    "duration": float(info.get("duration") or 0.0),
+                },
+                duration_sec=float(info.get("duration") or 0.0),
             )
         )
-    return results[:limit]
+    return _filter_stock(results, query)[:limit]
 
 
 def _internet_archive(
@@ -138,6 +221,7 @@ def _internet_archive(
     media: str,
     allow_external_services: bool,
     allowed_external_hosts: Iterable[str],
+    _simplified: bool = False,
 ) -> list[AssetCandidate]:
     _check_provider(
         "https://archive.org",
@@ -184,7 +268,9 @@ def _internet_archive(
         )
         if metadata.status_code >= 400:
             continue
-        files = metadata.json().get("files") or []
+        metadata_payload = metadata.json()
+        files = metadata_payload.get("files") or []
+        item_metadata = metadata_payload.get("metadata") or {}
         chosen = next(
             (
                 item
@@ -211,9 +297,40 @@ def _internet_archive(
                 license_text=str(doc.get("licenseurl") or ""),
                 license_url=str(doc.get("licenseurl") or ""),
                 creator=str(doc.get("creator") or ""),
+                duration_sec=_duration_value(
+                    doc.get("length") or item_metadata.get("length")
+                ),
+                metadata={
+                    "size_bytes": _int_value(chosen.get("size")),
+                    "description": str(
+                        doc.get("description")
+                        or item_metadata.get("description")
+                        or ""
+                    ),
+                    "tags": doc.get("subject") or item_metadata.get("subject") or [],
+                },
             )
         )
-    return results[:limit]
+    filtered = _filter_stock(results, query)
+    if filtered or _simplified:
+        return filtered[:limit]
+    simplified = " ".join(
+        [
+            token
+            for token in token_list(query)
+            if token not in STOPWORDS and len(token) >= 4
+        ][:2]
+    )
+    if simplified and simplified.casefold() != query.casefold():
+        return _internet_archive(
+            simplified,
+            limit=limit,
+            media=media,
+            allow_external_services=allow_external_services,
+            allowed_external_hosts=allowed_external_hosts,
+            _simplified=True,
+        )
+    return []
 
 
 def _youtube(
@@ -273,8 +390,9 @@ def _youtube(
                 license_url="https://www.youtube.com/static?template=terms",
                 creator=uploader,
                 duration_sec=duration_sec,
+                metadata={"description": title, "tags": []},
             )
         )
-    return results[:limit]
+    return _filter_stock(results, query)[:limit]
 
 

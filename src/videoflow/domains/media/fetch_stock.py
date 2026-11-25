@@ -7,6 +7,8 @@ from typing import Any
 
 import httpx
 
+from videoflow.application.text import STOPWORDS, token_set
+
 from .errors import (
     InvalidRequestError,
     McpFetchError,
@@ -20,10 +22,53 @@ from .providers import (
     InternetArchiveClient,
     LocalAsset,
     OpenverseClient,
+    RemoteAsset,
     WikimediaClient,
     env_value,
     resolve_keyed_provider,
 )
+
+_MAX_STOCK_DURATION_SEC = 120.0
+_MAX_STOCK_BYTES = 80 * 1024 * 1024
+
+
+def _remote_relevance(query: str, candidate: RemoteAsset) -> float:
+    wanted = token_set(query) - STOPWORDS
+    if not wanted:
+        return 1.0
+    text = " ".join(
+        str(candidate.metadata.get(key) or "")
+        for key in ("title", "description", "tags")
+    )
+    found = token_set(text) - STOPWORDS
+    return len(wanted & found) / len(wanted)
+
+
+def _filter_remote_stock(
+    candidates: list[RemoteAsset], query: str
+) -> list[RemoteAsset]:
+    kept: list[RemoteAsset] = []
+    for candidate in candidates:
+        if candidate.media_type == "video":
+            try:
+                duration = float(candidate.metadata.get("duration") or 0.0)
+            except (TypeError, ValueError):
+                duration = 0.0
+            if duration > _MAX_STOCK_DURATION_SEC:
+                continue
+        try:
+            size_bytes = int(candidate.metadata.get("size_bytes") or 0)
+        except (TypeError, ValueError):
+            size_bytes = 0
+        if size_bytes > _MAX_STOCK_BYTES:
+            continue
+        if candidate.media_type == "video":
+            score = _remote_relevance(query, candidate)
+            if score < 0.35:
+                continue
+            candidate.metadata["relevance_score"] = round(score, 3)
+        kept.append(candidate)
+    return kept
 
 
 class StockMixin(FetchServiceBase):
@@ -102,15 +147,18 @@ class StockMixin(FetchServiceBase):
                 if cached is not None:
                     return cached
                 try:
-                    candidates = candidate_client.search_videos(
+                    candidates = _filter_remote_stock(
+                        candidate_client.search_videos(
+                            query,
+                            orientation=orientation,
+                            min_duration=min_duration,
+                            max_results=max_results,
+                        ),
                         query,
-                        orientation=orientation,
-                        min_duration=min_duration,
-                        max_results=max_results,
                     )
                     if not candidates:
                         raise ProviderResponseError(
-                            f"{candidate_name} returned no videos for {query!r}."
+                            f"{candidate_name} returned no relevant videos for {query!r}."
                         )
                 except (McpFetchError, httpx.HTTPError) as exc:
                     last_failure = exc
@@ -218,8 +266,11 @@ class StockMixin(FetchServiceBase):
                     candidate_client = factories[candidate_name](
                         client=self._http_client()
                     )
-                    candidates = candidate_client.search_images(
-                        query, count=count, orientation=orientation
+                    candidates = _filter_remote_stock(
+                        candidate_client.search_images(
+                            query, count=count, orientation=orientation
+                        ),
+                        query,
                     )
                     if not candidates:
                         raise ProviderResponseError(

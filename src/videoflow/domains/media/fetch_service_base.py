@@ -129,6 +129,24 @@ class FetchServiceBase:
                     last_error = exc
                     warnings.append(f"{candidate.page_url or candidate.download_url}: {exc}")
                     continue
+                trimmed = False
+                if kind == "broll" and candidate.media_type == "video":
+                    from .download import trim_stock_video
+
+                    try:
+                        clipped = trim_stock_video(target)
+                    except Exception as exc:  # noqa: BLE001 - keep the original clip
+                        warnings.append(
+                            f"{candidate.page_url or candidate.download_url}: "
+                            f"trim failed: {exc}"
+                        )
+                        clipped = target
+                    if clipped != target:
+                        target = clipped
+                        trimmed = True
+                asset_name = candidate.suggested_filename or target.name
+                if trimmed and Path(asset_name).suffix.casefold() != ".mp4":
+                    asset_name = f"{Path(asset_name).stem}.mp4"
                 metadata = {
                     **candidate.metadata,
                     "provider": candidate.provider,
@@ -139,11 +157,12 @@ class FetchServiceBase:
                     "params": dict(params),
                     "license_status": candidate.status,
                     "retrieved_at": utc_now(),
+                    "trimmed": trimmed,
                 }
                 asset = workspace.import_file(
                     target,
                     kind=kind,
-                    name=candidate.suggested_filename or target.name,
+                    name=asset_name,
                     provider=candidate.provider,
                     metadata=metadata,
                     license=candidate.to_license(),

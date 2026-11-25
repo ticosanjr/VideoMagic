@@ -1060,6 +1060,10 @@ export interface CurationItem {
     caption_preset?: string;
   };
   duration_sec: number;
+  start_sec?: number | null;
+  end_sec?: number | null;
+  spoken_context?: string;
+  note?: string;
   recommended: boolean;
   reason: string;
   status: "pending" | "selected" | "rejected";

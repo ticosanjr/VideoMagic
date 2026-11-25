@@ -167,14 +167,19 @@ def build_broll_filter(
     )
     center_x = "iw/2-(iw/zoom/2)"
     center_y = "ih/2-(ih/zoom/2)"
+    step = 0.06 / max(1, frames)
     if motion == "zoom_in":
-        zoom, x_expr, y_expr = "min(zoom+0.0020,1.25)", center_x, center_y
+        zoom, x_expr, y_expr = f"min(zoom+{step:.8f},1.06)", center_x, center_y
     elif motion == "zoom_out":
-        zoom, x_expr, y_expr = "if(eq(on,1),1.25,max(zoom-0.0020,1.0))", center_x, center_y
+        zoom, x_expr, y_expr = (
+            f"if(eq(on,1),1.06,max(zoom-{step:.8f},1.0))",
+            center_x,
+            center_y,
+        )
     elif motion == "pan_left":
-        zoom, x_expr, y_expr = "1.15", f"(iw-iw/zoom)*(1-on/{frames})", center_y
+        zoom, x_expr, y_expr = "1.06", f"(iw-iw/zoom)*(1-on/{frames})", center_y
     else:
-        zoom, x_expr, y_expr = "1.15", f"(iw-iw/zoom)*on/{frames}", center_y
+        zoom, x_expr, y_expr = "1.06", f"(iw-iw/zoom)*on/{frames}", center_y
     zoompan = f"zoompan=z='{zoom}':x='{x_expr}':y='{y_expr}':d=1:s={width}x{height}:fps={fps}"
     return f"{pre},{zoompan},format=yuv420p"
 

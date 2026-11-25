@@ -43,6 +43,10 @@ class CurationItem(BaseModel):
     poster_url: str = ""
     preview_meta: dict[str, Any] = Field(default_factory=dict)
     duration_sec: float = 0.0
+    start_sec: float | None = None
+    end_sec: float | None = None
+    spoken_context: str = ""
+    note: str = ""
     recommended: bool = False
     reason: str = ""
     status: Literal["pending", "selected", "rejected"] = "pending"
