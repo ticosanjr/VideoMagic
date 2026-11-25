@@ -75,7 +75,7 @@ e QA/MCP fail-closed.
 ### Validation
 
 - `ruff check src packages tests scripts`: limpo.
-- `pytest -q`: 3147 passed, 1 skipped, 1 xfailed; cobertura 96,72%.
+- `pytest -q`: 3151 passed, 1 skipped, 1 xfailed; cobertura 96,72%.
 - `pytest -m media`: 32 passed, 2 skipped.
 - UI: `svelte-check` 0 erros/0 warnings; 55 testes.
 
