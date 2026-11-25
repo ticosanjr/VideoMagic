@@ -46,10 +46,13 @@ def _build_graph(
                 "attack=20:release=300[ducked]"
             )
             chains.append(
-                "[voice_mix][ducked]amix=inputs=2:weights=1 1:normalize=0[mix0]"
+                "[voice_mix][ducked]amix=inputs=2:duration=first:"
+                "weights=1 1:normalize=0[mix0]"
             )
         else:
-            chains.append("[voice][music]amix=inputs=2:weights=1 1:normalize=0[mix0]")
+            chains.append(
+                "[voice][music]amix=inputs=2:duration=first:weights=1 1:normalize=0[mix0]"
+            )
     else:
         chains.append("[voice]anull[mix0]")
     if sfx:

@@ -1106,6 +1106,7 @@ class JobManager:
         adapter = FFmpegAdapter(cancel_event=job.cancel_event)
         preview = kind == "preview"
         qa_mode = str(job.options.get("qa_mode") or "fast").strip().lower()
+        final_mix = job.output / "audio" / "final_mix.wav"
 
         def progress(percent: int) -> None:
             callbacks.progress("render", max(1, min(99, percent)), f"Rendering {percent}%")
@@ -1119,6 +1120,7 @@ class JobManager:
             audio_filters=audio_filters,
             video_filters=video_filters,
             ass_path=ass_path if ass_path.is_file() else None,
+            audio_master=final_mix if final_mix.is_file() else None,
             progress=progress,
             scale_height=height,
             cache_dir=job.output / "render" / "segments",

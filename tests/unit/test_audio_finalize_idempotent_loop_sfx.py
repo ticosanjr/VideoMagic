@@ -32,6 +32,7 @@ def _run(*args: str) -> None:
 
 
 def _wav(path: Path, *, seconds: float, frequency: int = 440) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
     _run(
         "-f",
         "lavfi",
@@ -190,3 +191,31 @@ def test_step_always_reads_dialogue_timeline_and_mixes_sfx_plan(
     assert (context.output / "audio" / "final.wav").is_file()
     assert (context.output / "audio" / "master.wav").is_file()
     assert context.metadata["audio_finalize"]["sfx_events_requested"] == 1
+
+
+@pytest.mark.skipif(FFMPEG is None, reason="ffmpeg is not installed")
+def test_finalize_autodetects_music_and_clamps_late_sfx(tmp_path: Path) -> None:
+    output = tmp_path / "project"
+    voice = _wav(output / "audio" / "dialogue_timeline.wav", seconds=2.0)
+    music = _wav(output / "audio" / "music" / "music-bed.wav", seconds=0.5, frequency=220)
+    sfx = _wav(output / "audio" / "sfx" / "hit.wav", seconds=0.2, frequency=880)
+    (output / "beat_map.json").write_text(
+        (
+            '{"sfx": [{"path": "audio/sfx/hit.wav", "start_frame": 90, '
+            '"gain_db": -6.0}]}'
+        ),
+        encoding="utf-8",
+    )
+    voice_sha = voice.read_bytes()
+
+    first = finalize_audio(voice, output, duration_sec=2.0)
+    assert first.music_mixed is True
+    assert first.sfx_events_requested == 1
+    assert first.sfx_events_mixed == 1
+    assert any("clamped" in warning for warning in first.warnings)
+    assert abs(first.integrated_lufs + 16.0) <= 0.7
+
+    second = finalize_audio(voice, output, duration_sec=2.0)
+    assert second.ok is True
+    assert voice.read_bytes() == voice_sha
+    assert music.is_file() and sfx.is_file()

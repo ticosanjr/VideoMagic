@@ -129,6 +129,16 @@ def resolve_render_profile(
     }
 
 
+def _is_explicit_audio_source(output: Path, audio_source: str) -> bool:
+    token = str(audio_source or "").strip()
+    if token in {"", "timeline", "mix", "final", "final_mix", "master"}:
+        return False
+    candidate = Path(token).expanduser()
+    if not candidate.is_absolute():
+        candidate = Path(output).expanduser() / candidate
+    return candidate.is_file()
+
+
 def resolve_audio_master(output: Path, audio_source: str) -> Path | None:
     """Resolve timeline, final mix, master, or an explicit audio path."""
 
@@ -208,7 +218,13 @@ def render_master(
         qa_mode = str(profile["qa_mode"])
     cfr = bool(profile["cfr"]) or cfr
     chosen = look or project_look(output)
-    audio_master = resolve_audio_master(output, audio_source)
+    final_mix = Path(output).expanduser() / "audio" / "final_mix.wav"
+    explicit_audio = _is_explicit_audio_source(output, audio_source)
+    if mode in {"preview", "final"} and final_mix.is_file() and not explicit_audio:
+        audio_master = final_mix
+        audio_source = "final_mix"
+    else:
+        audio_master = resolve_audio_master(output, audio_source)
     outcome["audio_source"] = audio_source
     outcome["audio_master"] = str(audio_master) if audio_master else ""
     filters = list(_look_filters(output, chosen))

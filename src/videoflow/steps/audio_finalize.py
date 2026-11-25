@@ -230,10 +230,18 @@ class AudioFinalizeStep(BaseStep):
                 and "music_gain_db" not in options.model_fields_set
                 else options.music_gain_db
             ),
+            include_music=not mixed_input,
+            fps=fps or 30.0,
             target_name=options.target_name,
         )
         payload = result.to_dict()
-        payload["sfx_events_requested"] = len(sfx_events)
+        payload["sfx_events_requested"] = max(
+            len(sfx_events),
+            int(getattr(result, "sfx_events_requested", 0) or 0),
+        )
+        payload["sfx_events_mixed"] = int(
+            getattr(result, "sfx_events_mixed", 0) or 0
+        )
         result_path = Path(result.path)
         final_mix = context.output / "audio" / "final_mix.wav"
         final = context.output / "audio" / "final.wav"

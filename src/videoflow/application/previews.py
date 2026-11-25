@@ -113,6 +113,7 @@ def build_preview(
                 state_path.read_text(encoding="utf-8")
             )
             ass_path = job.output / "titles.ass"
+            final_mix = job.output / "audio" / "final_mix.wav"
             report(20, "Rendering preview")
             adapter = FFmpegAdapter(cancel_event=cancel_event)
             export_mp4(
@@ -122,6 +123,7 @@ def build_preview(
                 audio_filters=audio_filters(job),
                 video_filters=video_filters(job),
                 ass_path=ass_path if ass_path.is_file() else None,
+                audio_master=final_mix if final_mix.is_file() else None,
                 scale_height=height,
                 cache_dir=job.output / "render" / "segments",
                 fps=30,
