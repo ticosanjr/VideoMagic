@@ -415,6 +415,20 @@ def register_system_routes(app: FastAPI) -> None:
             return {"ok": False, "cancelled": True}
         return {"ok": True, "path": selected}
 
+    @app.get("/api/v1/system/browse-folders")
+    def system_browse_folders(path: str = "") -> dict[str, object]:
+        try:
+            return {"ok": True, **_browse_folders(path)}
+        except Exception as exc:  # noqa: BLE001 - report listing failures cleanly
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "ok": False,
+                    "code": "folder_browser_unavailable",
+                    "message": str(exc),
+                },
+            ) from exc
+
     @app.get("/api/v1/system")
     def system() -> dict[str, object]:
         return {
@@ -429,10 +443,109 @@ def register_system_routes(app: FastAPI) -> None:
         }
 
 
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def _folder_roots() -> list[str]:
+    roots: list[str] = []
+    for candidate in (*allowed_roots(), portable_home(), Path.home()):
+        try:
+            resolved = Path(candidate).expanduser().resolve()
+        except OSError:
+            continue
+        text = str(resolved)
+        if resolved.is_dir() and text not in roots:
+            roots.append(text)
+    if _is_windows():
+        drives = getattr(os, "listdrives", None)
+        values = list(drives()) if callable(drives) else []
+        if not values:
+            values = [
+                f"{letter}:\\"
+                for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                if Path(f"{letter}:\\").is_dir()
+            ]
+        for drive in values:
+            text = str(Path(str(drive)))
+            if text not in roots and Path(text).is_dir():
+                roots.append(text)
+    return roots
+
+
+def _browse_folders(path: str = "") -> dict[str, object]:
+    roots = _folder_roots()
+    fallback = Path(roots[0]) if roots else Path.cwd()
+    candidate = Path(path).expanduser() if str(path or "").strip() else fallback
+    try:
+        candidate = candidate.resolve()
+    except OSError:
+        candidate = fallback.resolve()
+    while not candidate.is_dir() and candidate.parent != candidate:
+        candidate = candidate.parent
+    if not candidate.is_dir():
+        candidate = fallback.resolve()
+    try:
+        entries = sorted(
+            (item for item in candidate.iterdir() if item.is_dir()),
+            key=lambda item: item.name.casefold(),
+        )
+    except OSError as exc:
+        raise RuntimeError(f"Cannot list {candidate}: {exc}") from exc
+    parent = candidate.parent if candidate.parent != candidate else None
+    return {
+        "path": str(candidate),
+        "parent": str(parent) if parent is not None else None,
+        "roots": roots,
+        "directories": [
+            {"name": item.name, "path": str(item)} for item in entries[:1000]
+        ],
+        "truncated": len(entries) > 1000,
+    }
+
+
+def _choose_folder_windows(initial: str = "") -> str | None:
+    """Open the native Windows folder dialog through Windows PowerShell."""
+
+    executable = shutil.which("powershell") or shutil.which("pwsh")
+    if executable is None:
+        return None
+    script = (
+        "Add-Type -AssemblyName System.Windows.Forms;"
+        "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog;"
+        "$dialog.Description = 'Select the VideoFlow workspace folder';"
+        "$dialog.ShowNewFolderButton = $true;"
+        "if ($env:VF_INITIAL_DIR -and (Test-Path -LiteralPath $env:VF_INITIAL_DIR)) {"
+        " $dialog.SelectedPath = $env:VF_INITIAL_DIR };"
+        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {"
+        " [Console]::Out.Write($dialog.SelectedPath) }"
+    )
+    environment = dict(os.environ)
+    environment["VF_INITIAL_DIR"] = initial
+    try:
+        completed = subprocess.run(
+            [executable, "-NoProfile", "-STA", "-Command", script],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+            env=environment,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    return completed.stdout.strip()
+
+
 def _choose_folder(initial: str = "") -> str:
     """Open a native folder picker in the desktop session."""
 
-    if os.name != "nt":
+    if _is_windows():
+        selected = _choose_folder_windows(initial)
+        if selected is not None:
+            return selected
+    if not _is_windows():
         if shutil.which("zenity"):
             argv = ["zenity", "--file-selection", "--directory"]
             if initial:

@@ -3,6 +3,13 @@
 Export confiável, áudio realmente mixado, decupagem protegida, Shorts centrados
 e QA/MCP fail-closed.
 
+## Setup do OpenCode
+
+- O campo de pasta do workspace agora tem um navegador embutido com unidades,
+  raízes permitidas, navegação por subpastas e caminho editável.
+- O seletor nativo do Windows usa PowerShell/WinForms, com fallback para
+  Tkinter quando necessário.
+
 ## Export e preview
 
 - `burn_subtitles=True` aplica o `.ass` no passe final e falha explicitamente se

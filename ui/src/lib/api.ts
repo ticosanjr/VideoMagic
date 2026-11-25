@@ -1377,6 +1377,20 @@ export async function cleanupGlobalMcp(): Promise<{
   return request("/api/v1/system/opencode/cleanup-global", { method: "POST" });
 }
 
+export interface FolderListing {
+  ok: boolean;
+  path: string;
+  parent: string | null;
+  roots: string[];
+  directories: { name: string; path: string }[];
+  truncated: boolean;
+}
+
+export async function listFolders(path = ""): Promise<FolderListing> {
+  const query = path.trim() ? `?path=${encodeURIComponent(path.trim())}` : "";
+  return request<FolderListing>(`/api/v1/system/browse-folders${query}`);
+}
+
 export async function chooseFolder(initial = ""): Promise<{ ok: boolean; path?: string; cancelled?: boolean }> {
   return request("/api/v1/system/choose-folder", {
     method: "POST",

@@ -5,6 +5,17 @@
 Export confiável, áudio realmente mixado, decupagem protegida, Shorts centrados
 e QA/MCP fail-closed.
 
+### Added — setup do OpenCode
+
+- O seletor de pasta do workspace ganhou um navegador embutido com unidades,
+  raízes permitidas, pasta atual, subpastas, botão de subir e campo de caminho
+  absoluto.
+- O botão **Browse…** abre o navegador na interface e oferece **System dialog**
+  para o seletor nativo.
+- No Windows, o seletor nativo usa PowerShell/WinForms
+  (`FolderBrowserDialog`), com fallback para Tkinter quando o PowerShell não
+  estiver disponível.
+
 ### Fixed — export e preview
 
 - `burn_subtitles=True` aplica `ass=filename=...:fontsdir=...` no passe final e

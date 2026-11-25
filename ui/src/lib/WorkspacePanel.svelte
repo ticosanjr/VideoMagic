@@ -1,11 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import Modal from "$lib/ui/Modal.svelte";
   import {
     bootstrapOpenCode,
     chooseFolder,
     cleanupGlobalMcp,
     getMcpHealth,
     getSystem,
+    listFolders,
+    type FolderListing,
     type McpHealth,
     type OpenCodeBootstrapResult,
     type SystemInfo
@@ -22,6 +25,10 @@
   let result = $state<OpenCodeBootstrapResult | null>(null);
   let mcpHealth = $state<McpHealth | null>(null);
   let cleanupNotice = $state("");
+  let browserOpen = $state(false);
+  let browserBusy = $state(false);
+  let browsePath = $state("");
+  let listing = $state<FolderListing | null>(null);
 
   async function refreshHealth() {
     try {
@@ -55,12 +62,42 @@
   }
 
   async function browse() {
+    error = "";
+    browserOpen = true;
+    await openBrowser(targetDir.trim());
+  }
+
+  async function openBrowser(path: string) {
+    browserBusy = true;
+    try {
+      listing = await listFolders(path);
+      browsePath = listing.path;
+    } catch (reason) {
+      error = reason instanceof Error ? reason.message : String(reason);
+    } finally {
+      browserBusy = false;
+    }
+  }
+
+  function useBrowsedFolder() {
+    if (listing?.path) targetDir = listing.path;
+    browserOpen = false;
+  }
+
+  async function systemFolderDialog() {
     try {
       const picked = await chooseFolder(targetDir);
-      if (picked.ok && picked.path) targetDir = picked.path;
+      if (picked.ok && picked.path) {
+        targetDir = picked.path;
+        browserOpen = false;
+      }
     } catch (reason) {
       error = reason instanceof Error ? reason.message : String(reason);
     }
+  }
+
+  function browseUp() {
+    if (listing?.parent) void openBrowser(listing.parent);
   }
 
   async function install() {
@@ -176,4 +213,84 @@
       {/if}
     </article>
   </div>
+  <Modal
+    open={browserOpen}
+    title="Choose workspace folder"
+    description="Browse folders, open a drive, or type an absolute path."
+    onclose={() => (browserOpen = false)}
+    testid="folder-browser"
+  >
+    <div class="space-y-3">
+      <div class="flex gap-2">
+        <input
+          aria-label="Folder path"
+          title="Folder path"
+          bind:value={browsePath}
+          class="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 font-mono text-[length:var(--vf-text-xs)] text-neutral-100"
+          onkeydown={(event) => {
+            if (event.key === "Enter") void openBrowser(browsePath);
+          }}
+        />
+        <button
+          type="button"
+          disabled={browserBusy}
+          onclick={() => void openBrowser(browsePath)}
+          class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-200 disabled:opacity-40"
+        >Go</button>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={!listing?.parent || browserBusy}
+          onclick={browseUp}
+          class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-200 disabled:opacity-40"
+        >Up</button>
+        {#each listing?.roots ?? [] as root}
+          <button
+            type="button"
+            title={root}
+            disabled={browserBusy}
+            onclick={() => void openBrowser(root)}
+            class="max-w-[18rem] truncate rounded-lg border border-white/10 px-3 py-1.5 font-mono text-[length:var(--vf-text-xs)] text-neutral-300 disabled:opacity-40"
+          >{root}</button>
+        {/each}
+      </div>
+      <p class="truncate font-mono text-[11px] text-neutral-400">{browserBusy ? "Loading…" : listing?.path ?? ""}</p>
+      {#if listing?.directories?.length}
+        <ul class="max-h-[45vh] divide-y divide-white/5 overflow-auto rounded-lg border border-white/10">
+          {#each listing.directories as directory}
+            <li>
+              <button
+                type="button"
+                title={directory.path}
+                onclick={() => void openBrowser(directory.path)}
+                class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[length:var(--vf-text-xs)] text-neutral-200 hover:bg-white/5"
+              >
+                <span class="truncate">{directory.name}</span>
+                <span class="text-neutral-600">›</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {:else if !browserBusy}
+        <p class="rounded-lg border border-white/10 px-3 py-2 text-[length:var(--vf-text-xs)] text-neutral-500">No subfolders</p>
+      {/if}
+      {#if listing?.truncated}
+        <p class="text-[11px] text-amber-200">Showing the first 1000 folders.</p>
+      {/if}
+      <div class="flex flex-wrap justify-end gap-2 pt-2">
+        <button
+          type="button"
+          onclick={() => void systemFolderDialog()}
+          class="rounded-lg border border-white/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-neutral-200"
+        >System dialog</button>
+        <button
+          type="button"
+          disabled={!listing?.path}
+          onclick={useBrowsedFolder}
+          class="rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-1.5 text-[length:var(--vf-text-xs)] text-emerald-100 disabled:opacity-40"
+        >Use this folder</button>
+      </div>
+    </div>
+  </Modal>
 </section>
