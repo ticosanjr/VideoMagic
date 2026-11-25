@@ -1,119 +1,57 @@
 ---
 schema_version: 1
-version: 1
+version: 2
 workflow_id: shorts-from-long
-name: Shorts from Long
-description: Deriva vários Shorts/Reels de um vídeo longo já decupado.
+name: "Shorts & Reels de Vídeo Longo (9:16 / 4:5)"
+description: "Extrai os melhores ganchos da timeline já decupada usando análise de cena + fala, com legendas queimadas e curadoria."
 aspect_ratio: "9:16"
-platforms: ['shorts', 'reels', 'tiktok']
+platforms:
+  - shorts
+  - reels
+  - tiktok
 inputs:
   - source
 steps:
-  - id: load
-    node: timeline.load
-    purpose: timeline.load
-    requires_approval: false
-  - id: beats
-    node: narrative.beats
-    purpose: narrative.beats
+  - id: scenes
+    node: scene.analyze
+    purpose: "Identificar cenas em câmera vs tela compartilhada"
     requires_approval: false
   - id: select
     node: shorts.select
-    purpose: shorts.select
-    requires_approval: false
-  - id: score
-    node: shorts.score
-    purpose: shorts.score
-    requires_approval: false
-  - id: reframe
-    node: shorts.reframe
-    purpose: shorts.reframe
-    requires_approval: false
-  - id: captions
-    node: shorts.captions
-    purpose: shorts.captions
+    purpose: "Selecionar ganchos completos (25–45 s) na Edited Timeline"
     requires_approval: false
   - id: curation
     node: curation.prepare
-    purpose: curation.prepare
+    purpose: "Aprovação opcional dos trechos e B-rolls na UI"
     requires_approval: true
-    params:
-      interactive: true
   - id: render
     node: shorts.render
-    purpose: shorts.render
+    purpose: "Reframe facial + multi-layout + legendas queimadas + -16 LUFS"
     requires_approval: false
-  - id: export
-    node: export.nle
-    purpose: export.nle
-    requires_approval: true
+  - id: qa
+    node: qa.final
+    purpose: "Auditoria de safe-zone, duração e loudness por Short"
+    requires_approval: false
 approvals:
-  - beatmap
   - curation
-  - final_export
-default_style: ""
-compatible_styles: []
+default_style: "canal-paula-reels"
+compatible_styles:
+  - canal-paula-reels
+  - sr-viral-depth-split
+  - sr-feed-4x5-card
 export_targets:
   - mp4_youtube
   - resolve
-  - premiere
-  - kdenlive
-updated_at: "2026-11-18T00:00:00Z"
+updated_at: "2026-11-25T12:00:00Z"
 ---
 
-# Shorts from Long
+# Shorts & Reels de Vídeo Longo
 
-## Objetivo
+## Sequência Obrigatória MCP
 
-Deriva vários Shorts/Reels de um vídeo longo já decupado.
-
-## Regras
-
-1. Ler `AGENTS.md`, `presets/*.md` e este workflow.
-2. Perguntar Estilo, Workflow e Modo (`curation` ou `autonomous`).
-3. Gerar `beat_map.json` e aguardar aprovação antes de montar.
-4. No modo curadoria, publicar `vf_curation` e aguardar a escolha humana;
-   no modo autônomo, usar `auto_select`.
-5. Usar somente ferramentas atômicas.
-6. Rodar `qa.visual_10fps` antes da entrega.
-7. Exportar `mp4_youtube`, `resolve`, `premiere` e `kdenlive`.
-
-## Etapas
-
-- id: load
-  node: timeline.load
-  purpose: timeline.load
-  requires_approval: false
-- id: beats
-  node: narrative.beats
-  purpose: narrative.beats
-  requires_approval: false
-- id: select
-  node: shorts.select
-  purpose: shorts.select
-  requires_approval: false
-- id: score
-  node: shorts.score
-  purpose: shorts.score
-  requires_approval: false
-- id: reframe
-  node: shorts.reframe
-  purpose: shorts.reframe
-  requires_approval: false
-- id: captions
-  node: shorts.captions
-  purpose: shorts.captions
-  requires_approval: false
-- id: curation
-  node: curation.prepare
-  purpose: curation.prepare
-  requires_approval: true
-- id: render
-  node: shorts.render
-  purpose: shorts.render
-  requires_approval: false
-- id: export
-  node: export.nle
-  purpose: export.nle
-  requires_approval: true
-
+1. Ler `vf_transcript(action="editorial_map")` na timeline já decupada.
+2. Escolher 2 a 5 janelas de `25–45 s` com gancho + conclusão completa em cenas `TALKING_HEAD` (evitar crop central 9:16 sobre `SCREEN_SHARE_FULL`; usar `SPLIT_SCREEN_SAFE` se incluir tela).
+3. Se o estilo pedir abertura 3D (`sr-viral-depth-split`), aplicar `vf_fx_depth` apenas em `0–3 s`.
+4. Chamar `vf_shorts(action="batch", time_basis="edited", burn_subtitles=True, wait=True)`.
+5. Em modo `curation`, publicar os Shorts gerados em `vf_curation(category="short")` para visualização na UI.
+6. Rodar `vf_qa(action="final")` em cada Short (exceto se preview rápido com `qa_mode="skip"`).

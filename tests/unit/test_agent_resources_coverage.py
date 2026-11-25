@@ -195,7 +195,7 @@ def test_style_catalog_resources(tmp_path: Path, monkeypatch) -> None:
 
     document = json.loads(mcp.resources["vf://styles/{style_id}"]("canal-paula-reels"))
     assert document["ok"] is True
-    assert document["style"]["layout_mode"] == "cutout"
+    assert document["style"]["layout_mode"] == "fullscreen_punchin"
     assert document["markdown"].startswith("---")
     assert Path(document["file_path"]).is_file()
 

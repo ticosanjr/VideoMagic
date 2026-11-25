@@ -728,7 +728,8 @@ def test_project_tool_status_filter_and_workflow_branch(tmp_path: Path) -> None:
     archived = tools["vf_project"](action="list", status="archived", include_archived=True)
     assert any(item["project_id"] == record.project_id for item in archived["projects"])
     workflow = tools["vf_run"](project_id=record.project_id, steps="clone-style", wait=False)
-    assert workflow["ok"] is False
+    assert workflow["ok"] is True
+    assert workflow["steps"] == ["style.reverse_engineer"]
 
 
 def test_time_map_seconds_and_zoom_with_untouched_clip(tmp_path: Path) -> None:

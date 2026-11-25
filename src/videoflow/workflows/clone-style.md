@@ -1,74 +1,33 @@
 ---
 schema_version: 1
-version: 1
+version: 2
 workflow_id: clone-style
-name: Clone Style
-description: Engenharia reversa de estilo a partir de URL ou references/ e salvamento no catálogo.
+name: "Clonar Estilo de Referência"
+description: "Extrai paleta, ritmo, tipografia e regras de uma URL ou imagem/vídeo em references/ e salva no catálogo."
 aspect_ratio: "auto"
-platforms: ['youtube', 'reels', 'shorts']
+platforms:
+  - youtube
+  - reels
+  - shorts
 inputs:
   - source
 steps:
-  - id: capture
-    node: capture_web_or_screen
-    purpose: capture_web_or_screen
-    requires_approval: false
-  - id: analyze
-    node: analyze_reference_style
-    purpose: analyze_reference_style
-    requires_approval: false
-  - id: save
-    node: style.save
-    purpose: style.save
-    requires_approval: false
-  - id: sync
-    node: style.sync
-    purpose: style.sync
+  - id: clone
+    node: style.reverse_engineer
+    purpose: "Extrair paleta, fontes e ritmo da referência"
     requires_approval: false
 approvals:
-  - beatmap
-  - final_export
+  - style_save
 default_style: ""
 compatible_styles: []
-export_targets:
-  - mp4_youtube
-  - resolve
-  - premiere
-  - kdenlive
-updated_at: "2026-11-18T00:00:00Z"
+export_targets: []
+updated_at: "2026-11-25T12:00:00Z"
 ---
 
-# Clone Style
+# Clonar Estilo de Referência
 
-## Objetivo
+## Sequência Obrigatória MCP
 
-Engenharia reversa de estilo a partir de URL ou references/ e salvamento no catálogo.
-
-## Regras
-
-1. Ler `AGENTS.md`, `presets/*.md` e este workflow.
-2. Perguntar ao usuário qual Estilo aplicar.
-3. Gerar `beat_map.json` e aguardar aprovação antes de montar.
-4. Usar somente ferramentas atômicas.
-5. Rodar `qa.visual_10fps` antes da entrega.
-6. Exportar `mp4_youtube`, `resolve`, `premiere` e `kdenlive`.
-
-## Etapas
-
-- id: capture
-  node: capture_web_or_screen
-  purpose: capture_web_or_screen
-  requires_approval: false
-- id: analyze
-  node: analyze_reference_style
-  purpose: analyze_reference_style
-  requires_approval: false
-- id: save
-  node: style.save
-  purpose: style.save
-  requires_approval: false
-- id: sync
-  node: style.sync
-  purpose: style.sync
-  requires_approval: false
-
+1. Se o usuário fornecer URL, capturar via `vf_fx_capture`; se fornecer arquivos em `references/`, ler os caminhos.
+2. Executar `vf_style(action="clone_from_reference")` → `vf_style(action="validate")` → `vf_style(action="save")`.
+3. Gerar `vf_style(action="preview", duration_sec=5.0)` para validação visual rápida.

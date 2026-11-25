@@ -1,52 +1,62 @@
 ---
-schema_version: 1
+schema_version: 2
+version: 2
 style_id: canal-paula-reels
-name: "Canal Paula — Reels/Shorts Alta Retenção (9:16)"
+name: "Canal Paula — Reels & Shorts Retenção (9:16)"
 aspect_ratio: "9:16"
-target_lufs: -16.5
-max_static_sec: 3.0
-min_silence_ms: 260
-layout_mode: "cutout"
+target_lufs: -16.0
+max_static_sec: 2.5
+min_silence_ms: 220
+layout_mode: "fullscreen_punchin"
 caption_preset: "kinetic_highlight"
 motion_engine: "hyperframes"
+effect: "karaoke_sweep"
+platforms:
+  - shorts
+  - reels
+  - tiktok
 export_targets:
   - mp4_youtube
   - resolve
   - premiere
   - kdenlive
 palette:
-  - "#f97316"
   - "#111827"
-  - "#fef3c7"
+  - "#F97316"
+  - "#FEF3C7"
 fonts:
   - "Inter"
 cut_rhythm:
-  mode: measured
-  min_cut_sec: 0.8
-  max_cut_sec: 3.0
-  median_cut_sec: 1.4
+  pacing_profile: "tight"
+  max_pause_ms: 200
+  min_cut_sec: 0.9
+  max_cut_sec: 2.8
+  punch_in:
+    - 1.0
+    - 1.08
+beatmap_defaults:
+  punch_in_scale: 1.07
+  broll_motion_scale_max: 1.06
+  caption_block_words:
+    - 3
+    - 4
+  caption_safe_zone: true
+  linked_sfx: true
+sound_design:
+  music_arc: "high_retention_pulse"
+  ducking: true
+  music_gain_db: -20.0
 safe_zones:
-  reels:
-    bottom: 0.18
-    right: 0.14
-  tiktok:
-    bottom: 0.20
-    right: 0.16
   shorts:
-    bottom: 0.16
-    right: 0.14
-updated_at: "2026-11-16T21:00:00Z"
+    bottom: 0.20
+    right: 0.15
+    top: 0.08
+updated_at: "2026-11-25T12:00:00Z"
 ---
 
-# Direção Visual & Editorial
+# Direção Editorial — Reels & Shorts
 
-- Formato vertical 9:16 com corte rápido e retenção alta.
-- Cutout do apresentador com fundo de B-roll.
-- Legendas cinéticas com destaque palavra a palavra.
-- Motion graphics curtos em HyperFrames e SFX pontuais.
-
-## Regras Aprendidas
-
-- Primeiro corte antes de 1,2 s.
-- Nunca deixar mais de 3 s sem mudança visual.
-- Repetir a palavra-chave do hook na legenda.
+- Corte vertical 9:16 com centralização facial (`crop_x`) e alternância entre `FULL_FACE`, `SPLIT_BROLL` (nunca sobre `PROTECT_FROM_BROLL`) e `SPLIT_SCREEN_SAFE`.
+- Hook forte nos primeiros 2 s; opcional `vf_fx_depth` (texto atrás da cabeça) nos 0–3 s.
+- Legendas `karaoke_sweep` queimadas no vídeo, 3–4 palavras, máx. 2 linhas, estritamente dentro da safe-zone (`MarginR=160`).
+- B-roll de 2–3 s sempre em movimento suave (1.00→1.06) e SFX sutis em trocas de layout.

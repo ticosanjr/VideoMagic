@@ -63,7 +63,7 @@ lateral drift and a small `rotateY`. The result is a `z=10` floating card.
 ## `vf_style_preview`
 
 ```text
-vf_style_preview(project_id="p1", style_id="sr-depth-3d-viral", duration_sec=5)
+vf_style_preview(project_id="p1", style_id="sr-viral-depth-split", duration_sec=5)
 ```
 
 Renders a draft card using the style palette, preferred font, layout label,

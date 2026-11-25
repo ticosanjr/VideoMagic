@@ -362,8 +362,8 @@ def test_twenty_two_styles_come_from_the_seed_directory(tmp_path) -> None:
 
     catalog = StyleCatalog(root=tmp_path / "user-styles")
     styles = catalog.list_styles()
-    assert len(styles) == 22
-    assert len(list(seed_styles_dir().glob("*.md"))) == 22
+    assert len(styles) == 6
+    assert len(list(seed_styles_dir().glob("*.md"))) == 6
 
 
 def test_packaging_bundles_the_seed_styles() -> None:
@@ -386,4 +386,4 @@ def test_vf_style_list_exposes_all_seed_styles() -> None:
 
     payload = asyncio.run(call())
     assert payload["ok"] is True
-    assert len(payload["styles"]) == 22
+    assert len(payload["styles"]) == 6
