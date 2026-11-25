@@ -87,13 +87,14 @@ def test_guard_keeps_success_payload() -> None:
 
 
 @pytest.mark.parametrize("error", [RuntimeError("boom"), ValueError("bad")])
-def test_unknown_errors_become_internal_error(error: Exception) -> None:
+def test_unknown_errors_use_the_exception_name(error: Exception) -> None:
     def fail() -> None:
         raise error
 
     payload = mcp_tool_guard(fail)()
-    assert payload["error_code"] == "internal_error"
+    assert payload["error_code"] == type(error).__name__.lower()
     assert payload["message"] == str(error)
+    assert payload["last_frame"]
 
 
 def test_unknown_key_returns_the_documented_envelope() -> None:
@@ -111,6 +112,8 @@ def test_unknown_key_returns_the_documented_envelope() -> None:
         "failed_command": "",
         "stderr_tail": "",
         "fix_hint": "Use the exact parameter names from the tool schema.",
+        "last_frame": payload["last_frame"],
+        "stack_tail": payload["stack_tail"],
     }
 
 

@@ -11,8 +11,10 @@ import contextlib
 import functools
 import inspect
 import subprocess
+import traceback
 from collections.abc import Mapping
 from difflib import get_close_matches
+from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
@@ -234,6 +236,19 @@ def _hint(error_code: str, message: str) -> str:
     return "Retry once; if it persists, run doctor and attach the job log."
 
 
+def _stack_tail(exc: BaseException, limit: int = 5) -> list[str]:
+    frames = traceback.extract_tb(exc.__traceback__)
+    return [
+        f"{Path(frame.filename).name}:{frame.lineno} in {frame.name}"
+        for frame in frames[-limit:]
+    ]
+
+
+def _last_frame(exc: BaseException) -> str:
+    frames = _stack_tail(exc, limit=1)
+    return frames[0] if frames else "unknown frame"
+
+
 def error_envelope(
     exc: BaseException,
     *,
@@ -241,11 +256,23 @@ def error_envelope(
 ) -> dict[str, Any]:
     """Return the single MCP error envelope for any exception."""
 
+    last_frame = _last_frame(exc)
+    stack_tail = _stack_tail(exc)
     if isinstance(exc, VideoFlowError):
         payload = dict(exc.to_dict())
-        payload.setdefault("error_code", payload.get("code", "videoflow_error"))
+        payload["error_code"] = (
+            payload.get("error_code")
+            or getattr(exc, "code", None)
+            or type(exc).__name__.lower()
+        )
+        payload["code"] = payload.get("code") or payload["error_code"]
+        payload["message"] = str(payload.get("message") or "").strip() or (
+            f"{type(exc).__name__} at {last_frame}"
+        )
         payload.setdefault("invalid_keys", [])
         payload.setdefault("did_you_mean", {})
+        payload.setdefault("last_frame", last_frame)
+        payload.setdefault("stack_tail", stack_tail)
         return payload
 
     invalid = _invalid_keys(exc)
@@ -257,13 +284,13 @@ def error_envelope(
         message = exc.errors()[0].get("msg", str(exc)) if exc.errors() else str(exc)
     elif isinstance(exc, TypeError):
         error_code = "invalid_params"
-        message = str(exc)
+        message = str(exc).strip() or f"{type(exc).__name__} at {last_frame}"
     elif isinstance(exc, subprocess.CalledProcessError):
         error_code = "command_failed"
         message = f"command failed with exit code {exc.returncode}"
     else:
-        error_code = "internal_error"
-        message = str(exc) or exc.__class__.__name__
+        error_code = getattr(exc, "code", None) or type(exc).__name__.lower()
+        message = str(exc).strip() or f"{type(exc).__name__} at {last_frame}"
 
     command, stderr = _command_details(exc)
     payload: dict[str, Any] = {
@@ -276,6 +303,8 @@ def error_envelope(
         "failed_command": command,
         "stderr_tail": stderr,
         "fix_hint": _hint(error_code, message),
+        "last_frame": last_frame,
+        "stack_tail": stack_tail,
     }
     if isinstance(exc, ValidationError):
         expected = _expected_fields(func)

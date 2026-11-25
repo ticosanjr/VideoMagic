@@ -14,14 +14,15 @@ def test_guard_tool_returns_typed_error_payload() -> None:
     assert payload["fix_hint"]
 
 
-def test_guard_tool_returns_internal_error_payload() -> None:
+def test_guard_tool_returns_a_typed_error_payload() -> None:
     def fail():
         raise RuntimeError("unexpected")
 
     payload = guard_tool(fail)()
     assert payload["ok"] is False
-    assert payload["error_code"] == "internal_error"
+    assert payload["error_code"] == "runtimeerror"
     assert payload["message"] == "unexpected"
+    assert payload["last_frame"]
 
 
 def test_guard_tool_preserves_successful_results() -> None:

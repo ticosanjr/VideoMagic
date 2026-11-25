@@ -353,7 +353,12 @@ def _automatic_ids(board: CurationBoard) -> list[str]:
     seen: set[tuple[str, str]] = set()
     selected: list[str] = []
     for item in board.items:
-        key = (item.category, item.scene_id)
+        slot = item.scene_id or (
+            f"t:{round(item.start_sec, 1)}"
+            if item.start_sec is not None
+            else item.item_id
+        )
+        key = (item.category, slot)
         if key in seen:
             continue
         seen.add(key)

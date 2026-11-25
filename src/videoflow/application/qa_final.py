@@ -419,6 +419,7 @@ def audit_final(
         caption = caption_box(style, width, height)
         effective_caption_path = caption_path or _caption_path(Path(output))
         caption_present = effective_caption_path is not None
+        overlays_by_id = {item.overlay_id: item for item in qa_state.overlays}
         for item in collisions(
             qa_state,
             width,
@@ -426,6 +427,17 @@ def audit_final(
             caption=caption if caption_present else None,
             mode=collision_mode,
         ):
+            if item.get("kind") == "caption_overlap":
+                overlay = overlays_by_id.get(str(item.get("item_a") or ""))
+                if (
+                    overlay is not None
+                    and overlay.z < caption.z
+                    and (
+                        float(overlay.width_ratio) >= 0.85
+                        or overlay.anchor == "fullscreen"
+                    )
+                ):
+                    continue
             issues.append(
                 {
                     **item,

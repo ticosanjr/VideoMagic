@@ -191,7 +191,35 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                         response["job"] = waited["job"]
             return response
         if action == "validate":
-            return legacy["vf_validate_exports"](project_id=project_id, job_id=job_id)
+            from videoflow.application.delivery_bundle import (
+                blocked_paths,
+                timeline_frames,
+            )
+            from videoflow.application.nle_validation import validate_nle_exports
+            from videoflow.domains.media import license_blockers
+
+            try:
+                record = get_project(project_id)
+                state = load_project_state(record)
+                exports_dir = (Path(record.output).expanduser() / "exports").resolve()
+                report = validate_nle_exports(
+                    exports_dir,
+                    timeline_frames=(
+                        timeline_frames(state) if state.video_segments else None
+                    ),
+                    blocked_paths=blocked_paths(
+                        license_blockers(Path(record.output), state),
+                        Path(record.output),
+                    ),
+                    check_media=True,
+                )
+            except VideoFlowError as exc:
+                return exc.to_dict()
+            return {
+                "ok": bool(report.get("ok")),
+                "directory": str(exports_dir),
+                "report": report,
+            }
         if action == "roundtrip":
             return legacy["vf_nle_roundtrip"](
                 project_id=project_id,

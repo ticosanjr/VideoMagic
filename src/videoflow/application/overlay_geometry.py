@@ -49,6 +49,7 @@ class OverlayLayout:
     end_sec: float
     anchor: str
     opacity: float
+    width_ratio: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -58,6 +59,7 @@ class OverlayLayout:
             "opacity": self.opacity,
             "start_sec": round(self.start_sec, 6),
             "end_sec": round(self.end_sec, 6),
+            "width_ratio": round(self.width_ratio, 6),
             **self.box.to_dict(),
         }
 
@@ -305,9 +307,18 @@ def layout_for(
                 end_sec=(overlay.start_frame + overlay.duration_frames) / fps,
                 anchor=overlay.anchor,
                 opacity=overlay.opacity,
+                width_ratio=float(overlay.width_ratio),
             )
         )
     return result
+
+
+def _caption_background(layout: OverlayLayout, caption: PixelBox | None) -> bool:
+    """Whether a full-bleed overlay sits behind captions instead of over them."""
+
+    if caption is None or layout.box.z >= caption.z:
+        return False
+    return layout.width_ratio >= 0.85 or layout.anchor == "fullscreen"
 
 
 def _temporal_overlap(
@@ -365,7 +376,12 @@ def collisions(
                 }
             )
         caption_area = overlap_pixels(left_box, caption) if caption is not None else 0
-        if caption is not None and overlap(left_box, caption) and caption_area > 0:
+        if (
+            caption is not None
+            and not _caption_background(left, caption)
+            and overlap(left_box, caption)
+            and caption_area > 0
+        ):
             issues.append(
                 {
                     "kind": "caption_overlap",
