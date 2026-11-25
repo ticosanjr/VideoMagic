@@ -7,6 +7,7 @@ intent. The timeline step consumes it later.
 from __future__ import annotations
 
 import bisect
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +22,7 @@ from videoflow.domain.decupage import (
     DecupagePlan,
     DecupageSpan,
 )
-from videoflow.domain.state import MediaInfo
+from videoflow.domain.state import MediaInfo, Sentence
 
 
 def _protect_words_in_spans(
@@ -311,6 +312,59 @@ def build_plan(
         review_flags=review_flags,
         metrics=metrics,
     )
+
+
+def diff_markdown(
+    plan: DecupagePlan,
+    sentences: Sequence[Sentence],
+) -> str:
+    """Human-auditable cut sheet: duration, removed span and removed text."""
+
+    rate = max(1, plan.sample_rate)
+    final = float(plan.metrics.get("final_duration_sec") or 0.0)
+    lines = [
+        "# Decupage diff",
+        "",
+        f"- report duration: {final:.3f} s",
+        f"- plan active duration: "
+        f"{sum(span.end_sample - span.start_sample for span in plan.active_spans) / rate:.3f} s",
+        f"- cuts: {len(plan.cuts)}",
+        "",
+        "## Blocos cortados",
+        "",
+    ]
+    for cut in plan.cuts:
+        start, end = int(cut.start_sample), int(cut.end_sample)
+        words = sorted(
+            (
+                word
+                for sentence in sentences
+                for word in sentence.words
+                if start <= (word.start_sample + word.end_sample) // 2 <= end
+            ),
+            key=lambda word: word.start_sample,
+        )
+        text = " ".join(word.word for word in words).strip()
+        if not text:
+            text = " ".join(
+                sentence.text
+                for sentence in sentences
+                if sentence.words == []
+                and sentence.end_sample > start
+                and sentence.start_sample < end
+            ).strip()
+        if not text:
+            text = "(sem texto transcrito)"
+        lines.extend(
+            [
+                f"### [CORTADO {start / rate:.3f}s–{end / rate:.3f}s] "
+                f"({(end - start) / rate:.3f}s)",
+                "",
+                f"> {text[:600]}",
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def report_markdown(plan: DecupagePlan) -> str:

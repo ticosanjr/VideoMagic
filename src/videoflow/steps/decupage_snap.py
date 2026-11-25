@@ -9,7 +9,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.application.decupage.deterministic import build_safe_speech_spans
-from videoflow.application.decupage.snap import build_plan, report_markdown
+from videoflow.application.decupage.snap import (
+    build_plan,
+    diff_markdown,
+    report_markdown,
+)
 from videoflow.application.timeline_builder import (
     build_inactive_segments,
     build_timeline,
@@ -139,6 +143,8 @@ class DecupageSnapStep(BaseStep):
         )
         report = context.work / "decupage" / "report.md"
         report.write_text(report_markdown(plan), encoding="utf-8")
+        diff = context.output / "decupage_diff.md"
+        diff.write_text(diff_markdown(plan, context.transcript), encoding="utf-8")
         report_json = context.work / "decupage" / "report.json"
         report_json.write_text(
             json.dumps(
@@ -157,6 +163,7 @@ class DecupageSnapStep(BaseStep):
         context.metadata["decupage_plan"] = plan.model_dump(mode="json")
         context.artifacts["decupage_plan"] = str(target)
         context.artifacts["decupage_report"] = str(report)
+        context.artifacts["decupage_diff"] = str(diff)
         context.artifacts["decupage_report_json"] = str(report_json)
         context.hashes["decupage.safe_spans"] = digest_payload(
             {

@@ -108,6 +108,7 @@ class RetakesStep(BaseStep):
             normalized = normalize_transcript(
                 context.transcript,
                 cuts=overlap_cuts,
+                boundary_ids=set(context.discard_sentence_ids),
             )
             if normalized:
                 context.transcript = normalized

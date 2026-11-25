@@ -53,14 +53,16 @@ def _flatten(
     sample_rate: int = 48000,
     overlap_gap_seconds: float = 0.25,
     cuts: list[tuple[int, int]] | None = None,
-) -> list[WordTiming]:
+) -> tuple[list[WordTiming], list[int]]:
     merged: list[WordTiming] = []
+    origins: list[int] = []
     previous_end: int | None = None
     for sentence in sorted(sentences, key=lambda item: (item.start_sample, item.id)):
         words = list(sentence.words) or _pseudo_words(sentence)
         words = [word for word in words if word.word.strip()]
         if not words:
             continue
+        source_ids = [sentence.id] * len(words)
         if (
             not merged
             or previous_end is None
@@ -68,6 +70,7 @@ def _flatten(
             > overlap_gap_seconds
         ):
             merged.extend(words)
+            origins.extend(source_ids)
             previous_end = sentence.end_sample
             continue
         limit = min(len(merged), len(words), 40)
@@ -99,9 +102,11 @@ def _flatten(
                 )
         if overlap:
             del merged[-overlap:]
+            del origins[-overlap:]
         merged.extend(words)
+        origins.extend(source_ids)
         previous_end = max(previous_end, sentence.end_sample)
-    return merged
+    return merged, origins
 
 
 def _join(words: Sequence[WordTiming]) -> str:
@@ -129,22 +134,62 @@ def normalize_transcript(
     sample_rate: int = 48000,
     pause_seconds: float = 1.2,
     cuts: list[tuple[int, int]] | None = None,
+    boundary_ids: set[int] | None = None,
 ) -> list[Sentence]:
     """Return complete, non-overlapping sentences with word timings.
 
     ``cuts`` receives source ranges where an earlier occurrence of an overlap
     was replaced by the later take. The timeline removes those ranges, so the
     aborted phrase does not survive as a high-energy "unknown" gap.
+
+    ``boundary_ids`` are sentences already discarded by a human. A normalized
+    sentence keeps the id of its first source sentence, and a boundary is never
+    crossed while merging: a discarded take cannot absorb the next good take
+    (or be renumbered into its id).
     """
 
-    merged = _flatten(sentences, sample_rate=sample_rate, cuts=cuts)
+    merged, origins = _flatten(sentences, sample_rate=sample_rate, cuts=cuts)
     if not merged:
         return []
+    boundaries = set(boundary_ids or ())
     minimum_words = 4
     output: list[Sentence] = []
     current: list[WordTiming] = []
+    current_origins: list[int] = []
+    used: set[int] = set()
+    next_id = max((sentence.id for sentence in sentences), default=-1) + 1
+
+    def flush() -> None:
+        nonlocal current, current_origins, next_id
+        if not current:
+            return
+        text = _join(current)
+        if text:
+            preferred = current_origins[0]
+            if preferred in used:
+                preferred = next_id
+                next_id += 1
+            used.add(preferred)
+            output.append(
+                Sentence(
+                    id=preferred,
+                    start_sample=current[0].start_sample,
+                    end_sample=current[-1].end_sample,
+                    text=text,
+                    words=list(current),
+                )
+            )
+        current = []
+        current_origins = []
+
     for index, word in enumerate(merged):
+        origin = origins[index]
+        if current_origins and (
+            (current_origins[-1] in boundaries) != (origin in boundaries)
+        ):
+            flush()
         current.append(word)
+        current_origins.append(origin)
         next_gap = 0.0
         next_word = ""
         if index + 1 < len(merged):
@@ -158,32 +203,9 @@ def normalize_transcript(
             and len(current) >= minimum_words
             and bool(next_word[:1].isupper())
         )
-        if not ends and not pauses:
-            continue
-        text = _join(current)
-        if text:
-            output.append(
-                Sentence(
-                    id=len(output),
-                    start_sample=current[0].start_sample,
-                    end_sample=current[-1].end_sample,
-                    text=text,
-                    words=list(current),
-                )
-            )
-        current = []
-    if current:
-        text = _join(current)
-        if text:
-            output.append(
-                Sentence(
-                    id=len(output),
-                    start_sample=current[0].start_sample,
-                    end_sample=current[-1].end_sample,
-                    text=text,
-                    words=list(current),
-                )
-            )
+        if (ends or pauses) and current_origins[0] not in boundaries:
+            flush()
+    flush()
     return output
 
 

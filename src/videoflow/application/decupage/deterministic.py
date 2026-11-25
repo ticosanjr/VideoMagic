@@ -190,14 +190,29 @@ def build_safe_speech_spans(
         for word in sentence.words
     ]
     asr_spans: list[tuple[int, int]] = []
-    for word in words:
-        if word.probability < min_word_prob:
+    for sentence in kept_sentences:
+        if sentence.id in discard_ids:
             continue
-        if word.end_sample <= word.start_sample:
+        if sentence.words:
+            for word in sentence.words:
+                if word.probability < min_word_prob:
+                    continue
+                if word.end_sample <= word.start_sample:
+                    continue
+                asr_spans.append(
+                    (
+                        max(0, word.start_sample - pad_before),
+                        word.end_sample + pad_after,
+                    )
+                )
             continue
-        asr_spans.append(
-            (max(0, word.start_sample - pad_before), word.end_sample + pad_after)
-        )
+        if sentence.end_sample > sentence.start_sample:
+            asr_spans.append(
+                (
+                    max(0, sentence.start_sample - pad_before),
+                    sentence.end_sample + pad_after,
+                )
+            )
     spans = merge_spans([*vad_spans, *asr_spans])
     if duration_samples is not None:
         limit = max(0, int(duration_samples))

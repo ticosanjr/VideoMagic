@@ -69,6 +69,7 @@ def apply_editorial_clean(
             transcript,
             sample_rate=sample_rate,
             cuts=overlap_cuts,
+            boundary_ids=set(context.discard_sentence_ids),
         )
         if normalized:
             transcript = normalized
