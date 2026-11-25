@@ -1,5 +1,73 @@
 # Changelog
 
+## [4.8.0] - 2026-11-25
+
+Export confiável, áudio realmente mixado, decupagem protegida, Shorts centrados
+e QA/MCP fail-closed.
+
+### Fixed — export e preview
+
+- `burn_subtitles=True` aplica `ass=filename=...:fontsdir=...` no passe final e
+  falha com `subtitle_burn_failed` quando o `.ass` está ausente ou vazio.
+- Fontes de legenda são isoladas em `work/fonts`, sem o scan lento de
+  `C:/Windows/Fonts`.
+- Preview e Shorts respeitam `fps=30` com `-fps_mode cfr` e `r_frame_rate`
+  `30/1`; NVENC é usado quando `probe_nvenc().available` é verdadeiro, com
+  fallback explícito para `libx264`.
+
+### Fixed — áudio
+
+- `audio.finalize` autodetecta `audio/music/music-bed.wav`, `beat_map.json` e
+  `audio/sfx-plan.json`.
+- Música entra com `-stream_loop -1 -t <dur>` e ducking por
+  `sidechaincompress`; SFX usam `adelay`/`volume` e `amix=duration=first`.
+- SFX além da timeline é clampado com warning; nenhum evento mixável falha com
+  `AudioFinalizeError`.
+- O master é corrigido para `-16.0 ± 0.6 LUFS` com
+  `volume=<delta>dB,alimiter=limit=-1.5dB`.
+- Preview e render final usam `audio/final_mix.wav` quando ele existe.
+
+### Fixed — decupagem e legendas
+
+- ASR usa `faster-whisper-large-v3-turbo` em `cuda`/`float16` quando há GPU
+  local; CPU mantém `small`/`int8`, com auto-install do modelo escolhido.
+- `rms_energy_guard()` expande bordas em passos de 10 ms até 250 ms enquanto a
+  energia local excede `noise_floor + 8 dB`, sem atravessar cortes vizinhos.
+- Pacing `tight` passa a `300/260/85/130 ms`.
+- `apply_beatmap(apply_cuts=False)` aplica apenas overlays, SFX, transições,
+  legendas e zooms; nunca substitui `video_segments`/`audio_segments`.
+- Legendas removem sentenças descartadas e palavras fora dos segmentos mantidos,
+  e deduplicam cues similares (`>= 0.85`) em janela `< 2 s`.
+
+### Fixed — Shorts
+
+- `detect_face_median_x()` amostra 7 frames com MediaPipe e Haar multi-escala,
+  retornando mediana, backend e `face_fallback_center`.
+- O batch injeta `crop={crop_w}:{crop_h}:{crop_x}:{crop_y}` direto no FFmpeg e
+  registra `crop_x`/`face_backend` no `shorts.json`.
+- ASS de Shorts usa `WrapStyle: 0`, `MarginL/R: 140` e `\an5\pos(540,Y)`.
+- `vf_shorts` expõe `action` (`batch`/`select`/`plan`), `clips`, `time_basis`,
+  `burn_subtitles` e `wait`.
+
+### Fixed — QA e MCP
+
+- `vf_export(action="validate")` usa o diretório absoluto
+  `<projeto>/exports`.
+- O guard MCP nunca devolve mensagem vazia: exceções genéricas usam
+  `type(exc).__name__.lower()` e incluem `last_frame`/`stack_tail`.
+- B-roll fullscreen atrás das legendas (`z` menor, `width_ratio >= 0.85` ou
+  `anchor=fullscreen`) não gera mais `caption_overlap`.
+- Edge/Chrome/Playwright são localizados nos caminhos padrão do Windows.
+- `auto_select` seleciona múltiplos slots de B-roll por timestamp quando não há
+  `scene_id`.
+
+### Validation
+
+- `ruff check src packages tests scripts`: limpo.
+- `pytest -q`: 3145 passed, 1 skipped, 1 xfailed; cobertura 96,72%.
+- `pytest -m media`: 32 passed, 2 skipped.
+- UI: `svelte-check` 0 erros/0 warnings; 55 testes.
+
 ## [4.7.0] - 2026-11-25
 
 Edição inteligente guiada pelo OpenCode: decupagem assistida, mapa editorial,
