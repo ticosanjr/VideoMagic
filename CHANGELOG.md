@@ -1,5 +1,65 @@
 # Changelog
 
+## [4.7.0] - 2026-11-25
+
+Edição inteligente guiada pelo OpenCode: decupagem assistida, mapa editorial,
+contratos MCP completos, áudio idempotente, stock filtrado e catálogo enxuto.
+
+### Added — decupagem assistida
+
+- `vf_decupage(action="review_packet")` devolve 100% das sentenças com
+  `[DISCARDED]`/`[SUSPECT_RETAKE]` e pares de retake para o OpenCode decidir.
+- `vf_transcript(action="editorial_map")` retorna blocos de 15–30 s da timeline
+  editada com fala, `layout_type`, `protected_from_broll` e `keyframe_path`.
+- Guarda fonética de **75 ms antes / 115 ms depois** impede corte de palavras
+  mantidas com `probability >= 0.40`, sem atravessar ruído ou cortes
+  deliberados.
+- `session.cull` restaura a timeline original e emite `cull_guard_restored_all`
+  em vez de remover todos os clipes.
+- Pacing `tight` em `260/260/75/115/650` e `balanced` em `380/400/90/130/900`,
+  com `min_cut_gap_ms` explícito.
+- Punch-in padrão `1.06`, teto `1.08`; repetições de conteúdo em janela de 1.2 s.
+
+### Added — MCP e licenças
+
+- `wait=True` retorna o job terminal no topo do payload.
+- `vf_timeline(action="time_map")` e `page_size` até 500.
+- `vf_transcript` corrige a paginação para 104/104 sentenças e expõe
+  `query`/`editorial_map`.
+- `approve_license` encontra assets só em `assets/`/`media/`, grava no ledger e
+  desbloqueia `apply_beatmap` imediatamente.
+- `vf_export(action="mp4")`, `qa_mode="skip"` e `valid_actions` nas docstrings.
+- Prompt MCP `videoflow_full_test` e resource `vf://tests/full-540p` entregam o
+  roteiro completo do teste rápido ao OpenCode.
+
+### Fixed — áudio
+
+- `audio.finalize` usa `audio/dialogue_timeline.wav`, nunca `final.wav` como
+  entrada.
+- Escrita atômica em `.final_mix.tmp.wav` → `final_mix.wav`/`final.wav`.
+- Loop automático de música com fade-out de 2.5 s.
+- SFX de `beat_map.json`/`audio/beatmap.json`/`audio/sfx-plan.json` mixados por
+  timestamp e ganho; falha explícita se nenhum evento entrar.
+
+### Changed — stock, curadoria e catálogo
+
+- Stock keyless rejeita vídeos `>120 s`, `>80 MB` ou relevância `<0.35`, com
+  fallback de query e provider.
+- Auto-trim de stock longo/4K para `8 s` em `<=1080p`.
+- Ken Burns de imagens em `1.00 → 1.06`, com pans em `1.06`.
+- Curadoria aceita `start_sec`, `end_sec`, `spoken_context` e `note`, exibidos
+  no card da UI.
+- Catálogo reduzido a **6 estilos oficiais** e **5 workflows** com nós MCP
+  válidos; `AGENTS.md` em 74 linhas.
+
+### Validation
+
+- `ruff check src packages tests scripts`: limpo.
+- `pytest -q`: 3127 passed, 1 skipped, 1 xfailed; cobertura 96,72%.
+- `pytest -m media`: 29 passed, 2 skipped.
+- UI: `svelte-check` 0 erros/0 warnings, 55 testes, build concluído.
+- `videoflow_full_test` e `vf://tests/full-540p` verificados no MCP.
+
 ## [4.6.0] - 2026-11-24
 
 Correções de causa-raiz nos 44 sintomas reportados: NVENC e PCM, duração do
