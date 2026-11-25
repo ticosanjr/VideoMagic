@@ -23,6 +23,18 @@ from videoflow.application.models import (
 ESSENTIAL_MODELS = ("silero-vad", "faster-whisper-small")
 _DISABLED_VALUES = frozenset({"1", "true", "yes", "on"})
 
+
+def essential_models() -> tuple[str, ...]:
+    """Essential downloads for this machine (turbo on local CUDA, else small)."""
+
+    try:
+        from videoflow.domains.asr.provisioning import default_asr_model_id
+
+        asr_model = default_asr_model_id()
+    except Exception:  # noqa: BLE001 - startup must not fail on detection
+        asr_model = "faster-whisper-small"
+    return ("silero-vad", asr_model)
+
 _lock = threading.Lock()
 _thread: threading.Thread | None = None
 
@@ -164,9 +176,10 @@ def ensure_essential_models_async(jobs: Any | None = None) -> threading.Thread |
     global _thread
     if auto_download_disabled():
         return None
+    models = essential_models()
     missing = tuple(
         model_id
-        for model_id in ESSENTIAL_MODELS
+        for model_id in models
         if installed_path(model_id) is None
     )
     if not missing:
@@ -197,5 +210,6 @@ __all__ = [
     "ESSENTIAL_MODELS",
     "auto_download_disabled",
     "ensure_essential_models_async",
+    "essential_models",
     "reset_bootstrap_for_tests",
 ]

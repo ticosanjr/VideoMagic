@@ -7,6 +7,7 @@ import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from videoflow.domain.config import CaptionStyle
@@ -151,6 +152,72 @@ def _adaptive_margin_v(caption: CaptionStyle, width: int, height: int) -> int:
 
 def _same_caption_text(left: str, right: str) -> bool:
     return " ".join(left.casefold().split()) == " ".join(right.casefold().split())
+
+
+def _similar_caption_text(left: str, right: str) -> bool:
+    first = " ".join(left.casefold().split())
+    second = " ".join(right.casefold().split())
+    if not first or not second:
+        return False
+    return SequenceMatcher(None, first, second).ratio() >= 0.85
+
+
+def _inside_ranges(sample: int, ranges: Sequence[tuple[int, int]]) -> bool:
+    return any(start <= sample < end for start, end in ranges)
+
+
+def filter_caption_sentences(
+    sentences: Sequence[Sentence],
+    *,
+    discard_ids: set[int] | None = None,
+    kept_source_ranges: Sequence[tuple[int, int]] = (),
+) -> list[Sentence]:
+    """Drop discarded sentences and words outside the kept source ranges.
+
+    A word survives only when its midpoint falls inside a kept range. When a
+    sentence loses words, its text and bounds are rebuilt from the survivors so
+    a removed take can never reappear in the captions. An empty range list
+    means "no timeline filter" and keeps every non-discarded sentence.
+    """
+
+    discarded = set(discard_ids or ())
+    ranges = sorted(
+        (int(start), int(end))
+        for start, end in kept_source_ranges
+        if int(end) > int(start)
+    )
+    result: list[Sentence] = []
+    for sentence in sentences:
+        if sentence.id in discarded:
+            continue
+        if not sentence.words:
+            midpoint = (sentence.start_sample + sentence.end_sample) // 2
+            if ranges and not _inside_ranges(midpoint, ranges):
+                continue
+            result.append(sentence)
+            continue
+        kept = [
+            word
+            for word in sentence.words
+            if not ranges
+            or _inside_ranges(
+                (word.start_sample + word.end_sample) // 2,
+                ranges,
+            )
+        ]
+        if not kept:
+            continue
+        result.append(
+            sentence.model_copy(
+                update={
+                    "start_sample": kept[0].start_sample,
+                    "end_sample": kept[-1].end_sample,
+                    "text": " ".join(word.word for word in kept),
+                    "words": kept,
+                }
+            )
+        )
+    return result
 
 
 def _normalize_caption_lines(lines: Sequence[CaptionLine]) -> list[CaptionLine]:
@@ -306,7 +373,11 @@ def caption_lines(
             raw_words = [
                 word
                 for word in sentence.words
-                if word.end_sample > piece_start and word.start_sample < piece_end
+                if word.end_sample > piece_start
+                and word.start_sample < piece_end
+                and piece_start
+                <= (word.start_sample + word.end_sample) // 2
+                < piece_end
             ]
             requires_words = effect != "static"
             fallback = False
@@ -424,23 +495,25 @@ def _merge_caption_lines(lines: Sequence[CaptionLine]) -> list[CaptionLine]:
     for line in lines:
         if line.end <= line.start:
             continue
-        if (
-            merged
-            and merged[-1].text.strip() == line.text.strip()
-            and line.start <= merged[-1].end + 0.10
-        ):
+        if merged:
             previous = merged[-1]
-            merged[-1] = CaptionLine(
-                start=previous.start,
-                end=max(previous.end, line.end),
-                text=previous.text,
-                words=previous.words or line.words,
-                speaker=previous.speaker,
-                effect_fallback=previous.effect_fallback or line.effect_fallback,
-            )
-            continue
-        if merged and merged[-1].end > line.start and merged[-1].text.strip() == line.text.strip():
-            continue
+            exact = previous.text.strip() == line.text.strip()
+            similar = _similar_caption_text(previous.text, line.text)
+            within_window = line.start - previous.start < 2.0
+            if (exact and line.start <= previous.end + 0.10) or (
+                similar and within_window and line.start >= previous.start
+            ):
+                merged[-1] = CaptionLine(
+                    start=previous.start,
+                    end=max(previous.end, line.end),
+                    text=previous.text,
+                    words=previous.words or line.words,
+                    speaker=previous.speaker,
+                    effect_fallback=previous.effect_fallback or line.effect_fallback,
+                )
+                continue
+            if exact and previous.end > line.start:
+                continue
         merged.append(line)
     return merged
 

@@ -35,8 +35,11 @@ def _options(**kwargs):
     return SimpleNamespace(**defaults)
 
 
-def test_balanced_prefers_turbo_and_greedy_cpu() -> None:
+def test_balanced_prefers_small_on_cpu_and_turbo_on_gpu(monkeypatch) -> None:
+    from videoflow.domains.asr import profiles as asr_profiles
+
     settings = _settings(quality_profile="balanced")
+    monkeypatch.setattr(asr_profiles, "_local_gpu_available", lambda: False)
     plan = resolve_asr_plan(
         settings,
         _options(),
@@ -47,11 +50,25 @@ def test_balanced_prefers_turbo_and_greedy_cpu() -> None:
         },
     )
     assert plan.mode == "faster_whisper"
-    assert plan.model_id == "faster-whisper-large-v3-turbo"
+    assert plan.model_id == "faster-whisper-small"
+    assert plan.device == "cpu"
+    assert plan.compute_type == "int8"
     assert plan.beam_size == 1
     assert plan.vad_filter is True
     assert plan.word_timestamps is True
     assert plan.cpu_threads == physical_threads()
+
+    monkeypatch.setattr(asr_profiles, "_local_gpu_available", lambda: True)
+    monkeypatch.delenv("VIDEOWFLOW_ASR_DEVICE", raising=False)
+    monkeypatch.delenv("VIDEOWFLOW_ASR_COMPUTE_TYPE", raising=False)
+    gpu = resolve_asr_plan(
+        settings,
+        _options(),
+        installed={"faster-whisper-large-v3-turbo": True},
+    )
+    assert gpu.model_id == "faster-whisper-large-v3-turbo"
+    assert gpu.device == "cuda"
+    assert gpu.compute_type == "float16"
 
 
 def test_fast_and_quality_profiles() -> None:

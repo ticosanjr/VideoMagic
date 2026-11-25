@@ -17,10 +17,10 @@ from videoflow.domains.audio.pcm_io import read_wav_mono_float32
 
 PACING_PROFILES: dict[str, dict[str, int]] = {
     "tight": {
-        "min_silence_ms": 260,
+        "min_silence_ms": 300,
         "max_pause_ms": 260,
-        "pad_before_ms": 75,
-        "pad_after_ms": 115,
+        "pad_before_ms": 85,
+        "pad_after_ms": 130,
         "qa_dead_air_ms": 650,
         "min_cut_gap_ms": 140,
     },

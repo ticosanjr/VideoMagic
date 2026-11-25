@@ -151,6 +151,12 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     ),  # type: ignore[arg-type]
                     dry_run=dry_run,
                     force=force,
+                    apply_cuts=bool(
+                        keep_ranges is not None
+                        or remove_ranges is not None
+                        or manifest.get("keep_ranges")
+                        or manifest.get("remove_ranges")
+                    ),
                 )
                 if dry_run:
                     return {

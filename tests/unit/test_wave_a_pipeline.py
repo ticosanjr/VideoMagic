@@ -180,6 +180,7 @@ def test_beatmap_remove_ranges_dry_run_force_and_undo(tmp_path: Path) -> None:
         tmp_path,
         {"remove_ranges": [{"start_sec": 10, "end_sec": 20}]},
         dry_run=True,
+        apply_cuts=True,
     )
     assert state.video_segments[0].timeline_out_frame == 1800
     assert report_state.video_segments[-1].timeline_out_frame == 1500
@@ -190,6 +191,7 @@ def test_beatmap_remove_ranges_dry_run_force_and_undo(tmp_path: Path) -> None:
             state,
             tmp_path,
             {"remove_ranges": [{"start_sec": 10, "end_sec": 50}]},
+            apply_cuts=True,
         )
     assert "force" in str(info.value)
     updated, report, _ = apply_beatmap(
@@ -197,6 +199,7 @@ def test_beatmap_remove_ranges_dry_run_force_and_undo(tmp_path: Path) -> None:
         tmp_path,
         {"remove_ranges": [{"start_sec": 10, "end_sec": 50}]},
         force=True,
+        apply_cuts=True,
     )
     assert report.after_duration_sec == 20
     assert updated.video_segments[-1].timeline_out_frame == 600

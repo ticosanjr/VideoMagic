@@ -12,6 +12,7 @@ from videoflow.application.captions import (
     CaptionLine,
     build_ass_lines,
     caption_lines,
+    filter_caption_sentences,
     merge_ass_files,
 )
 from videoflow.core.context import PipelineContext
@@ -56,6 +57,30 @@ def _timeline_pieces(state: ProjectState | None, fallback_end: int) -> list[tupl
         if clip.source_out_sample > clip.source_in_sample
     ]
     return pieces or [(0, max(1, fallback_end))]
+
+
+def _kept_source_ranges(context: PipelineContext) -> list[tuple[int, int]]:
+    """Convert kept video segments to source-sample ranges for word filtering."""
+
+    state = context.state
+    media = context.media
+    if state is None or media is None or not state.video_segments:
+        return []
+    timebase = media.timebase()
+    ranges: list[tuple[int, int]] = []
+    for clip in state.video_segments:
+        start = timebase.frame_start_sample(clip.source_in_frame)
+        end = timebase.frame_start_sample(clip.source_out_frame)
+        if end > start:
+            ranges.append((start, end))
+    return ranges
+
+
+def _discard_ids(context: PipelineContext) -> set[int]:
+    ids = set(context.discard_sentence_ids)
+    if context.state is not None:
+        ids.update(context.state.pipeline.discard_sentence_ids)
+    return ids
 
 
 def _split_line(line: CaptionLine, max_chars: int) -> list[CaptionLine]:
@@ -125,6 +150,11 @@ class CaptionsPlanStep(BaseStep):
             io.report(100, "Caption generation disabled")
             return
         transcript = _caption_sentences(context)
+        transcript = filter_caption_sentences(
+            transcript,
+            discard_ids=_discard_ids(context),
+            kept_source_ranges=_kept_source_ranges(context),
+        )
         if not transcript:
             context.warnings.append("Captions skipped: the transcript is empty.")
             io.report(100, "No transcript; captions skipped")

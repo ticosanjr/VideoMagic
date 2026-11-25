@@ -11,7 +11,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 from videoflow.application.repetition import (
     RepeatWord,
@@ -21,6 +24,7 @@ from videoflow.application.repetition import (
 from videoflow.application.spans import merge_spans
 from videoflow.domain.decupage import Asu, AsuDecision
 from videoflow.domain.state import Sentence
+from videoflow.domains.audio.pcm_io import read_wav_mono_float32
 
 _REMOVE_ACTIONS = {
     "REMOVE",
@@ -146,7 +150,12 @@ def deterministic_repeats(
     return result
 
 
-__all__ = ["DeterministicResult", "deterministic_repeats"]
+__all__ = [
+    "DeterministicResult",
+    "build_safe_speech_spans",
+    "deterministic_repeats",
+    "rms_energy_guard",
+]
 
 
 def build_safe_speech_spans(
@@ -156,8 +165,8 @@ def build_safe_speech_spans(
     *,
     sample_rate: int = 48_000,
     min_word_prob: float = 0.40,
-    pad_before_ms: int = 75,
-    pad_after_ms: int = 115,
+    pad_before_ms: int = 85,
+    pad_after_ms: int = 130,
     long_cut_review_sec: float = 15.0,
     duration_samples: int | None = None,
     rms_profile: dict[str, Any] | None = None,
@@ -234,6 +243,94 @@ def build_safe_speech_spans(
             )
         cursor = max(cursor, end)
     return spans, flagged
+
+
+def rms_energy_guard(
+    spans: Sequence[tuple[int, int]],
+    *,
+    pcm_path: Path | str | None = None,
+    samples: Any | None = None,
+    sample_rate: int = 48_000,
+    duration_samples: int | None = None,
+    step_ms: float = 10.0,
+    max_expand_ms: float = 250.0,
+    margin_db: float = 8.0,
+    noise_percentile: float = 15.0,
+    blocked_spans: Sequence[tuple[int, int]] = (),
+) -> list[tuple[int, int]]:
+    """Expand kept spans while the adjacent window still carries voice.
+
+    The noise floor is the 15th percentile of 10 ms frame loudness. Each span
+    edge moves outward in 10 ms steps (up to 250 ms) while the neighbouring
+    window exceeds ``noise_floor + 8 dB``. Expansion never crosses a neighbour
+    span or a deliberate cut/noise boundary, so ASR jitter cannot clip a word.
+    """
+
+    ordered = sorted((int(start), int(end)) for start, end in spans if end > start)
+    if not ordered:
+        return ordered
+    rate = max(1, int(sample_rate))
+    step = max(1, round(rate * max(1.0, float(step_ms)) / 1000.0))
+    if samples is None:
+        if pcm_path is None:
+            return ordered
+        samples, loaded_rate = read_wav_mono_float32(pcm_path)
+        if loaded_rate > 0:
+            rate = loaded_rate
+            step = max(1, round(rate * max(1.0, float(step_ms)) / 1000.0))
+    data = np.asarray(samples, dtype=np.float32)
+    if data.size < step:
+        return ordered
+    limit = min(data.size, int(duration_samples)) if duration_samples else data.size
+    limit = max(0, limit)
+    count = limit // step
+    if count <= 0:
+        return ordered
+    frames = data[: count * step].reshape(count, step)
+    rms = np.sqrt(np.mean(np.square(frames), axis=1, dtype=np.float64))
+    levels = 20.0 * np.log10(np.maximum(rms, 1e-9))
+    threshold = float(np.percentile(levels, float(noise_percentile))) + float(margin_db)
+    max_steps = max(1, int(round(max(0.0, float(max_expand_ms)) / max(1.0, float(step_ms)))))
+    blocked = sorted((int(start), int(end)) for start, end in blocked_spans if end > start)
+
+    def db_between(start: int, end: int) -> float:
+        low = max(0, start // step)
+        high = min(count, max(low + 1, (end + step - 1) // step))
+        if high <= low:
+            return -99.0
+        return float(np.max(levels[low:high]))
+
+    def left_limit(index: int, start: int) -> int:
+        bound = ordered[index - 1][1] if index > 0 else 0
+        for _blocked_start, blocked_end in blocked:
+            if blocked_end <= start and blocked_end > bound:
+                bound = blocked_end
+        return max(0, bound)
+
+    def right_limit(index: int, end: int) -> int:
+        bound = ordered[index + 1][0] if index + 1 < len(ordered) else limit
+        for blocked_start, _blocked_end in blocked:
+            if blocked_start >= end and blocked_start < bound:
+                bound = blocked_start
+        return min(limit, bound)
+
+    guarded: list[tuple[int, int]] = []
+    for index, (start, end) in enumerate(ordered):
+        low = left_limit(index, start)
+        high = right_limit(index, end)
+        for _ in range(max_steps):
+            candidate = start - step
+            if candidate < low or db_between(candidate, start) <= threshold:
+                break
+            start = candidate
+        for _ in range(max_steps):
+            candidate = end + step
+            if candidate > high or db_between(end, candidate) <= threshold:
+                break
+            end = candidate
+        if end > start:
+            guarded.append((start, end))
+    return guarded
 
 
 def _mean_rms_db(

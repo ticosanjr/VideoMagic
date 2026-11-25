@@ -59,6 +59,7 @@ def test_apply_cuts_ripples_video_and_audio(tmp_path: Path) -> None:
         state,
         tmp_path,
         {"revision": 1, "keep_ranges": [{"start_sec": 10/30, "end_sec": 40/30}]},
+        apply_cuts=True,
     )
 
     assert report.ok is True
@@ -144,6 +145,7 @@ def test_beatmap_rejects_invalid_range(tmp_path: Path) -> None:
             state,
             tmp_path,
             {"keep_ranges": [{"start_sec": 1.0, "end_sec": 0.5}]},
+            apply_cuts=True,
         )
 
 
@@ -171,6 +173,7 @@ def test_beatmap_rejects_invalid_cut_and_unknown_zoom(tmp_path: Path) -> None:
             state,
             tmp_path,
             {"keep_ranges": [{"start_sec": 1.0, "end_sec": 1.0}]},
+            apply_cuts=True,
         )
     with pytest.raises(BeatmapError) as info:
         apply_beatmap(
@@ -188,6 +191,7 @@ def test_beatmap_rejects_cut_past_timeline_and_no_media(tmp_path: Path) -> None:
             state,
             tmp_path,
             {"keep_ranges": [{"start_sec": 0.0, "end_sec": 99.0}]},
+            apply_cuts=True,
         )
     assert any("exceeds timeline" in item for item in info.value.report.conflicts)
 

@@ -13,6 +13,8 @@ from typing import Any
 
 from videoflow.application.settings import AppSettings
 
+from .provisioning import auto_install_model
+
 
 @dataclass(frozen=True)
 class AsrPlan:
@@ -271,6 +273,7 @@ def resolve_asr_plan(
         )
         profile = "balanced"
 
+    explicit_model = str(getattr(options, "model_id", "") or "").strip()
     candidates = {
         "fast": (
             "faster-whisper-small",
@@ -278,10 +281,18 @@ def resolve_asr_plan(
             "faster-whisper-tiny",
         ),
         "balanced": (
-            "faster-whisper-large-v3-turbo",
-            "faster-whisper-large-v3",
-            "faster-whisper-medium",
-            "faster-whisper-small",
+            (
+                "faster-whisper-large-v3-turbo",
+                "faster-whisper-large-v3",
+                "faster-whisper-medium",
+                "faster-whisper-small",
+            )
+            if local_gpu
+            else (
+                "faster-whisper-small",
+                "faster-whisper-base",
+                "faster-whisper-tiny",
+            )
         ),
         "quality": (
             "faster-whisper-large-v3",
@@ -290,27 +301,34 @@ def resolve_asr_plan(
         ),
     }.get(profile, ())
     model_id = _first_installed(candidates, installed_models)
+    if (
+        not model_id
+        and candidates
+        and not explicit_model
+        and installed is None
+        and auto_install_model(candidates[0])
+    ):
+        installed_models[candidates[0]] = True
+        model_id = candidates[0]
     if not model_id:
-        # Fall back to any installed Whisper model, then to HTTP.
-        model_id = _first_installed(
-            tuple(
-                item
-                for item in (
-                    "whisper-large-v3-turbo-q5_0",
-                    "whisper-large-v3-turbo",
-                    "whisper-medium",
-                    "whisper-small",
-                )
-                if installed_models.get(item)
+        # Prefer whisper.cpp only for its own checkpoints, then any installed
+        # Faster-Whisper model, then the HTTP fallback.
+        whisper_model = _first_installed(
+            (
+                "whisper-large-v3-turbo-q5_0",
+                "whisper-large-v3-turbo",
+                "whisper-large-v3",
+                "whisper-medium",
+                "whisper-small",
             ),
             installed_models,
         )
-        if model_id:
+        if whisper_model:
             return AsrPlan(
                 profile=profile,
                 mode="whisper_cpp",
-                model_id=model_id,
-                model_size=_model_size(model_id),
+                model_id=whisper_model,
+                model_size=_model_size(whisper_model),
                 device="cpu",
                 compute_type=compute_type,
                 beam_size=1,
@@ -321,17 +339,29 @@ def resolve_asr_plan(
                 fallback_reason=fallback
                 or "No faster-whisper model is installed; using whisper.cpp",
             )
-        return AsrPlan(
-            profile=profile,
-            mode="auto",
-            device=device,
-            compute_type=compute_type,
-            beam_size=1,
-            cpu_threads=_resolve_threads(settings, options),
-            vad_filter=True,
-            word_timestamps=True,
-            fallback_reason=fallback or "No local ASR model is installed",
+        model_id = _first_installed(
+            (
+                "faster-whisper-large-v3",
+                "faster-whisper-large-v3-turbo",
+                "faster-whisper-medium",
+                "faster-whisper-small",
+                "faster-whisper-base",
+                "faster-whisper-tiny",
+            ),
+            installed_models,
         )
+        if not model_id:
+            return AsrPlan(
+                profile=profile,
+                mode="auto",
+                device=device,
+                compute_type=compute_type,
+                beam_size=1,
+                cpu_threads=_resolve_threads(settings, options),
+                vad_filter=True,
+                word_timestamps=True,
+                fallback_reason=fallback or "No local ASR model is installed",
+            )
 
     vad = getattr(options, "vad_filter", None)
     beam = int(getattr(options, "beam_size", 0) or 0)

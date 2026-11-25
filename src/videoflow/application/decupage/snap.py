@@ -7,8 +7,10 @@ intent. The timeline step consumes it later.
 from __future__ import annotations
 
 import bisect
+from pathlib import Path
 from typing import Any
 
+from videoflow.application.decupage.deterministic import rms_energy_guard
 from videoflow.application.retake_spans import subtract_spans
 from videoflow.application.rms import min_rms_index
 from videoflow.application.spans import merge_spans
@@ -103,6 +105,7 @@ def build_plan(
     post_roll_floor_ms: float = 115.0,
     base_spans: list[tuple[int, int]] | None = None,
     flagged_long_cuts: list[dict[str, Any]] | None = None,
+    pcm_path: Path | str | None = None,
 ) -> DecupagePlan:
     """Return a sample-exact plan with padded, quantised active spans."""
 
@@ -220,6 +223,14 @@ def build_plan(
         pad_after_ms=post_roll_floor_ms,
         duration=duration,
     )
+    if pcm_path is not None:
+        merged = rms_energy_guard(
+            merged,
+            pcm_path=pcm_path,
+            sample_rate=rate,
+            duration_samples=duration,
+            blocked_spans=[*source_cuts, *noise, *trim_spans],
+        )
     timebase = media.timebase()
     active: list[DecupageSpan] = []
     for start, end in merged:

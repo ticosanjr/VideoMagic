@@ -217,6 +217,7 @@ def test_beatmap_keep_ranges_source_basis_and_captions_dry_run(tmp_path: Path) -
         },
         dry_run=True,
         force=True,
+        apply_cuts=True,
     )
     assert updated.video_segments[-1].timeline_out_frame == 300
     assert report.captions == 1
@@ -230,6 +231,7 @@ def test_beatmap_keep_ranges_source_basis_and_captions_dry_run(tmp_path: Path) -
             {"keep_ranges": [{"start_sec": 0, "end_sec": 10}]},
             time_basis="timeline",
             force=False,
+            apply_cuts=True,
         )
 
     _, empty_report, _ = apply_beatmap(
@@ -237,6 +239,7 @@ def test_beatmap_keep_ranges_source_basis_and_captions_dry_run(tmp_path: Path) -
         tmp_path,
         {"remove_ranges": [{"start_sec": 0, "end_sec": 60}]},
         force=True,
+        apply_cuts=True,
     )
     assert empty_report.after_duration_sec == 0
 
@@ -245,6 +248,7 @@ def test_beatmap_keep_ranges_source_basis_and_captions_dry_run(tmp_path: Path) -
         tmp_path,
         {"keep_ranges": [{"start_sec": 0.0, "end_sec": 10.0}]},
         force=True,
+        apply_cuts=True,
     )
     assert warn_report.ok is True
 
@@ -501,6 +505,7 @@ def test_beatmap_keep_and_remove_intersect(tmp_path: Path) -> None:
             "remove_ranges": [{"start_sec": 10, "end_sec": 20}],
         },
         force=True,
+        apply_cuts=True,
     )
     assert report.after_duration_sec == 20
     assert updated.video_segments[-1].timeline_out_frame == 600

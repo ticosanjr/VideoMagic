@@ -466,10 +466,14 @@ def apply_beatmap(
     time_basis: Literal["edited", "timeline", "source"] | None = None,
     dry_run: bool = False,
     force: bool = False,
+    apply_cuts: bool = False,
 ) -> tuple[ProjectState, BeatmapReport, dict[str, Any]]:
     """Apply a beatmap and return ``(new_state, report, sidecar_manifest)``.
 
-    ``keep_ranges`` and ``remove_ranges`` are seconds in ``time_basis``.
+    ``keep_ranges`` and ``remove_ranges`` are seconds in ``time_basis``. By
+    default the decupage timeline is authoritative: only overlays, SFX,
+    transitions, captions, and zooms are applied. Pass ``apply_cuts=True`` to
+    let the beatmap replace ``video_segments``/``audio_segments`` as well.
     """
 
     options = beatmap if isinstance(beatmap, Beatmap) else Beatmap.model_validate(beatmap)
@@ -496,9 +500,9 @@ def apply_beatmap(
     before_sec = duration / fps if fps else 0.0
 
     keep_cuts: list[BeatmapCut] = []
-    if options.keep_ranges:
+    if apply_cuts and options.keep_ranges:
         keep_cuts.extend(_ranges_to_frames(state, options.keep_ranges, basis))
-    if options.remove_ranges:
+    if apply_cuts and options.remove_ranges:
         removed = _ranges_to_frames(state, options.remove_ranges, basis)
         keep_cuts = (
             _intersect(keep_cuts, _complement(removed, duration))
@@ -506,7 +510,7 @@ def apply_beatmap(
             else _complement(removed, duration)
         )
     keep_cuts = _merge_ranges(keep_cuts)
-    cut_requested = bool(options.keep_ranges or options.remove_ranges)
+    cut_requested = bool(keep_cuts)
 
     if cut_requested:
         for cut in keep_cuts:

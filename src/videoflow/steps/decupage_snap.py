@@ -68,6 +68,13 @@ def _profile(context: PipelineContext) -> dict[str, Any]:
     return {}
 
 
+def _pcm_path(context: PipelineContext) -> Path | None:
+    if context.pcm_path is not None and context.pcm_path.is_file():
+        return context.pcm_path
+    candidate = context.work / "source.wav"
+    return candidate if candidate.is_file() else None
+
+
 @register_step
 class DecupageSnapStep(BaseStep):
     type = "decupage.snap"
@@ -122,6 +129,7 @@ class DecupageSnapStep(BaseStep):
             min_clip_ms=options.min_clip_ms,
             pre_roll_floor_ms=options.pre_roll_floor_ms,
             post_roll_floor_ms=options.post_roll_floor_ms,
+            pcm_path=_pcm_path(context),
         )
         target = context.work / "decupage" / "plan.json"
         target.parent.mkdir(parents=True, exist_ok=True)
