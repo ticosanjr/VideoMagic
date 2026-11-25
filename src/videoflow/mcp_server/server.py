@@ -91,7 +91,7 @@ def build_server(
 
     ``profile`` selects the exact ``core`` (18) or ``full`` (22) surface. The
     internal ``all`` profile keeps every granular tool for the HTTP API and
-    backward-compatible integrations. ``prompts=False`` skips the three
+    backward-compatible integrations. ``prompts=False`` skips the
     ``videoflow_*`` prompts so channel instructions stay authoritative.
     """
 

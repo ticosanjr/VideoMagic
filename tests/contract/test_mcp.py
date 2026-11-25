@@ -12,11 +12,11 @@ from videoflow.mcp_server.registry import (
 from videoflow.mcp_server.server import build_server
 
 
-def test_registry_keeps_unique_specs_and_16_resources() -> None:
+def test_registry_keeps_unique_specs_and_17_resources() -> None:
     names = [tool.name for tool in TOOL_SPECS]
     assert len(names) == len(set(names))
     assert all(name.startswith("vf_") for name in names)
-    assert len(RESOURCE_SPECS) == 16
+    assert len(RESOURCE_SPECS) == 17
 
 
 def test_default_server_exposes_the_core_profile() -> None:
@@ -47,13 +47,16 @@ def test_profiles_have_exactly_18_and_22_tools() -> None:
     assert set(full) == set(FULL_TOOL_NAMES)
 
 
-def test_official_tools_have_three_line_contracts() -> None:
+def test_official_tools_have_three_or_four_line_contracts() -> None:
     for name in FULL_TOOL_NAMES:
         doc = TOOL_DOCSTRINGS[name]
         assert "[DOES]" in doc
         assert "[REQUIRES]" in doc
         assert "[RETURNS]" in doc
-        assert len([line for line in doc.splitlines() if line.strip()]) == 3
+        lines = [line for line in doc.splitlines() if line.strip()]
+        assert 3 <= len(lines) <= 4
+        if len(lines) == 4:
+            assert any(line.startswith("[ACTIONS]") for line in lines)
 
 
 def test_unknown_tool_parameter_returns_a_typed_envelope() -> None:
@@ -164,6 +167,7 @@ def test_mcp_exposes_production_prompts() -> None:
     assert asyncio.run(inspect()) == [
         "videoflow_produce",
         "videoflow_review",
+        "videoflow_full_test",
         "videoflow_deliver",
     ]
 

@@ -43,6 +43,8 @@ Workspace preparado pelo VideoFlow {{VERSION}}.
    consolidar em `./VideoFlow_Output/{videos,exports,shorts,scenes}`.
 10. **Profile.** `--profile core` no dia a dia; `--profile full` apenas para
     `vf_fx_*` e edição avançada.
+11. **Teste completo rápido.** Use o prompt MCP `videoflow_full_test` ou o
+    resource `vf://tests/full-540p`; siga o roteiro 540p e reporte erros.
 
 ## Catálogo
 

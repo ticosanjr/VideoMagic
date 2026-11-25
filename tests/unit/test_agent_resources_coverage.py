@@ -140,6 +140,16 @@ def test_project_resources_and_prompts(tmp_path: Path, monkeypatch) -> None:
     assert "vf_jobs" in mcp.prompts["videoflow_review"]("p", "j")
     assert "bundle" in mcp.prompts["videoflow_deliver"]("p").lower()
 
+    full_test = mcp.prompts["videoflow_full_test"]("raw.mp4", "fast", 60)
+    assert "review_packet" in full_test
+    assert "editorial_map" in full_test
+    assert "1.00 → 1.06" in full_test
+    assert "qa_mode=\"skip\"" in full_test
+    assert "raw.mp4" in full_test and "60" in full_test
+    resource = json.loads(mcp.resources["vf://tests/full-540p"]())
+    assert resource["ok"] is True
+    assert "review_packet" in resource["prompt"]
+
 
 def test_resource_error_paths(tmp_path: Path, monkeypatch) -> None:
     mcp, _record = _setup(tmp_path, monkeypatch)

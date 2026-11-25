@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from videoflow.application.style_catalog import StyleCatalog, seed_styles_dir
@@ -92,3 +93,18 @@ def test_agents_template_is_short_and_teaches_the_v47_flow() -> None:
         assert marker in text, marker
     for dead in DEAD_NODES:
         assert dead not in text, dead
+
+
+def test_seed_styles_and_workflows_match_the_shipped_bundle() -> None:
+    root = Path(__file__).resolve().parents[2]
+    bundle = json.loads(
+        (root / "videoflow-styles-workflows-otimizado.json").read_text(encoding="utf-8")
+    )
+    for kind, folder in (
+        ("styles", root / "src" / "videoflow" / "styles"),
+        ("workflows", root / "src" / "videoflow" / "workflows"),
+    ):
+        for entry in bundle[kind]:
+            path = folder / f"{entry['id']}.md"
+            assert path.is_file(), path
+            assert path.read_text(encoding="utf-8") == entry["markdown_content"], path

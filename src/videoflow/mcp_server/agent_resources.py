@@ -28,6 +28,33 @@ def _error(code: str, message: str) -> str:
     return json.dumps({"ok": False, "code": code, "message": message})
 
 
+def _templates_dir() -> Path:
+    return Path(__file__).resolve().parents[1] / "templates" / "opencode"
+
+
+def _full_test_prompt(
+    *,
+    raw_video: str = "<RAW>",
+    project_id: str = "fast-3m",
+    duration_sec: int = 180,
+) -> str:
+    template = _templates_dir() / "prompts" / "full_test.md"
+    try:
+        text = template.read_text(encoding="utf-8")
+    except OSError:
+        text = (
+            "Execute o teste completo do VideoFlow em preview 540p: "
+            "review_packet, editorial_map, B-roll em TALKING_HEAD, "
+            "image_to_broll_motion 1.00→1.06, audio master 2x, preview, "
+            "Short e NLEs. Registre o payload exato de cada falha."
+        )
+    return (
+        text.replace("{{RAW_VIDEO}}", raw_video or "<RAW>")
+        .replace("{{PROJECT_ID}}", project_id or "fast-3m")
+        .replace("{{DURATION_SEC}}", str(max(1, int(duration_sec))))
+    )
+
+
 def contracts_dir() -> Path:
     import sys
 
@@ -72,6 +99,24 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
             )
 
         @mcp.prompt(
+            name="videoflow_full_test",
+            description=(
+                "Run the complete fast 540p test: review_packet, editorial_map, "
+                "safe B-roll, audio master 2x, preview, Short, and NLEs."
+            ),
+        )
+        def full_test_prompt(
+            raw_video: str = "",
+            project_id: str = "fast-3m",
+            duration_sec: int = 180,
+        ) -> str:
+            return _full_test_prompt(
+                raw_video=raw_video,
+                project_id=project_id,
+                duration_sec=duration_sec,
+            )
+
+        @mcp.prompt(
             name="videoflow_deliver",
             description="Build and validate the multi-NLE delivery bundle.",
         )
@@ -86,6 +131,19 @@ def register_agent_resources(mcp: Any, ctx: Any, *, prompts: bool = True) -> Non
                 "Report the bundle manifest, any missing media, any degraded "
                 "heavy-compute fallback, and blocked licenses."
             )
+
+    @mcp.resource("vf://tests/full-540p")
+    def full_test_resource() -> str:
+        """Complete fast-test prompt for OpenCode (540p preview)."""
+
+        return json.dumps(
+            {
+                "ok": True,
+                "name": "videoflow_full_test",
+                "prompt": _full_test_prompt(),
+            },
+            indent=2,
+        )
 
     @mcp.resource("vf://projects")
     def projects_resource() -> str:

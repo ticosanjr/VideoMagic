@@ -362,14 +362,16 @@ TOOL_DOCSTRINGS: dict[str, str] = {
         "[RETURNS] Job payload with per-step status and artifacts."
     ),
     "vf_transcript": (
-        "[DOES] Search or page the cleaned transcript without dumping it.\n"
-        "[REQUIRES] ``project_id`` plus a query, range, or cursor.\n"
-        "[RETURNS] Matching sentences and word timings."
+        "[DOES] Query the whole transcript or map speech to edited scenes.\n"
+        "[ACTIONS] query, editorial_map.\n"
+        "[REQUIRES] ``project_id`` plus a query, range, cursor, or action.\n"
+        "[RETURNS] Sentences, word timings, or 15-30s editorial blocks."
     ),
     "vf_decupage": (
-        "[DOES] Plan a beat map from the transcript and the chosen style.\n"
-        "[REQUIRES] ``project_id`` and the beat-map planning fields.\n"
-        "[RETURNS] Structured beat-map plan ready for human approval."
+        "[DOES] Plan, review, or run the aggressive decupage chain.\n"
+        "[ACTIONS] plan, review_packet, discard_sentences, run_full.\n"
+        "[REQUIRES] ``project_id`` and the beat-map or pacing fields.\n"
+        "[RETURNS] Full transcript review packet, beat map, or job payload."
     ),
     "vf_scenes": (
         "[DOES] Analyze scenes or read the cached scene manifest.\n"
@@ -382,9 +384,10 @@ TOOL_DOCSTRINGS: dict[str, str] = {
         "[RETURNS] Preview image paths and their timeline times."
     ),
     "vf_timeline": (
-        "[DOES] Read, edit, or atomically apply a beat map to the timeline.\n"
+        "[DOES] Read, edit, map, or atomically apply a beat map.\n"
+        "[ACTIONS] get, edit, discard_sentences, apply_beatmap, time_map.\n"
         "[REQUIRES] ``project_id``, ``action``, and edit or beat-map fields.\n"
-        "[RETURNS] Canonical timeline JSON or the new revision."
+        "[RETURNS] Canonical timeline, time map, or the new revision."
     ),
     "vf_shorts": (
         "[DOES] Batch-render Shorts with style, crop, intro, and music.\n"
@@ -393,16 +396,21 @@ TOOL_DOCSTRINGS: dict[str, str] = {
     ),
     "vf_audio": (
         "[DOES] Run TTS, cleanup, stems, music, Foley, and mastering.\n"
-        "[REQUIRES] ``action`` plus the audio source or text.\n"
+        "[ACTIONS] tts, clean, stems, music, mix, master.\n"
+        "[REQUIRES] ``action`` plus the audio source, text, or music path.\n"
         "[RETURNS] Audio artifact path and execution metadata."
     ),
     "vf_media": (
         "[DOES] Fetch stock media, animate stills, and audit licenses.\n"
+        "[ACTIONS] search, fetch_stock_images, fetch_stock_broll, "
+        "rip_video_segment, fetch_sfx, image_to_broll_motion, "
+        "generate_music_or_sfx, list, license_audit, approve_license.\n"
         "[REQUIRES] ``action`` and a query, image, or asset id.\n"
         "[RETURNS] Media artifact paths, animation, or license report."
     ),
     "vf_export": (
         "[DOES] Bundle, draft-render, validate, or NLE-roundtrip exports.\n"
+        "[ACTIONS] bundle, render, mp4, validate, roundtrip.\n"
         "[REQUIRES] ``project_id`` and an export action or targets.\n"
         "[RETURNS] Job payload with exports, checks, and roundtrip paths."
     ),
@@ -491,6 +499,10 @@ RESOURCE_SPECS: tuple[ResourceSpec, ...] = (
         "Scene keyframe metadata and file path.",
     ),
     ResourceSpec("vf://projects/{project_id}/jobs/{job_id}/logs", "Persisted job log."),
+    ResourceSpec(
+        "vf://tests/full-540p",
+        "Complete fast-test prompt for OpenCode (540p preview).",
+    ),
     ResourceSpec("vf://styles", "Canonical Markdown style catalog."),
     ResourceSpec("vf://styles/{style_id}", "One Markdown style and its rules."),
     ResourceSpec("vf://presets/{channel_id}/rulebook", "Active channel rulebook."),
