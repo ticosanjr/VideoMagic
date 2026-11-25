@@ -9,10 +9,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
+from videoflow.adapters.ffmpeg.helpers import (
+    ass_font_names,
+    prepare_isolated_fonts_dir,
+)
 from videoflow.application.brand_kit import load_brand_kit
 from videoflow.application.caption_presets import apply_preset
 from videoflow.application.captions import build_ass_lines, caption_lines
-from videoflow.application.fonts import fonts_dir
 from videoflow.application.projects import get_project, load_project_state
 from videoflow.application.shorts import short_dimensions, slugify
 from videoflow.application.shorts_tighten import tighten_clip
@@ -353,6 +356,14 @@ def run_shorts_batch(
                 f"above max_sec={spec.max_sec:.3f}"
             )
         context_source = _source_path(state, record, spec.source_id)
+        font_dir = (
+            prepare_isolated_fonts_dir(
+                record.output,
+                ass_font_names(ass_path),
+            )
+            if spec.burn_subtitles and ass_path is not None
+            else None
+        )
         renderer.render_short(
             Path(context_source),
             pieces,
@@ -361,7 +372,7 @@ def run_shorts_batch(
             width=width,
             height=height,
             ass_path=ass_path if spec.burn_subtitles else None,
-            fontsdir=str(fonts_dir()),
+            fontsdir=str(font_dir) if font_dir is not None else None,
             crop_focus_x=focus,
             crop_focus_y=0.5,
             crop_keyframes=keyframes,

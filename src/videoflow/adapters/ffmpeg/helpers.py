@@ -39,6 +39,110 @@ _SILENCE_END = re.compile(r"silence_end:\s*([0-9.]+)")
 
 FILTER_COMPLEX_SCRIPT_FLAG = "-filter_complex_script"
 
+_FALLBACK_FONT_FAMILIES = {
+    "arial",
+    "segoeui",
+    "inter",
+    "liberationsans",
+    "dejavusans",
+    "notosans",
+}
+
+
+def ass_font_names(ass_path: Path | str) -> list[str]:
+    """Return the font families referenced by an ASS stylesheet."""
+
+    path = Path(ass_path).expanduser()
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    names: list[str] = []
+    for line in lines:
+        if not line.strip().casefold().startswith("style:"):
+            continue
+        fields = line.split(",", 2)
+        if len(fields) < 2:
+            continue
+        name = fields[1].strip()
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def _font_key(value: str) -> str:
+    import re
+
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
+
+
+def prepare_isolated_fonts_dir(
+    project_dir: Path | str,
+    font_names: Sequence[str] = (),
+) -> Path:
+    """Copy only the fonts used by captions into ``work/fonts``.
+
+    Passing a tiny, project-local directory to libass avoids the slow Windows
+    ``C:/Windows/Fonts`` cache scan and keeps font lookup deterministic.
+    """
+
+    from videoflow.application.fonts import font_family, fonts_dir, list_system_fonts
+
+    destination = Path(project_dir).expanduser() / "work" / "fonts"
+    if destination.is_dir():
+        shutil.rmtree(destination, ignore_errors=True)
+    destination.mkdir(parents=True, exist_ok=True)
+    wanted = {_font_key(item) for item in font_names if _font_key(item)}
+    fallbacks = _FALLBACK_FONT_FAMILIES
+    copied: set[str] = set()
+
+    def copy(source: Path) -> None:
+        if not source.is_file() or source.suffix.casefold() not in {".ttf", ".otf"}:
+            return
+        target = destination / source.name
+        if target.name in copied:
+            return
+        try:
+            shutil.copy2(source, target)
+        except OSError:
+            return
+        copied.add(target.name)
+
+    user_fonts = [path for path in sorted(fonts_dir().glob("*")) if path.is_file()]
+    if not wanted:
+        for path in user_fonts:
+            copy(path)
+        if copied:
+            return destination
+    for path in user_fonts:
+        stem = _font_key(path.stem)
+        try:
+            family = _font_key(font_family(path.read_bytes()))
+        except Exception:  # noqa: BLE001 - fallback to the filename
+            family = stem
+        if {stem, family} & (wanted | fallbacks):
+            copy(path)
+    if not copied and wanted:
+        for item in list_system_fonts():
+            file_path = Path(str(item.get("file") or "")).expanduser()
+            family = _font_key(str(item.get("family") or ""))
+            stem = _font_key(file_path.stem)
+            if {family, stem} & (wanted | fallbacks):
+                copy(file_path)
+                if len(copied) >= 8:
+                    break
+    if not copied:
+        for item in list_system_fonts():
+            file_path = Path(str(item.get("file") or "")).expanduser()
+            if {_font_key(file_path.stem), _font_key(str(item.get("family") or ""))} & fallbacks:
+                copy(file_path)
+                if len(copied) >= 4:
+                    break
+    if not copied:
+        for path in user_fonts:
+            copy(path)
+    return destination
+
 
 class FilterScriptUnsupportedError(VideoFlowError):
     """The FFmpeg build accepts neither filter-script spelling."""

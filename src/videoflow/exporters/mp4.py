@@ -15,9 +15,12 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from videoflow.adapters.ffmpeg import FFmpegAdapter
-from videoflow.adapters.ffmpeg.helpers import escape_ffmpeg_filter_path
+from videoflow.adapters.ffmpeg.helpers import (
+    ass_font_names,
+    escape_ffmpeg_filter_path,
+    prepare_isolated_fonts_dir,
+)
 from videoflow.application.disk import ensure_free_space_for_export
-from videoflow.application.fonts import fonts_dir
 from videoflow.application.media_integrity import validate_integrity
 from videoflow.core.media_contract import (
     LOUDNORM_TARGET_TP_DB,
@@ -63,7 +66,16 @@ def _resolve_burn_subtitles(
         raise SubtitleBurnError(f"ASS subtitle track is missing: {path}")
     if path.stat().st_size <= 0:
         raise SubtitleBurnError(f"ASS subtitle track is empty: {path}")
-    return path
+    return path.resolve()
+
+
+def _project_dir_for_destination(destination: Path | str) -> Path:
+    parent = Path(destination).expanduser().parent
+    if parent.name in {"exports", "render", "preview", "previews", "shorts"}:
+        parent = parent.parent
+    if parent.name == "work":
+        parent = parent.parent
+    return parent
 
 
 def _zoom_expression(keyframes: Sequence[Any], span: int) -> str:
@@ -1440,6 +1452,12 @@ def _render_classic_mp4(
     """Render the classic single-pass graph to ``output_path``."""
 
     ass_path = _resolve_burn_subtitles(ass_path, burn_subtitles)
+    font_dir: Path | None = None
+    if ass_path is not None:
+        font_dir = prepare_isolated_fonts_dir(
+            _project_dir_for_destination(output_path),
+            ass_font_names(ass_path),
+        )
 
     media = state.media_info
     if media is None:
@@ -1542,7 +1560,8 @@ def _render_classic_mp4(
     apply_overlays([overlay for overlay in state.overlays if overlay.z < 40])
     if ass_path is not None:
         ass_filter = f"ass='{_filter_path(Path(ass_path))}'"
-        ass_filter += f":fontsdir='{_filter_path(fonts_dir())}'"
+        if font_dir is not None:
+            ass_filter += f":fontsdir='{_filter_path(font_dir)}'"
         graph_segments.append(f"{video_label}{ass_filter}[vtitle]")
         video_label = "[vtitle]"
     apply_overlays([overlay for overlay in state.overlays if overlay.z >= 40])

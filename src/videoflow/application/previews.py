@@ -124,6 +124,9 @@ def build_preview(
                 ass_path=ass_path if ass_path.is_file() else None,
                 scale_height=height,
                 cache_dir=job.output / "render" / "segments",
+                fps=30,
+                mode="preview",
+                qa_mode="off",
             )
         else:
             report(20, "Using the last MP4 artifact")

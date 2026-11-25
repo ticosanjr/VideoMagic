@@ -204,12 +204,37 @@ def nvenc_args(ffmpeg: str | None = None) -> list[str]:
     return list(probe_nvenc(ffmpeg).args or DEFAULT_ARGS)
 
 
+def nvenc_encoder_args(
+    ffmpeg: str | None = None,
+    *,
+    preview: bool = False,
+) -> list[str]:
+    """Return a complete NVENC video argument block, or an empty list.
+
+    Preview callers keep the proven preset instead of risking an untested p1
+    combination; the probe already chooses the fastest accepted fallback.
+    """
+
+    probe = probe_nvenc(ffmpeg)
+    if not probe.available:
+        return []
+    args = list(probe.args or DEFAULT_ARGS)
+    return [
+        "-c:v",
+        "h264_nvenc",
+        *args,
+        "-pix_fmt",
+        "yuv420p",
+    ]
+
+
 __all__ = [
     "CANDIDATES",
     "DEFAULT_ARGS",
     "NvencProbe",
     "local_gpu_available",
     "nvenc_args",
+    "nvenc_encoder_args",
     "nvenc_available",
     "probe_nvenc",
 ]

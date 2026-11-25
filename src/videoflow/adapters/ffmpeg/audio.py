@@ -38,6 +38,7 @@ from videoflow.adapters.ffmpeg.helpers import (
     parse_silence,
 )
 from videoflow.application.music import music_filter
+from videoflow.core.nvenc import nvenc_encoder_args
 from videoflow.domain.errors import IngestError, JobCancelledError
 from videoflow.domain.state import MediaInfo
 from videoflow.domain.timebase import Rounding, Timebase
@@ -347,14 +348,19 @@ class AudioMixin:
                 "[v]",
                 "-map",
                 "[a]",
-                "-c:v",
-                "libx264",
-                "-preset",
-                "veryfast",
-                "-crf",
-                "20",
-                "-pix_fmt",
-                "yuv420p",
+                *(  # proven NVENC when available; libx264 is the safe fallback
+                    nvenc_encoder_args()
+                    or [
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "veryfast",
+                        "-crf",
+                        "20",
+                        "-pix_fmt",
+                        "yuv420p",
+                    ]
+                ),
                 "-c:a",
                 "aac",
                 "-b:a",

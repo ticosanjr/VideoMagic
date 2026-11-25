@@ -1104,6 +1104,8 @@ class JobManager:
             width = max(64, round(state.media_info.width * draft))
         audio_filters, video_filters, ass_path = render_inputs(job)
         adapter = FFmpegAdapter(cancel_event=job.cancel_event)
+        preview = kind == "preview"
+        qa_mode = str(job.options.get("qa_mode") or "fast").strip().lower()
 
         def progress(percent: int) -> None:
             callbacks.progress("render", max(1, min(99, percent)), f"Rendering {percent}%")
@@ -1120,13 +1122,15 @@ class JobManager:
             progress=progress,
             scale_height=height,
             cache_dir=job.output / "render" / "segments",
+            fps=30 if preview else None,
+            mode="preview" if preview else "final",
+            qa_mode=qa_mode if not preview else "off",
         )
         info = adapter.probe(destination)
         loudness: dict[str, float] = {}
         with contextlib.suppress(Exception):
             loudness = adapter.measure_loudness(destination)
         final_qa: dict[str, Any] = {}
-        qa_mode = str(job.options.get("qa_mode") or "fast").strip().lower()
         if kind != "preview" and qa_mode not in {"off", "none", "skip"}:
             from videoflow.application.qa_final import audit_final
 
