@@ -16,6 +16,7 @@ place that produces the delivery audio bed:
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -35,6 +36,7 @@ from videoflow.domain.errors import ExportError
 from videoflow.runtime import find_binary
 
 from .exact import pad_to_duration
+from .finalize_graph import _build_graph, _sfx_chains
 
 DEFAULT_TARGET_LUFS = TARGET_LUFS
 DEFAULT_TRUE_PEAK_DB = TRUE_PEAK_MAX
@@ -195,67 +197,13 @@ def _measure_loudnorm(
         raise ExportError("loudnorm returned incomplete measurements") from exc
 
 
-def _build_graph(
-    *,
-    duration: float,
-    mono_repair: str,
-    music: bool,
-    sfx: bool,
-    music_gain: float,
-    sfx_gain: float,
-    ducking: bool = True,
-) -> str:
-    voice_filters = []
-    if mono_repair == "left":
-        voice_filters.append("pan=stereo|c0=c0|c1=c0")
-    elif mono_repair == "right":
-        voice_filters.append("pan=stereo|c0=c1|c1=c1")
-    voice_filters.extend(
-        [
-            "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
-            "aresample=48000",
-            "highpass=f=80",
-            "afftdn=nf=-30",
-        ]
-    )
-    chains = [f"[0:a]{','.join(voice_filters)},apad=whole_dur={duration:.6f}[voice]"]
-    if music:
-        chains.append(
-            f"[1:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
-            f"aresample=48000,aloop=loop=-1:size=2880000,atrim=0:{duration:.6f},"
-            f"volume={music_gain:.3f}[music]"
-        )
-        if ducking:
-            chains.append("[voice]asplit=2[voice_sc][voice_mix]")
-            chains.append(
-                "[music][voice_sc]sidechaincompress=threshold=0.02:ratio=8:"
-                "attack=20:release=300[ducked]"
-            )
-            chains.append(
-                "[voice_mix][ducked]amix=inputs=2:weights=1 1:normalize=0[mix0]"
-            )
-        else:
-            chains.append("[voice][music]amix=inputs=2:weights=1 1:normalize=0[mix0]")
-    else:
-        chains.append("[voice]anull[mix0]")
-    if sfx:
-        chains.append(
-            f"[2:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,"
-            f"aresample=48000,atrim=0:{duration:.6f},apad=whole_dur={duration:.6f},"
-            f"volume={sfx_gain:.3f}[sfx]"
-        )
-        chains.append("[mix0][sfx]amix=inputs=2:weights=1 1:normalize=0[mix]")
-    else:
-        chains.append("[mix0]anull[mix]")
-    return ";".join(chains)
-
-
 def finalize_audio(
     voice_path: str | Path,
     output: str | Path,
     *,
     music_path: str | Path | None = None,
     sfx_path: str | Path | None = None,
+    sfx_events: list[dict[str, Any]] | None = None,
     duration_sec: float | None = None,
     target_lufs: float = DEFAULT_TARGET_LUFS,
     true_peak_db: float = DEFAULT_TRUE_PEAK_DB,
@@ -275,12 +223,10 @@ def finalize_audio(
     root.mkdir(parents=True, exist_ok=True)
     target = root / "audio" / target_name
     target.parent.mkdir(parents=True, exist_ok=True)
+    temp = target.parent / ".final_mix.tmp.wav"
     music = Path(music_path).expanduser() if music_path else None
-    sfx = Path(sfx_path).expanduser() if sfx_path else None
     if music is not None and not music.is_file():
         raise ExportError(f"Music bed does not exist: {music}")
-    if sfx is not None and not sfx.is_file():
-        raise ExportError(f"Foley track does not exist: {sfx}")
     duration = float(duration_sec) if duration_sec is not None else _duration(voice)
     if duration <= 0:
         raise ExportError("Audio duration must be positive")
@@ -291,20 +237,47 @@ def finalize_audio(
         warnings.append(f"mono repaired from the {mono_repair} channel")
     if music_gain_db is not None:
         music_gain = 10 ** (float(music_gain_db) / 20.0)
+    requested_events = [item for item in (sfx_events or []) if isinstance(item, dict)]
+    if sfx_path:
+        requested_events.append({"path": str(sfx_path), "start_sec": 0.0, "gain_db": 0.0})
+    valid_events: list[dict[str, Any]] = []
+    for event in requested_events:
+        path = Path(str(event.get("path") or "")).expanduser()
+        if path.is_file():
+            valid_events.append({**event, "path": str(path)})
+        else:
+            warnings.append(f"SFX event is missing and was skipped: {path}")
+    if requested_events and not valid_events:
+        raise ExportError("No SFX events could be mixed; check the event paths.")
     graph = _build_graph(
         duration=duration,
         mono_repair=mono_repair,
         music=music is not None,
-        sfx=sfx is not None,
+        sfx=False,
         music_gain=max(0.0, min(1.0, float(music_gain))),
         sfx_gain=max(0.0, min(1.0, float(sfx_gain))),
         ducking=bool(ducking),
+        finalize_mix=not bool(valid_events),
     )
     inputs = ["-i", str(voice)]
     if music is not None:
         inputs.extend(["-i", str(music)])
-    if sfx is not None:
-        inputs.extend(["-i", str(sfx)])
+    sfx_chains, sfx_inputs, sfx_labels = _sfx_chains(
+        valid_events,
+        first_input=1 + (1 if music is not None else 0),
+        duration=duration,
+        sfx_gain=max(0.0, min(1.0, float(sfx_gain))),
+    )
+    if sfx_chains:
+        graph = (
+            graph
+            + ";"
+            + ";".join(sfx_chains)
+            + ";[mix0]"
+            + "".join(sfx_labels)
+            + f"amix=inputs={1 + len(sfx_labels)}:normalize=0[mix]"
+        )
+        inputs.extend(sfx_inputs)
     measured = _measure_loudnorm(
         graph,
         inputs,
@@ -343,10 +316,12 @@ def finalize_audio(
         "2",
         "-c:a",
         "pcm_s24le",
-        str(target),
+        str(temp),
     ]
+    temp.unlink(missing_ok=True)
     completed = subprocess.run(command, capture_output=True, text=True, check=False, timeout=900)
-    if completed.returncode != 0 or not target.is_file():
+    if completed.returncode != 0 or not temp.is_file():
+        temp.unlink(missing_ok=True)
         raise ExportError(
             "Audio finalization failed: "
             + (completed.stderr.strip()[-600:] or f"exit {completed.returncode}")
@@ -354,14 +329,17 @@ def finalize_audio(
     # ``loudnorm`` upsamples internally and can shave a couple of frames from
     # the tail. Re-pad/trim once on a plain PCM pass so the master length is
     # sample-exact against the video timeline.
-    if abs(_duration(target) - duration) > 0.001:
-        pad_to_duration(target, duration)
+    if abs(_duration(temp) - duration) > 0.001:
+        pad_to_duration(temp, duration)
     try:
-        contract = validate_media(target, "audio_master")
+        contract = validate_media(temp, "audio_master")
     except MediaContractError as exc:
+        temp.unlink(missing_ok=True)
         raise ExportError(f"Audio finalization violated the media contract: {exc.message}") from exc
     if not contract.ok:
+        temp.unlink(missing_ok=True)
         raise ExportError(f"Audio finalization violated the media contract: {contract.to_dict()}")
+    os.replace(temp, target)
     from videoflow.adapters.ffmpeg import FFmpegAdapter
 
     loudness = FFmpegAdapter().measure_loudness(target)
