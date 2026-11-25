@@ -211,6 +211,7 @@ def audit_final(
     height: int | None = None,
     max_wer: float = 0.12,
     warning_wer: float = 0.06,
+    skip_wer: bool = False,
     collision_mode: str = "visual",
     intro_duration_sec: float = 0.0,
     compute_policy: str = "auto",
@@ -501,7 +502,7 @@ def audit_final(
                     ),
                 }
             )
-    if transcript is not None:
+    if transcript is not None and not skip_wer:
         kept = list(transcript)
     else:
         kept = [

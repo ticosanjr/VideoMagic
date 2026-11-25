@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from videoflow.application.caption_presets import apply_preset
 from videoflow.application.captions import (
     CaptionLine,
+    _normalize_caption_lines,
     build_ass_lines,
     caption_lines,
     filter_caption_sentences,
@@ -17,10 +18,17 @@ from videoflow.application.captions import (
 )
 from videoflow.core.context import PipelineContext
 from videoflow.domain.config import CaptionStyle
+from videoflow.domain.errors import ExportError
 from videoflow.domain.state import ProjectState, Sentence
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.common import digest_payload
 from videoflow.steps.registry import register_step
+
+
+class EmptyAssEventsError(ExportError):
+    """Cues existed but the ASS writer produced no Dialogue lines."""
+
+    code = "empty_ass_events"
 
 
 class CaptionsPlanParams(BaseModel):
@@ -181,18 +189,29 @@ class CaptionsPlanStep(BaseStep):
             return
         directory = context.output / "captions"
         directory.mkdir(parents=True, exist_ok=True)
+        cues = _normalize_caption_lines(split)
+        if not cues:
+            raise EmptyAssEventsError(
+                f"{len(split)} cue(s) collapsed to zero timed captions"
+            )
         captions_path = directory / "captions.ass"
-        captions_path.write_text(
-            build_ass_lines(
-                split,
-                style=options.style,
-                width=options.width,
-                height=options.height,
-            ),
-            encoding="utf-8",
+        ass_text = build_ass_lines(
+            cues,
+            style=options.style,
+            width=options.width,
+            height=options.height,
         )
+        dialogue_count = sum(
+            1 for line in ass_text.splitlines() if line.startswith("Dialogue:")
+        )
+        if dialogue_count < len(cues):
+            raise EmptyAssEventsError(
+                f"captions.ass has {dialogue_count} Dialogue line(s) for "
+                f"{len(cues)} cue(s)"
+            )
+        captions_path.write_text(ass_text, encoding="utf-8")
         captions_srt = directory / "captions.srt"
-        captions_srt.write_text(_srt(split), encoding="utf-8")
+        captions_srt.write_text(_srt(cues), encoding="utf-8")
         merged_path = context.output / "subtitles.ass"
         merge_ass_files([context.output / "titles.ass", captions_path], merged_path)
         context.artifacts["captions"] = str(captions_path)
@@ -232,7 +251,7 @@ def _caption_sentences(context: PipelineContext) -> list[Sentence]:
         if not path.is_file():
             continue
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
             loaded = [Sentence.model_validate(item) for item in payload]
         except (OSError, ValueError, TypeError):
             continue

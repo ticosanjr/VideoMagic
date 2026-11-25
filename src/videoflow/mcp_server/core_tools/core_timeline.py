@@ -126,7 +126,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     path = Path(beat_map_path).expanduser()
                     if not path.is_absolute():
                         path = Path(record.output) / path
-                    payload = json.loads(path.read_text(encoding="utf-8"))
+                    payload = json.loads(path.read_text(encoding="utf-8-sig"))
                 except (OSError, ValueError, VideoFlowError) as exc:
                     return error("beatmap_path_invalid", str(exc))
                 if not isinstance(payload, dict):

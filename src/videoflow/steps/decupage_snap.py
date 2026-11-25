@@ -66,7 +66,7 @@ def _profile(context: PipelineContext) -> dict[str, Any]:
     raw = context.metadata.get("vad_rms")
     if isinstance(raw, dict) and raw.get("path"):
         try:
-            return json.loads(Path(str(raw["path"])).read_text(encoding="utf-8"))
+            return json.loads(Path(str(raw["path"])).read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             return {}
     return {}

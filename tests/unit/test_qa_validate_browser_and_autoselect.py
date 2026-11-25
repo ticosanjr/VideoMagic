@@ -9,11 +9,25 @@ import pytest
 from videoflow.application.curation_board import auto_select_board, publish_board
 from videoflow.application.overlay_geometry import PixelBox, caption_box, collisions
 from videoflow.application.projects import init_project
+from videoflow.core.context import PipelineContext
 from videoflow.domain.config import CaptionStyle
 from videoflow.domain.errors import VideoFlowError
-from videoflow.domain.state import MediaInfo, OverlayClip, ProjectState
+from videoflow.domain.state import (
+    AudioSegment,
+    MediaInfo,
+    OverlayClip,
+    ProjectState,
+    Sentence,
+    WordTiming,
+)
 from videoflow.domains.vision import browser
 from videoflow.mcp_server.guard import error_envelope, mcp_tool_guard
+from videoflow.steps.base import StepIO
+from videoflow.steps.captions import (
+    CaptionsPlanParams,
+    CaptionsPlanStep,
+    EmptyAssEventsError,
+)
 
 
 def test_vf_export_validate_uses_the_absolute_exports_directory(
@@ -211,3 +225,73 @@ def test_windows_candidates_include_the_standard_paths(name: str, monkeypatch) -
     monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\me\AppData\Local")
     paths = [str(path) for path in browser._windows_candidates()]
     assert any(path.endswith(name) for path in paths)
+
+
+def test_vf_qa_accepts_skip_off_and_rejects_unknown_modes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from tests.unit.test_core_tools import setup
+
+    tools, record, _ = setup(tmp_path, monkeypatch)
+    skipped = tools["vf_qa"](project_id=record.project_id, mode="skip")
+    assert skipped["ok"] is True
+    assert skipped["status"] == "skipped"
+    off = tools["vf_qa"](project_id=record.project_id, mode="off")
+    assert off["ok"] is True
+    invalid = tools["vf_qa"](project_id=record.project_id, mode="bogus")
+    assert invalid["ok"] is False
+    assert invalid["error_code"] == "invalid_qa_mode"
+
+
+def test_captions_plan_fails_closed_when_ass_has_no_dialogue(
+    tmp_path: Path, monkeypatch
+) -> None:
+    media = MediaInfo(
+        source_path=str(tmp_path / "source.mp4"),
+        duration_frames=60,
+        fps_num=30,
+        fps_den=1,
+        width=640,
+        height=360,
+        audio_sample_rate=48_000,
+    )
+    (tmp_path / "source.mp4").write_bytes(b"source")
+    sentence = Sentence(
+        id=0,
+        start_sample=9_600,
+        end_sample=134_400,
+        text="público, império, ação",
+        words=[
+            WordTiming(word="público,", start_sample=9_600, end_sample=50_000, probability=0.95),
+            WordTiming(word="império,", start_sample=50_000, end_sample=90_000, probability=0.95),
+            WordTiming(word="ação", start_sample=90_000, end_sample=134_400, probability=0.95),
+        ],
+    )
+    state = ProjectState(
+        media_info=media,
+        audio_segments=[
+            AudioSegment(
+                clip_id="v1",
+                source_in_sample=0,
+                source_out_sample=144_000,
+                timeline_in_sample=0,
+                timeline_out_sample=144_000,
+            )
+        ],
+    )
+    context = PipelineContext(
+        source=tmp_path / "source.mp4",
+        output=tmp_path / "out",
+        work=tmp_path / "out" / "work",
+        exports=tmp_path / "out" / "exports",
+        media=media,
+        state=state,
+        transcript=[sentence],
+    )
+    monkeypatch.setattr(
+        "videoflow.steps.captions.build_ass_lines",
+        lambda *args, **kwargs: "[Events]\n",
+    )
+    with pytest.raises(EmptyAssEventsError) as info:
+        CaptionsPlanStep().run(context, CaptionsPlanParams(), StepIO())
+    assert info.value.code == "empty_ass_events"

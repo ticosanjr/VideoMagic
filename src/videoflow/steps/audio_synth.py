@@ -23,7 +23,7 @@ from videoflow.steps.registry import register_step
 def _style_audio(context: PipelineContext) -> dict[str, Any]:
     path = context.output / "style" / "style-guide.json"
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return {}
     audio = payload.get("audio") if isinstance(payload, dict) else None
@@ -150,7 +150,7 @@ class SfxSynthStep(BaseStep):
         scenes_path = context.output / "motion" / "render-manifest.json"
         if options.use_scenes:
             try:
-                payload = json.loads(scenes_path.read_text(encoding="utf-8"))
+                payload = json.loads(scenes_path.read_text(encoding="utf-8-sig"))
                 scenes = payload.get("scenes", []) if isinstance(payload, dict) else []
             except (OSError, ValueError):
                 scenes = []
@@ -250,7 +250,7 @@ class AudioMixStep(BaseStep):
             plan_value = context.artifacts.get("audio_music_plan")
             if plan_value:
                 try:
-                    plan = json.loads(Path(plan_value).read_text(encoding="utf-8"))
+                    plan = json.loads(Path(plan_value).read_text(encoding="utf-8-sig"))
                     candidate = (plan.get("files") or {}).get("mix")
                     if candidate:
                         music = Path(str(candidate)).expanduser()
@@ -260,7 +260,7 @@ class AudioMixStep(BaseStep):
         sfx_plan = context.artifacts.get("sfx_cues")
         if sfx_plan:
             try:
-                payload = json.loads(Path(sfx_plan).read_text(encoding="utf-8"))
+                payload = json.loads(Path(sfx_plan).read_text(encoding="utf-8-sig"))
                 cues = payload.get("cues", []) if isinstance(payload, dict) else []
             except (OSError, ValueError):
                 cues = []
@@ -285,7 +285,7 @@ class AudioMixStep(BaseStep):
                 plan_value = context.artifacts.get("audio_music_plan")
                 if plan_value:
                     try:
-                        music_meta = json.loads(Path(plan_value).read_text(encoding="utf-8"))
+                        music_meta = json.loads(Path(plan_value).read_text(encoding="utf-8-sig"))
                     except (OSError, ValueError):
                         music_meta = {}
             looped = (

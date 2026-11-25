@@ -745,7 +745,7 @@ def shift_ass_file(path: Path, offset_sec: float, target: Path | None = None) ->
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(
-        shift_ass_text(source.read_text(encoding="utf-8", errors="replace"), offset_sec),
+        shift_ass_text(source.read_text(encoding="utf-8-sig", errors="replace"), offset_sec),
         encoding="utf-8",
     )
     return destination
@@ -771,7 +771,7 @@ def merge_ass_files(paths: Sequence[Path], target: Path) -> Path:
     seen_styles: set[str] = set()
     seen_events: set[str] = set()
     for path in existing:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        lines = path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
         section = ""
         for line in lines:
             stripped = line.strip()

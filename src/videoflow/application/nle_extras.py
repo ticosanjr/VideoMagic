@@ -67,7 +67,7 @@ def _filters(path: Path) -> tuple[str, ...]:
     if not path.is_file():
         return ()
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return ()
     return tuple(str(item) for item in payload.get("filters", []) if str(item))
@@ -79,7 +79,7 @@ def _broll(output: Path) -> tuple[NleBroll, ...]:
         if not path.is_file():
             continue
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             continue
         plan = payload.get("shorts", payload) if isinstance(payload, dict) else {}
@@ -108,7 +108,7 @@ def _project_overlays(directory: Path) -> tuple[NleBroll, ...]:
     try:
         import json as _json
 
-        payload = _json.loads(path.read_text(encoding="utf-8"))
+        payload = _json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return ()
     media = payload.get("media_info") or {}
@@ -163,7 +163,7 @@ def _timeline_fps(directory: Path) -> float:
     path = Path(directory) / "project_state.json"
     if path.is_file():
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             payload = {}
         media = payload.get("media_info") or {}
@@ -179,7 +179,7 @@ def _duck_ranges(directory: Path) -> tuple[tuple[float, float, float], ...]:
     if not path.is_file():
         return ()
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return ()
     ranges: list[tuple[float, float, float]] = []
@@ -198,7 +198,7 @@ def _music(directory: Path) -> tuple[NleMusic, ...]:
     if not path.is_file():
         return ()
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return ()
     fps = _timeline_fps(directory)
@@ -228,7 +228,7 @@ def _motion(directory: Path) -> tuple[NleBroll, ...]:
     manifest = directory / "motion" / "render-manifest.json"
     if manifest.is_file():
         try:
-            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload = json.loads(manifest.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             payload = {}
         for scene in payload.get("scenes", []) if isinstance(payload, dict) else []:
@@ -249,7 +249,7 @@ def _motion(directory: Path) -> tuple[NleBroll, ...]:
     intro = directory / "motion" / "intro.json"
     if intro.is_file():
         try:
-            payload = json.loads(intro.read_text(encoding="utf-8"))
+            payload = json.loads(intro.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             payload = {}
         path = Path(str(payload.get("path") or "")) if isinstance(payload, dict) else Path()
@@ -284,7 +284,7 @@ def nle_extras_from_output(output: Path) -> NleExtras:
     chapters = directory / "chapters.json"
     if chapters.is_file():
         try:
-            payload = json.loads(chapters.read_text(encoding="utf-8"))
+            payload = json.loads(chapters.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             payload = {}
         for chapter in payload.get("chapters", []):
@@ -306,7 +306,7 @@ def nle_extras_from_output(output: Path) -> NleExtras:
     adjustment_path = directory / "exports" / "adjustment_layers.json"
     if adjustment_path.is_file():
         try:
-            payload = json.loads(adjustment_path.read_text(encoding="utf-8"))
+            payload = json.loads(adjustment_path.read_text(encoding="utf-8-sig"))
             for item in payload.get("layers", []):
                 adjustments.append(
                     NleAdjustment(

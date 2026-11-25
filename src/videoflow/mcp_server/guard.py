@@ -266,15 +266,19 @@ def error_envelope(
             or type(exc).__name__.lower()
         )
         payload["code"] = payload.get("code") or payload["error_code"]
-        payload["message"] = str(payload.get("message") or "").strip() or (
+        raw_message = str(payload.get("message") or "").strip()
+        payload["message"] = raw_message or (
             f"{type(exc).__name__} at {last_frame}"
         )
         payload.setdefault("invalid_keys", [])
         payload.setdefault("did_you_mean", {})
         payload.setdefault("last_frame", last_frame)
         payload.setdefault("stack_tail", stack_tail)
+        if not raw_message and not str(payload.get("stderr_tail") or "").strip():
+            payload["stderr_tail"] = "\n".join(stack_tail)
         return payload
 
+    raw_message = str(exc).strip()
     invalid = _invalid_keys(exc)
     did_you_mean = (
         _suggest(invalid, _parameter_names(func)) if invalid and func else {}
@@ -290,7 +294,7 @@ def error_envelope(
         message = f"command failed with exit code {exc.returncode}"
     else:
         error_code = getattr(exc, "code", None) or type(exc).__name__.lower()
-        message = str(exc).strip() or f"{type(exc).__name__} at {last_frame}"
+        message = raw_message or f"{type(exc).__name__} at {last_frame}"
 
     command, stderr = _command_details(exc)
     payload: dict[str, Any] = {
@@ -306,6 +310,8 @@ def error_envelope(
         "last_frame": last_frame,
         "stack_tail": stack_tail,
     }
+    if not raw_message and not payload["stderr_tail"]:
+        payload["stderr_tail"] = "\n".join(stack_tail)
     if isinstance(exc, ValidationError):
         expected = _expected_fields(func)
         if expected:

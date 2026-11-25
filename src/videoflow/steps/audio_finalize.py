@@ -86,7 +86,7 @@ class AudioFinalizeStep(BaseStep):
             if not payload_path.is_file():
                 continue
             try:
-                payload = json.loads(payload_path.read_text(encoding="utf-8"))
+                payload = json.loads(payload_path.read_text(encoding="utf-8-sig"))
             except (OSError, ValueError):
                 continue
             if not isinstance(payload, dict):

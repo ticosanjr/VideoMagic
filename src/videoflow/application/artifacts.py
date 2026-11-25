@@ -153,7 +153,7 @@ def qa_artifacts(output: Path) -> dict[str, Any]:
         if not path.is_file():
             continue
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             payload = {"error": "unreadable"}
         reports[path.stem] = payload
@@ -172,7 +172,7 @@ def qa_artifacts(output: Path) -> dict[str, Any]:
     if qa_root.is_dir():
         for path in sorted(qa_root.rglob("*.json")):
             try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload = json.loads(path.read_text(encoding="utf-8-sig"))
             except (OSError, ValueError):
                 payload = {"error": "unreadable"}
             reports[path.stem] = payload

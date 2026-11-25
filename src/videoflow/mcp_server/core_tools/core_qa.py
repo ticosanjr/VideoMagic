@@ -66,6 +66,25 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
     ) -> dict[str, Any]:
         """Audit the deliverable MP4 and write a contact sheet."""
 
+        requested = str(mode or "full").strip().lower()
+        if requested in {"skip", "off", "none"}:
+            return {
+                "ok": True,
+                "status": "skipped",
+                "mode": requested,
+                "report": {"ok": True, "skipped": True, "mode": requested},
+            }
+        skip_wer = requested == "preview"
+        if skip_wer:
+            mode = "fast"
+        elif requested in {"fast", "full"}:
+            mode = requested
+        else:
+            return error(
+                "invalid_qa_mode",
+                "mode must be fast, full, preview, skip, or off",
+            )
+
         from videoflow.application.qa_final import audit_final
         from videoflow.application.shorts import short_dimensions
 
@@ -88,7 +107,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                 bundle_frames: int | None = None
                 bundle_path = output / "exports" / "bundle.json"
                 try:
-                    bundle_payload = json.loads(bundle_path.read_text(encoding="utf-8"))
+                    bundle_payload = json.loads(bundle_path.read_text(encoding="utf-8-sig"))
                     bundle_fps = _fps_int(
                         (bundle_payload.get("mp4") or {}).get("fps")
                     )
@@ -107,6 +126,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     expected_frames=bundle_frames,
                     collision_mode=collision_mode,
                     max_wer=max_wer,
+                    skip_wer=skip_wer,
                     compute_policy=compute_policy,
                     allow_slow_cpu_fallback=allow_slow_cpu_fallback,
                 )
@@ -143,6 +163,7 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     height=clip_height,
                     collision_mode=collision_mode,
                     max_wer=max_wer,
+                    skip_wer=skip_wer,
                     compute_policy=compute_policy,
                     allow_slow_cpu_fallback=allow_slow_cpu_fallback,
                 )
