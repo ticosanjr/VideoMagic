@@ -1,5 +1,70 @@
 # Changelog
 
+## [4.9.0] - 2026-11-26
+
+Real-Media Gate: decupagem sem perda de fala, legendas ASS reais, overlays
+visíveis no MP4/FCPXML, áudio na duração da timeline e Windows com visão.
+
+### Fixed — decupagem
+
+- `normalize_transcript` preserva `Sentence.id`, não renumera as sentenças
+  mantidas e nunca mistura uma tomada descartada com a próxima tomada boa.
+- `discard_sentences([0,1])` + `run_full` não apaga mais a fala seguinte.
+- `build_safe_speech_spans` usa `[start_sample, end_sample]` quando a sentença
+  mantida não tem `words`.
+- `decupage_diff.md` é gerado em toda decupagem, listando spans cortados,
+  duração do report/plano e o texto removido.
+
+### Fixed — legendas, UTF-8 e QA
+
+- `captions.ass` e `captions.srt` saem da mesma lista normalizada de cues.
+- Falha com `empty_ass_events` se o `.ass` não tiver `Dialogue:` para as cues.
+- Leituras JSON usam `utf-8-sig`; `.ass`/`.srt`/JSON são escritos em UTF-8
+  explícito, eliminando mojibake e BOM no Windows.
+- `vf_qa` aceita `fast`, `full`, `preview`, `skip` e `off`; `preview` usa
+  `fast` com `skip_wer=True`.
+- Erros MCP vazios agora incluem `last_frame`, `stack_tail` e traceback em
+  `stderr_tail`.
+
+### Fixed — overlays, MP4 e FCPXML
+
+- `apply_beatmap` substitui overlays `beatmap-*`; aplicar 2× não duplica.
+- `OverlayClip`/`BeatmapOverlay` aceitam `motion`, `zoom_from` e `zoom_to`.
+- Overlays de imagem entram no MP4 com `zoompan` suave `1.00 → 1.06` antes das
+  legendas.
+- O reporte do render expõe `encoder="h264_nvenc"` e `device="local_cuda"`
+  quando NVENC é usado.
+- Overlays do projeto são exportados como B-roll no FCPXML, com
+  `broll_clips` correto.
+
+### Fixed — áudio na timeline
+
+- `audio/dialogue_timeline.wav` é reconstruído de `state.audio_segments`; um
+  arquivo bruto de 180 s não é mais reaproveitado.
+- A duração do estágio vem da timeline editada.
+- Música é resolvida por parâmetro explícito → `music_tracks` do beatmap →
+  `audio/music/music-bed.wav`.
+- Beatmap que declara música ausente falha com `AudioFinalizeError`.
+- O mix com música é provado por energia espectral real em 220 Hz.
+
+### Fixed — Windows e MCP
+
+- `assets.screen_capture` delega 100% para o resolvedor compartilhado de
+  Edge/Chrome/Playwright.
+- `vf_style(action="apply")` delega para `style_compiler.apply_style`.
+- `vf_scenes(action="manifest")` roda `analyze` automaticamente quando o cache
+  está ausente (`auto_analyze=True`).
+- `broll.plan_master` aceita assets aprovados com `kind="broll"`.
+- `opencv-python-headless` e `scenedetect` entram nas dependências base e no
+  build Windows/release.
+
+### Validation
+
+- `ruff check src packages scripts tests`: limpo.
+- `pytest -q`: 3160 passed, 1 skipped, 1 xfailed; cobertura 96,72%.
+- `pytest -m media`: 37 passed, 2 skipped.
+- UI: `svelte-check` 0 erros/0 warnings; 55 testes.
+
 ## [4.8.0] - 2026-11-25
 
 Export confiável, áudio realmente mixado, decupagem protegida, Shorts centrados
