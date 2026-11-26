@@ -130,11 +130,10 @@ class AudioFinalizeStep(BaseStep):
         voice: Path
         if explicit is not None and not self._is_final_path(explicit):
             voice = explicit
-        elif dialogue.is_file():
-            voice = dialogue
         elif (
             context.state is not None
             and context.state.audio_segments
+            and context.state.video_segments
             and context.media is not None
         ):
             from videoflow.exporters.mp4 import export_timeline_audio
@@ -144,6 +143,8 @@ class AudioFinalizeStep(BaseStep):
                 dialogue,
                 adapter=io.adapter,
             )
+            voice = dialogue
+        elif dialogue.is_file():
             voice = dialogue
         else:
             candidates = [
@@ -200,7 +201,18 @@ class AudioFinalizeStep(BaseStep):
                     }
                 )
         duration = options.duration_sec
-        if duration <= 0 and media is not None:
+        if duration <= 0 and context.state is not None and context.state.audio_segments:
+            rate = (
+                context.state.media_info.audio_sample_rate
+                if context.state.media_info is not None
+                else (media.audio_sample_rate if media is not None else 48000)
+            )
+            timeline_samples = sum(
+                max(0, segment.timeline_out_sample - segment.timeline_in_sample)
+                for segment in context.state.audio_segments
+            )
+            duration = timeline_samples / max(1, rate)
+        elif duration <= 0 and media is not None:
             rate = media.audio_sample_rate or 48000
             duration = context.duration_samples() / max(1, rate)
         target_lufs = float(options.target_lufs) if options.target_lufs is not None else None

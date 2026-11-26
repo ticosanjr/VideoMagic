@@ -35,7 +35,11 @@ from videoflow.domain.errors import ExportError
 from videoflow.runtime import find_binary
 
 from .exact import pad_to_duration
-from .finalize_events import discover_sfx_events, prepare_sfx_events
+from .finalize_events import (
+    discover_music_track,
+    discover_sfx_events,
+    prepare_sfx_events,
+)
 from .finalize_graph import _build_graph, _sfx_chains
 from .finalize_loudness import correct_loudness
 from .finalize_result import AudioFinalizeError, AudioFinalizeResult
@@ -200,6 +204,8 @@ def finalize_audio(
     temp = target.parent / ".final_mix.tmp.wav"
     music = Path(music_path).expanduser() if music_path else None
     if music is None and include_music:
+        music = discover_music_track(root)
+    if music is None and include_music:
         candidate = root / "audio" / "music" / "music-bed.wav"
         if candidate.is_file():
             music = candidate
@@ -354,6 +360,7 @@ __all__ = [
     "DEFAULT_SFX_GAIN",
     "DEFAULT_TARGET_LUFS",
     "DEFAULT_TRUE_PEAK_DB",
+    "discover_music_track",
     "discover_sfx_events",
     "finalize_audio",
 ]

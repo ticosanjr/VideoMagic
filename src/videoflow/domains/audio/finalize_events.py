@@ -47,6 +47,42 @@ def entry_start_sec(entry: dict[str, Any], *, fps: float) -> float:
         return 0.0
 
 
+def discover_music_track(root: Path | str) -> Path | None:
+    """Read the first ``music_tracks`` path declared by the beat map.
+
+    A declared track that does not exist is an error: silently dropping music
+    is exactly how a 180 s source produced a silent final mix.
+    """
+
+    project = Path(root).expanduser()
+    for relative in ("beat_map.json", "audio/beatmap.json"):
+        payload_path = project / relative
+        if not payload_path.is_file():
+            continue
+        try:
+            payload = json.loads(payload_path.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        tracks = payload.get("music_tracks") or []
+        if not isinstance(tracks, list) or not tracks:
+            continue
+        first = tracks[0]
+        if not isinstance(first, dict):
+            continue
+        raw = str(first.get("path") or "").strip()
+        if not raw:
+            continue
+        music = resolve_project_path(project, raw)
+        if not music.is_file():
+            raise AudioFinalizeError(
+                f"Music track declared in {relative} is missing: {music}"
+            )
+        return music
+    return None
+
+
 def discover_sfx_events(root: Path | str, *, fps: float = 30.0) -> list[dict[str, Any]]:
     """Read SFX cues from ``beat_map.json`` and ``audio/sfx-plan.json``."""
 
@@ -152,6 +188,7 @@ def prepare_sfx_events(
 
 
 __all__ = [
+    "discover_music_track",
     "discover_sfx_events",
     "entry_gain_db",
     "entry_start_sec",
