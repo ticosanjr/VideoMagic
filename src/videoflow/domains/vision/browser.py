@@ -45,7 +45,9 @@ def _windows_candidates() -> list[Path]:
     return candidates
 
 
-def _chrome() -> str:
+def find_browser() -> str | None:
+    """Return a Chrome/Chromium/Edge binary, including standard Windows paths."""
+
     browser = commands.resolve_binary(
         "google-chrome",
         "chromium",
@@ -53,13 +55,19 @@ def _chrome() -> str:
         "chrome",
         env="VF_CHROME_BIN",
     )
-    if browser is None:
-        for candidate in _windows_candidates():
-            try:
-                if candidate.is_file():
-                    return str(candidate)
-            except OSError:
-                continue
+    if browser is not None:
+        return browser
+    for candidate in _windows_candidates():
+        try:
+            if candidate.is_file():
+                return str(candidate)
+        except OSError:
+            continue
+    return None
+
+
+def _chrome() -> str:
+    browser = find_browser()
     if browser is None:
         raise MissingCommandError(
             "Chrome/Chromium is required for html motion graphics",
@@ -68,4 +76,4 @@ def _chrome() -> str:
     return browser
 
 
-__all__ = ["_chrome"]
+__all__ = ["_chrome", "find_browser"]

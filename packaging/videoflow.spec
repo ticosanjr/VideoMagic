@@ -93,7 +93,7 @@ except Exception as exc:
 
 # Optional desktop/vision helpers. They are imported lazily, so PyInstaller
 # needs the package data and submodules explicitly.
-for package in ("PIL", "pystray", "pytesseract", "Xlib", "six", "websocket"):
+for package in ("PIL", "pystray", "pytesseract", "Xlib", "six", "websocket", "cv2", "scenedetect"):
     try:
         package_datas, package_binaries, package_hidden = collect_all(package)
         datas += package_datas
@@ -114,6 +114,9 @@ hiddenimports += [
     "PIL.ImageDraw",
     "videoflow.application.bootstrap_runtime",
     "videoflow.domains.audio.pcm_io",
+    "cv2",
+    "scenedetect",
+    "scenedetect.detectors",
     "Xlib.display",
     "Xlib.threaded",
     "Xlib.XK",
@@ -176,6 +179,8 @@ for distribution in (
     "tokenizers",
     "av",
     "huggingface-hub",
+    "opencv-python-headless",
+    "scenedetect",
 ):
     try:
         datas += copy_metadata(distribution)

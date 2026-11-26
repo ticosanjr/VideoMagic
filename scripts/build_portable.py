@@ -68,6 +68,8 @@ def _preflight_runtime_imports() -> bool:
         "videoflow.application.bootstrap_runtime",
         "videoflow.application.tray",
         "videoflow.domains.audio.pcm_io",
+        "cv2",
+        "scenedetect",
     )
     missing: list[str] = []
     for name in required:

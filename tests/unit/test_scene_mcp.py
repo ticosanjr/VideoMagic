@@ -181,7 +181,9 @@ def test_vf_scenes_analyze_starts_scene_step(tmp_path: Path, monkeypatch) -> Non
 def test_vf_scenes_reports_missing_manifest(tmp_path: Path, monkeypatch) -> None:
     project_id, _output = _build_project(tmp_path, monkeypatch)
     tools, _manager = _tools(monkeypatch)
-    response = tools["vf_scenes"](action="manifest", project_id=project_id)
+    response = tools["vf_scenes"](
+        action="manifest", project_id=project_id, auto_analyze=False
+    )
     assert response["ok"] is False
     assert response["code"] == "scenes_missing"
 
@@ -222,3 +224,26 @@ def test_scene_resources_return_manifest_and_keyframe_metadata(
     )
     assert missing["ok"] is False
     assert missing["code"] == "scene_not_found"
+
+
+def test_vf_scenes_manifest_auto_analyzes_when_cache_is_missing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project_id, _output = _build_project(tmp_path, monkeypatch)
+    tools, manager = _tools(monkeypatch)
+
+    response = tools["vf_scenes"](action="manifest", project_id=project_id)
+
+    assert response["ok"] is True
+    assert response.get("code") != "scenes_missing"
+    options = manager.started["options"]
+    assert options["mode"] == "step"
+    assert options["step_type"] == "scene.analyze"
+
+    disabled = tools["vf_scenes"](
+        action="manifest",
+        project_id=project_id,
+        auto_analyze=False,
+    )
+    assert disabled["ok"] is False
+    assert disabled["code"] == "scenes_missing"

@@ -109,12 +109,12 @@ def test_transformative_guard_renders(monkeypatch, tmp_path: Path) -> None:
 
 def test_screen_capture_errors(monkeypatch, tmp_path: Path) -> None:
     context = _context(tmp_path)
-    monkeypatch.setattr(assets_screen_capture, "_browser", lambda: None)
+    monkeypatch.setattr(assets_screen_capture, "find_browser", lambda: None)
     with pytest.raises(VideoFlowError):
         assets_screen_capture.ScreenCaptureStep().run(
             context, assets_screen_capture.ScreenCaptureParams(urls=["https://x"]), StepIO()
         )
-    monkeypatch.setattr(assets_screen_capture, "_browser", lambda: "/bin/true")
+    monkeypatch.setattr(assets_screen_capture, "find_browser", lambda: "/bin/true")
     assets_screen_capture.ScreenCaptureStep().run(
         context,
         assets_screen_capture.ScreenCaptureParams(

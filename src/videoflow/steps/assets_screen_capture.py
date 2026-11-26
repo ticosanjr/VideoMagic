@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from videoflow.core.context import PipelineContext
 from videoflow.domain.headless import CapturedAsset
+from videoflow.domains.vision.browser import find_browser
 from videoflow.runtime import find_binary
 from videoflow.steps.base import BaseStep, StepIO
 from videoflow.steps.registry import register_step
@@ -27,14 +28,6 @@ class ScreenCaptureParams(BaseModel):
     allowed_hosts: list[str] = Field(default_factory=list)
 
 
-def _browser() -> str | None:
-    for name in ("google-chrome", "chromium", "chromium-browser", "chrome"):
-        binary = find_binary(name)
-        if binary:
-            return binary
-    return None
-
-
 @register_step
 class ScreenCaptureStep(BaseStep):
     type = "assets.screen_capture"
@@ -49,7 +42,7 @@ class ScreenCaptureStep(BaseStep):
 
     def run(self, context: PipelineContext, params: BaseModel, io: StepIO) -> None:
         options = ScreenCaptureParams.model_validate(params)
-        browser = _browser()
+        browser = find_browser()
         if browser is None:
             from videoflow.domain.errors import RecipeError
 

@@ -84,6 +84,14 @@ def register(register: Any, ctx: Any, legacy: dict[str, Any]) -> None:
                     name=name,
                     save=False,
                 )
+            if action == "apply":
+                if not project_id:
+                    return error("project_required", "project_id is required")
+                if not style_id:
+                    return error("style_required", "style_id is required")
+                from videoflow.application.style_compiler import apply_style
+
+                return apply_style(project_id, style_id)
             if action == "preview":
                 from videoflow.application.compositor import style_preview
 

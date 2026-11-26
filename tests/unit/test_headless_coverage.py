@@ -145,7 +145,7 @@ def test_screen_capture_writes_screenshot(tmp_path: Path, monkeypatch) -> None:
         Path(screenshot.split("=", 1)[1]).write_bytes(b"png")
         return Completed()
 
-    monkeypatch.setattr(assets_screen_capture, "_browser", lambda: "/bin/true")
+    monkeypatch.setattr(assets_screen_capture, "find_browser", lambda: "/bin/true")
     monkeypatch.setattr(assets_screen_capture.subprocess, "run", fake_run)
     assets_screen_capture.ScreenCaptureStep().run(
         context,

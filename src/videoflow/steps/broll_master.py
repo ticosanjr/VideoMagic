@@ -114,7 +114,8 @@ class BrollMasterStep(BaseStep):
             assets = [
                 item
                 for item in list_assets(limit=2000)
-                if item.get("kind") in {"video", "image"}
+                if item.get("kind") in {"video", "image", "broll"}
+                and str(item.get("path") or "").strip()
             ]
         documents = [
             f"{item.get('name', '')} {' '.join(item.get('tags', []))}"

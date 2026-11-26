@@ -47,6 +47,7 @@ def register_scene_tools(register: Any, ctx: Any, *, wait_fn: Any) -> None:
         limit: int = 200,
         wait: bool = True,
         timeout_sec: float = 1800.0,
+        auto_analyze: bool = True,
     ) -> dict[str, Any]:
         """Analyze scenes or read the cached manifest, keyframes, and cache state."""
 
@@ -99,6 +100,25 @@ def register_scene_tools(register: Any, ctx: Any, *, wait_fn: Any) -> None:
 
         snapshot = _resolve_snapshot(output, video_id)
         if snapshot is None:
+            if auto_analyze:
+                return vf_scenes(
+                    action="analyze",
+                    project_id=project_id,
+                    video_id=video_id,
+                    video_path=video_path,
+                    decupage_plan_path=decupage_plan_path,
+                    source_topology=source_topology,
+                    threshold=threshold,
+                    min_scene_len_sec=min_scene_len_sec,
+                    keyframe_size=keyframe_size,
+                    compute_policy=compute_policy,
+                    force=force,
+                    offset=offset,
+                    limit=limit,
+                    wait=wait,
+                    timeout_sec=timeout_sec,
+                    auto_analyze=auto_analyze,
+                )
             return error(
                 "scenes_missing",
                 "No scene manifest is cached for this project",

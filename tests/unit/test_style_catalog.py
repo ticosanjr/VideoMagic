@@ -387,3 +387,39 @@ def test_vf_style_list_exposes_all_seed_styles() -> None:
     payload = asyncio.run(call())
     assert payload["ok"] is True
     assert len(payload["styles"]) == 6
+
+
+def test_vf_style_apply_delegates_to_the_compiler(monkeypatch) -> None:
+    import asyncio
+
+    from videoflow.mcp_server.server import build_server
+
+    captured: dict[str, str] = {}
+
+    def fake_apply(project_id: str, style_id: str) -> dict[str, object]:
+        captured["project_id"] = project_id
+        captured["style_id"] = style_id
+        return {"ok": True, "project_id": project_id, "style_id": style_id}
+
+    monkeypatch.setattr(
+        "videoflow.application.style_compiler.apply_style", fake_apply
+    )
+
+    async def call() -> dict:
+        server = build_server(profile="full")
+        result = await server.call_tool(
+            "vf_style",
+            {
+                "action": "apply",
+                "project_id": "project-1",
+                "style_id": "canal-rafael-tech",
+            },
+        )
+        return result.structured_content  # type: ignore[attr-defined]
+
+    payload = asyncio.run(call())
+    assert payload["ok"] is True
+    assert captured == {
+        "project_id": "project-1",
+        "style_id": "canal-rafael-tech",
+    }

@@ -123,3 +123,44 @@ def test_match_without_shots_falls_back_to_the_whole_clip(
     assert entry["shot_id"] == ""
     assert entry["start_sec"] == 0.0
     assert entry["duration_sec"] == 5.0
+
+
+def test_master_plan_accepts_approved_broll_assets_at_zero_score(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from videoflow.steps.broll_master import BrollMasterParams, BrollMasterStep
+
+    monkeypatch.setattr(
+        "videoflow.steps.broll_master.list_assets",
+        lambda limit=2000: [
+            {
+                "id": "b1",
+                "name": "city sunrise",
+                "kind": "broll",
+                "path": "/b1.mp4",
+                "tags": [],
+                "license": "CC0",
+            }
+        ],
+    )
+    ctx = context(tmp_path)
+    ctx.metadata["narrative_beats"] = [
+        {
+            "context_block_id": "block_001",
+            "start_sec": 0.0,
+            "end_sec": 5.0,
+            "text": "cidade ao amanhecer",
+            "extracted_entities": {},
+        }
+    ]
+
+    BrollMasterStep().run(
+        ctx,
+        BrollMasterParams(min_score=0.0, max_per_block=1),
+        StepIO(stage="broll.plan_master"),
+    )
+
+    entries = ctx.metadata["broll_plan"]["block_001"]
+    assert len(entries) == 1
+    assert entries[0]["path"] == "/b1.mp4"
+    assert entries[0]["license"] == "CC0"

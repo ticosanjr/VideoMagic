@@ -149,7 +149,7 @@ def test_intro_artifacts_and_screen_failure(tmp_path: Path, monkeypatch) -> None
         returncode = 1
         stderr = "fail"
 
-    monkeypatch.setattr(assets_screen_capture, "_browser", lambda: "/bin/true")
+    monkeypatch.setattr(assets_screen_capture, "find_browser", lambda: "/bin/true")
     monkeypatch.setattr(assets_screen_capture.subprocess, "run", lambda *a, **k: Completed())
     assets_screen_capture.ScreenCaptureStep().run(
         context,
@@ -271,8 +271,11 @@ def test_nle_helpers_and_corrupt(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_screen_capture_browser_lookup(monkeypatch) -> None:
-    monkeypatch.setattr(assets_screen_capture, "find_binary", lambda name: None)
-    assert assets_screen_capture._browser() is None
+    from videoflow.domains.vision import browser
+
+    monkeypatch.setattr(browser.commands, "resolve_binary", lambda *a, **k: None)
+    monkeypatch.setattr(browser, "_windows_candidates", lambda: [])
+    assert assets_screen_capture.find_browser() is None
 
 
 def test_render_gate_reset(tmp_path: Path) -> None:
